@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Full Buffer-grade Meta Scopes list matching Buffer's official Meta Login consent screen:
- * - Profile & Identity: public_profile, email
- * - Facebook Pages: pages_show_list, pages_read_engagement, pages_manage_posts, pages_manage_engagement, pages_manage_metadata, pages_read_user_content, read_insights
- * - Instagram: instagram_basic, instagram_content_publish, instagram_manage_comments, instagram_manage_insights
- * - Business: business_management
+ * Verified Meta Scopes for Facebook Pages & Instagram publishing:
+ * - public_profile: Basic profile verification
+ * - pages_show_list: Discovers all Facebook Pages managed by user
+ * - pages_read_engagement: Reads page status, posts, and verification
+ * - pages_manage_posts: Publishes content, reels, and photos to Facebook Pages
+ * - instagram_basic: Discovers connected Instagram Business accounts
+ * - instagram_content_publish: Publishes posts, reels, and carousels to Instagram
+ *
+ * Excluded to prevent "Invalid Scopes" error on Meta Business apps:
+ * - email (prohibited on Meta Business Login)
+ * - pages_manage_engagement, pages_manage_metadata, pages_read_user_content, read_insights, instagram_manage_insights
  */
-const BUFFER_FULL_SCOPES = [
+const VERIFIED_PUBLISHING_SCOPES = [
   'public_profile',
-  'email',
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
-  'pages_manage_engagement',
-  'pages_manage_metadata',
-  'pages_read_user_content',
-  'read_insights',
   'instagram_basic',
   'instagram_content_publish',
-  'instagram_manage_comments',
-  'instagram_manage_insights',
-  'business_management',
 ];
 
 const CORE_PAGE_SCOPES = [
@@ -49,14 +47,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Determine scopes: custom env override, or buffer-full (default), or core fallback
+  // Determine scopes: custom env override, or verified publishing scopes (default), or core fallback
   let selectedScopes: string[];
   if (process.env.FACEBOOK_SCOPES) {
     selectedScopes = process.env.FACEBOOK_SCOPES.split(',').map((s) => s.trim());
   } else if (requestedMode === 'core') {
     selectedScopes = CORE_PAGE_SCOPES;
   } else {
-    selectedScopes = BUFFER_FULL_SCOPES;
+    selectedScopes = VERIFIED_PUBLISHING_SCOPES;
   }
 
   const scopes = selectedScopes.join(',');

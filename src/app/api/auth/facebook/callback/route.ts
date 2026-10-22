@@ -50,8 +50,14 @@ export async function GET(req: NextRequest) {
   if (error || !code) {
     // If the error was specifically invalid_scope (meaning Meta app hasn't enabled all permissions yet in Developer portal)
     if (error === 'invalid_scope' || errorDescription?.includes('Invalid Scopes')) {
+      if (scopeMode !== 'core') {
+        const fallbackUrl = new URL('/api/auth/facebook', baseUrl);
+        fallbackUrl.searchParams.set('scope_mode', 'core');
+        if (workspaceId) fallbackUrl.searchParams.set('workspace_id', workspaceId);
+        return NextResponse.redirect(fallbackUrl.toString());
+      }
       return makeRedirect({
-        error: `Meta Scope Notice: ${errorDescription || 'Some requested permissions are not yet added to your Meta Developer App.'} You can add them under App Review > Permissions, or connect with core publishing permissions.`,
+        error: `Meta Scope Notice: ${errorDescription || 'Some requested permissions are not yet added to your Meta Developer App.'}`,
         scope_retry_available: 'true',
       });
     }
