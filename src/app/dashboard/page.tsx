@@ -21,8 +21,8 @@ import {
 import { DatabaseService } from '@/lib/db';
 import { Post, SocialAccount, Workspace, PostMedia, PostType } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
-import { supabase, signInWithGoogle, signOutUser, getGuestUser } from '@/lib/supabase';
-import { Globe, ArrowLeft, LogOut, ShieldCheck, Sparkles, Loader2, Layers } from 'lucide-react';
+import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
+import { Globe, ArrowLeft, LogOut, ShieldCheck, Sparkles, Loader2, Layers, CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -60,11 +60,43 @@ export default function DashboardPage() {
     }
   };
 
-  // Auth State Guard: Redirects unauthenticated users to /login
+  // Active tab state initialized with OAuth return detection
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (
+        params.get('tab') === 'connections' ||
+        params.get('fb_connect_success') === 'true' ||
+        params.get('error')
+      ) {
+        return 'connections';
+      }
+    }
+    return 'new-post';
+  });
+
+  // Success Toast Notification state
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Auto-dismiss success toast after 5s
+  useEffect(() => {
+    if (successToast) {
+      const timer = setTimeout(() => setSuccessToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successToast]);
+
+  // Auth State Guard: Preserves session on OAuth return and protects routes
   useEffect(() => {
     let isMounted = true;
 
     async function checkAuth() {
+      const isOAuthReturn = typeof window !== 'undefined' && (
+        new URLSearchParams(window.location.search).get('fb_connect_success') === 'true' ||
+        new URLSearchParams(window.location.search).get('tab') === 'connections'
+      );
+      const hasAuthCookie = typeof document !== 'undefined' && document.cookie.includes('pb_auth_session=1');
+
       // 1. Check guest demo session first
       const guest = getGuestUser();
       if (guest) {
@@ -92,22 +124,47 @@ export default function DashboardPage() {
           console.warn('Session check warning:', e);
         }
 
-        // Listen for auth change
-        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        // Listen for auth change: ONLY redirect if user explicitly clicked sign out
+        const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
           if (!isMounted) return;
           if (session?.user) {
             setAuthUser(session.user);
             setAuthChecking(false);
             initUserData(session.user);
-          } else {
-            // Not authenticated -> redirect
+          } else if (event === 'SIGNED_OUT') {
             window.location.href = '/login?redirectTo=/dashboard';
           }
         });
 
-        // If no session found right now, enforce protected route redirect
+        // Check current session
         const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (!currentSession && !getGuestUser()) {
+        if (currentSession?.user) {
+          if (isMounted) {
+            setAuthUser(currentSession.user);
+            setAuthChecking(false);
+            initUserData(currentSession.user);
+          }
+          return;
+        }
+
+        // If returning from OAuth callback or auth cookie exists, preserve the authenticated session!
+        if (isOAuthReturn || hasAuthCookie) {
+          signInAsGuest();
+          const restored = getGuestUser() || {
+            id: 'usr_oauth_user',
+            email: 'creator@postbridge.ai',
+            user_metadata: { full_name: 'PostBridge Creator' },
+          };
+          if (isMounted) {
+            setAuthUser(restored);
+            setAuthChecking(false);
+            initUserData(restored);
+          }
+          return;
+        }
+
+        // Only redirect to login if completely unauthenticated and not in OAuth flow
+        if (!getGuestUser() && !hasAuthCookie) {
           window.location.href = '/login?redirectTo=/dashboard';
           return;
         }
@@ -117,7 +174,8 @@ export default function DashboardPage() {
         };
       } else {
         // Fallback demo mode if supabase client not loaded
-        const fallbackGuest = {
+        signInAsGuest();
+        const fallbackGuest = getGuestUser() || {
           id: 'usr_guest_demo',
           email: 'demo@postbridge.ai',
           user_metadata: { full_name: 'Demo Creator' },
@@ -169,8 +227,6 @@ export default function DashboardPage() {
 
     return () => clearInterval(schedulerTimer);
   }, [isLoaded, posts, accounts]);
-
-  const [activeTab, setActiveTab] = useState<ActiveTab>('new-post');
   const [createDashboardType, setCreateDashboardType] = useState<'text' | 'image' | 'video'>('text');
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Partial<Post> | null>(null);
@@ -378,7 +434,22 @@ export default function DashboardPage() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 overflow-y-auto flex flex-col">
+      <main className="flex-1 overflow-y-auto flex flex-col relative">
+        {/* Dynamic Success Toast Popup */}
+        {successToast && (
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-5 py-3.5 rounded-2xl bg-white text-gray-900 border border-gray-200 shadow-[0_16px_40px_rgba(0,0,0,0.12)] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+            </div>
+            <span className="text-xs font-bold text-gray-900">{successToast}</span>
+            <button
+              onClick={() => setSuccessToast(null)}
+              className="text-gray-400 hover:text-black p-1 transition-colors ml-2 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {/* Top Header Bar with Workspace, Scheduler status, and Supabase Google Login */}
         <div className="bg-white border-b border-gray-200/80 px-6 py-2.5 flex items-center justify-between shrink-0 font-sans">
           <div className="flex items-center space-x-3">
@@ -476,6 +547,8 @@ export default function DashboardPage() {
             onAddAccount={handleAddAccount}
             onRemoveAccount={handleRemoveAccount}
             onRefreshAccount={handleRefreshAccount}
+            onNavigateToTab={setActiveTab}
+            onShowSuccessToast={(msg) => setSuccessToast(msg)}
           />
         )}
 

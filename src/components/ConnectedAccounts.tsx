@@ -27,6 +27,8 @@ interface ConnectedAccountsProps {
   onAddAccount: (account: SocialAccount) => void;
   onRemoveAccount: (id: string) => void;
   onRefreshAccount: (id: string) => void;
+  onNavigateToTab?: (tab: any) => void;
+  onShowSuccessToast?: (message: string) => void;
 }
 
 interface DetectedPage {
@@ -43,6 +45,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   onAddAccount,
   onRemoveAccount,
   onRefreshAccount,
+  onNavigateToTab,
+  onShowSuccessToast,
 }) => {
   // Modal state
   const [connectingPlatform, setConnectingPlatform] = useState<SocialPlatform | null>(null);
@@ -213,8 +217,34 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     });
 
     setConnectingPlatform(null);
-    setToastMessage(`Successful! Connected ${selected.length} social ${selected.length === 1 ? 'account' : 'accounts'}.`);
-    setTimeout(() => setToastMessage(null), 4500);
+    setDiscoveredPages([]);
+    setSelectedPageIds([]);
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/dashboard');
+    }
+
+    let dynamicMessage = 'Your account has been successfully connected!';
+    const hasFb = selected.some((p) => p.platform !== 'instagram');
+    const hasIg = selected.some((p) => p.platform === 'instagram');
+    if (hasFb && hasIg) {
+      dynamicMessage = 'Your Facebook and Instagram accounts have been successfully connected!';
+    } else if (hasIg) {
+      dynamicMessage = 'Your Instagram account has been successfully connected!';
+    } else if (hasFb) {
+      dynamicMessage = 'Your Facebook account has been successfully connected!';
+    }
+
+    setToastMessage(dynamicMessage);
+    setTimeout(() => setToastMessage(null), 5000);
+
+    if (onShowSuccessToast) {
+      onShowSuccessToast(dynamicMessage);
+    }
+
+    if (onNavigateToTab) {
+      onNavigateToTab('new-post');
+    }
   };
 
   const handleConnectOtherPlatform = () => {
@@ -235,10 +265,23 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       followersCount: 0,
     };
 
+    const platformName = PLATFORM_CONFIGS[connectingPlatform]?.name || connectingPlatform;
     onAddAccount(newAcc);
     setConnectingPlatform(null);
-    setToastMessage(`Successful! Connected ${PLATFORM_CONFIGS[connectingPlatform].name} account.`);
-    setTimeout(() => setToastMessage(null), 3500);
+    setGenericHandle('');
+    setGenericToken('');
+
+    const dynamicMessage = `Your ${platformName} account has been successfully connected!`;
+    setToastMessage(dynamicMessage);
+    setTimeout(() => setToastMessage(null), 5000);
+
+    if (onShowSuccessToast) {
+      onShowSuccessToast(dynamicMessage);
+    }
+
+    if (onNavigateToTab) {
+      onNavigateToTab('new-post');
+    }
   };
 
   const handleBatchRefresh = (platform: SocialPlatform) => {
@@ -728,9 +771,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       <button
                         onClick={handleFinishConnection}
                         disabled={selectedPageIds.length === 0}
-                        className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#86efac] hover:bg-[#6ee7b7] text-[#052e16] transition-colors shadow-xs disabled:opacity-50 font-bold cursor-pointer"
+                        className="px-7 py-2.5 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                       >
-                        Finish Connection
+                        Save
                       </button>
                     </div>
                   </div>
@@ -779,9 +822,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   <button
                     onClick={handleConnectOtherPlatform}
                     disabled={!genericHandle.trim()}
-                    className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-gray-950 font-bold transition-colors disabled:opacity-50"
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
                   >
-                    Connect Account
+                    Save
                   </button>
                 </div>
               </div>
