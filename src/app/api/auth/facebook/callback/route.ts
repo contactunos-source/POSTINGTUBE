@@ -46,24 +46,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(target.toString());
   };
 
-  // If Meta reported an authorization error
+  // If Meta reported an authorization error or user cancelled
   if (error || !code) {
-    // If the error was specifically invalid_scope (meaning Meta app hasn't enabled all permissions yet in Developer portal)
-    if (error === 'invalid_scope' || errorDescription?.includes('Invalid Scopes')) {
-      if (scopeMode !== 'core') {
-        const fallbackUrl = new URL('/api/auth/facebook', baseUrl);
-        fallbackUrl.searchParams.set('scope_mode', 'core');
-        if (workspaceId) fallbackUrl.searchParams.set('workspace_id', workspaceId);
-        return NextResponse.redirect(fallbackUrl.toString());
-      }
+    if (error === 'access_denied') {
       return makeRedirect({
-        error: `Meta Scope Notice: ${errorDescription || 'Some requested permissions are not yet added to your Meta Developer App.'}`,
-        scope_retry_available: 'true',
+        notice: 'Facebook authorization was cancelled by user.',
       });
     }
 
+    // If the error was specifically invalid_scope, automatically retry with core Facebook scopes
+    if (error === 'invalid_scope' || errorDescription?.includes('Invalid Scopes')) {
+      const fallbackUrl = new URL('/api/auth/facebook', baseUrl);
+      fallbackUrl.searchParams.set('scope_mode', 'core');
+      if (workspaceId) fallbackUrl.searchParams.set('workspace_id', workspaceId);
+      return NextResponse.redirect(fallbackUrl.toString());
+    }
+
     return makeRedirect({
-      error: errorDescription || error || 'Facebook authorization was cancelled.',
+      error: errorDescription || error || 'Facebook authorization could not be completed.',
     });
   }
 

@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Verified Meta Scopes for Facebook Pages & Instagram publishing:
- * - public_profile: Basic profile verification
- * - pages_show_list: Discovers all Facebook Pages managed by user
- * - pages_read_engagement: Reads page status, posts, and verification
- * - pages_manage_posts: Publishes content, reels, and photos to Facebook Pages
- * - instagram_basic: Discovers connected Instagram Business accounts
- * - instagram_content_publish: Publishes posts, reels, and carousels to Instagram
- *
- * Excluded to prevent "Invalid Scopes" error on Meta Business apps:
- * - email (prohibited on Meta Business Login)
- * - pages_manage_engagement, pages_manage_metadata, pages_read_user_content, read_insights, instagram_manage_insights
+ * Official Meta OAuth Scopes for Facebook Pages & Publishing:
+ * - public_profile: Basic profile identity
+ * - pages_show_list: Discovers all Facebook Pages the user manages
+ * - pages_read_engagement: Reads Page engagement, published status, and verification
+ * - pages_manage_posts: Creates, manages, and publishes content, reels, and photos
  */
-const VERIFIED_PUBLISHING_SCOPES = [
+const DEFAULT_FACEBOOK_SCOPES = [
+  'public_profile',
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+];
+
+const INSTAGRAM_SCOPES = [
   'public_profile',
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
   'instagram_basic',
   'instagram_content_publish',
-];
-
-const CORE_PAGE_SCOPES = [
-  'public_profile',
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_posts',
 ];
 
 export async function GET(req: NextRequest) {
@@ -37,39 +31,42 @@ export async function GET(req: NextRequest) {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
-  const requestedMode = req.nextUrl.searchParams.get('scope_mode');
+  const requestedPlatform = req.nextUrl.searchParams.get('platform');
+  const scopeMode = req.nextUrl.searchParams.get('scope_mode');
 
   if (!appId) {
     return NextResponse.redirect(
       `${baseUrl}/dashboard?tab=connections&error=${encodeURIComponent(
-        'Please configure FACEBOOK_APP_ID in .env.local to enable Facebook Login.'
+        'Please configure FACEBOOK_APP_ID in your environment variables to enable Facebook Login.'
       )}`
     );
   }
 
-  // Determine scopes: custom env override, or verified publishing scopes (default), or core fallback
+  // Determine requested scopes:
   let selectedScopes: string[];
   if (process.env.FACEBOOK_SCOPES) {
     selectedScopes = process.env.FACEBOOK_SCOPES.split(',').map((s) => s.trim());
-  } else if (requestedMode === 'core') {
-    selectedScopes = CORE_PAGE_SCOPES;
+  } else if (requestedPlatform === 'instagram' && scopeMode !== 'core') {
+    selectedScopes = INSTAGRAM_SCOPES;
   } else {
-    selectedScopes = VERIFIED_PUBLISHING_SCOPES;
+    selectedScopes = DEFAULT_FACEBOOK_SCOPES;
   }
 
   const scopes = selectedScopes.join(',');
 
   const stateObj = {
     workspaceId,
-    scopeMode: requestedMode || 'full',
+    platform: requestedPlatform || 'facebook',
   };
   const state = encodeURIComponent(JSON.stringify(stateObj));
 
+  // Notice: auth_type=rerequest forces Meta to always display the complete permissions review dialog
+  // instead of silently skipping it or failing when reviewing permissions
   const fbAuthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${encodeURIComponent(
     appId
   )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
     scopes
-  )}&state=${state}&response_type=code`;
+  )}&state=${state}&response_type=code&auth_type=rerequest`;
 
   return NextResponse.redirect(fbAuthUrl);
 }

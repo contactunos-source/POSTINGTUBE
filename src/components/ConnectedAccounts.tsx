@@ -107,10 +107,15 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const discoveredJson = urlParams.get('discovered_pages');
       const authError = urlParams.get('error');
 
+      const authNotice = urlParams.get('notice');
+
       if (authError) {
         setVerifyError(decodeURIComponent(authError));
         setConnectingPlatform('facebook');
         setFbStep('select_type');
+      } else if (authNotice) {
+        setToastMessage(decodeURIComponent(authNotice));
+        setTimeout(() => setToastMessage(null), 4500);
       } else if (isFbSuccess && discoveredJson) {
         try {
           const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
@@ -125,7 +130,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         }
       }
 
-      if (authError || (isFbSuccess && discoveredJson)) {
+      if (authError || authNotice || (isFbSuccess && discoveredJson)) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -794,6 +799,24 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 {verifyError && (
                   <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
                     {verifyError}
+                  </div>
+                )}
+
+                {connectingPlatform === 'instagram' && (
+                  <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 text-center space-y-2">
+                    <div className="text-xs font-semibold text-white">Recommended: Connect via Official Meta Login</div>
+                    <p className="text-[11px] text-gray-400">Directly link your verified Instagram accounts with automatic token refreshes.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&platform=instagram`;
+                      }}
+                      className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#E4405F] hover:bg-[#d63350] text-white flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
+                    >
+                      <PlatformLogo platform="instagram" className="w-3.5 h-3.5" />
+                      <span>Authorize via Meta</span>
+                    </button>
+                    <div className="text-[10px] text-gray-500 pt-1">or enter username below for preview mode:</div>
                   </div>
                 )}
 
