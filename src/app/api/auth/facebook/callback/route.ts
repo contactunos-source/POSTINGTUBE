@@ -23,11 +23,13 @@ export async function GET(req: NextRequest) {
   const appSecret = process.env.FACEBOOK_APP_SECRET;
 
   let workspaceId = '';
+  let requestedPlatform = 'facebook';
   let scopeMode = 'full';
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      requestedPlatform = parsed.platform || 'facebook';
       scopeMode = parsed.scopeMode || 'full';
     } catch {
       workspaceId = stateRaw;
@@ -40,6 +42,9 @@ export async function GET(req: NextRequest) {
     if (workspaceId) {
       target.searchParams.set('workspace_id', workspaceId);
     }
+    if (requestedPlatform) {
+      target.searchParams.set('platform', requestedPlatform);
+    }
     for (const [k, v] of Object.entries(params)) {
       target.searchParams.set(k, v);
     }
@@ -50,7 +55,7 @@ export async function GET(req: NextRequest) {
   if (error || !code) {
     if (error === 'access_denied') {
       return makeRedirect({
-        notice: 'Facebook authorization was cancelled by user.',
+        notice: `${requestedPlatform === 'instagram' ? 'Instagram' : 'Facebook'} authorization was cancelled by user.`,
       });
     }
 
@@ -58,12 +63,13 @@ export async function GET(req: NextRequest) {
     if (error === 'invalid_scope' || errorDescription?.includes('Invalid Scopes')) {
       const fallbackUrl = new URL('/api/auth/facebook', baseUrl);
       fallbackUrl.searchParams.set('scope_mode', 'core');
+      if (requestedPlatform) fallbackUrl.searchParams.set('platform', requestedPlatform);
       if (workspaceId) fallbackUrl.searchParams.set('workspace_id', workspaceId);
       return NextResponse.redirect(fallbackUrl.toString());
     }
 
     return makeRedirect({
-      error: errorDescription || error || 'Facebook authorization could not be completed.',
+      error: errorDescription || error || `${requestedPlatform === 'instagram' ? 'Instagram' : 'Facebook'} authorization could not be completed.`,
     });
   }
 
@@ -135,13 +141,33 @@ export async function GET(req: NextRequest) {
 
           // If this page has a connected Instagram Business account (Buffer style)
           if (p.instagram_business_account?.id) {
+            const igId = p.instagram_business_account.id;
+            let igUsername = p.instagram_business_account.username || '';
+            let igAvatar = p.instagram_business_account.profile_picture_url || '';
+
+            // If username or avatar is missing from the parent response, fetch directly from IG node
+            if (!igUsername || !igAvatar) {
+              try {
+                const igRes = await fetch(
+                  `https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
+                    p.access_token || userToken
+                  )}`
+                );
+                const igData = await igRes.json();
+                if (igData.username) igUsername = igData.username;
+                if (igData.profile_picture_url) igAvatar = igData.profile_picture_url;
+              } catch (e) {
+                console.warn('Error fetching Instagram node details:', e);
+              }
+            }
+
             detectedChannels.push({
-              id: p.instagram_business_account.id,
-              name: p.instagram_business_account.username || p.instagram_business_account.name || `${p.name} (Instagram)`,
-              avatarUrl: p.instagram_business_account.profile_picture_url || p.picture?.data?.url || '',
+              id: igId,
+              name: igUsername ? `@${igUsername}` : (p.instagram_business_account.name || `${p.name} (Instagram)`),
+              avatarUrl: igAvatar || p.picture?.data?.url || '',
               accessToken: p.access_token || userToken,
               platform: 'instagram',
-              instagramId: p.instagram_business_account.id,
+              instagramId: igId,
             });
           }
         }
@@ -194,9 +220,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // If user requested Instagram, sort channels so Instagram appears first
+    if (requestedPlatform === 'instagram') {
+      detectedChannels.sort((a, b) => (b.platform === 'instagram' ? 1 : 0) - (a.platform === 'instagram' ? 1 : 0));
+    }
+
     // Redirect to Connections tab with discovered accounts list
     return makeRedirect({
       fb_connect_success: 'true',
+      platform: requestedPlatform,
       discovered_pages: JSON.stringify(detectedChannels),
     });
   } catch (err: unknown) {

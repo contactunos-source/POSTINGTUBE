@@ -98,11 +98,48 @@ export const instagramAdapter: PlatformAdapter = {
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
-    await wait(800);
     const text = override?.caption || post.content;
     const isReel = post.postType === 'reel';
+    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+
+    // Real API call via Meta Graph API if access token is configured
+    if (account.accessToken && mediaUrl) {
+      try {
+        const response = await fetch('/api/instagram/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            igUserId: account.externalId || account.pageId || account.id.replace(/^ig_/, ''),
+            accessToken: account.accessToken,
+            caption: text,
+            mediaUrl,
+            postType: post.postType,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          return {
+            success: true,
+            externalPostId: data.postId,
+            externalPostUrl: data.postUrl,
+            details: data.details,
+          };
+        } else {
+          return {
+            success: false,
+            errorMessage: `Instagram API Error: ${data.error || 'Failed to publish to Instagram'}`,
+          };
+        }
+      } catch (e: unknown) {
+        const err = e instanceof Error ? e.message : 'Network error communicating with Instagram API';
+        return { success: false, errorMessage: err };
+      }
+    }
+
+    // Default simulation fallback
+    await wait(800);
     const simulatedMediaId = `ig_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
-    const handle = account.username.replace('@', '');
 
     return {
       success: true,
