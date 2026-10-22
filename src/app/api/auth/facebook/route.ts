@@ -32,8 +32,11 @@ const CORE_PAGE_SCOPES = [
 ];
 
 export async function GET(req: NextRequest) {
-  const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+  const baseUrl =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const requestedMode = req.nextUrl.searchParams.get('scope_mode');

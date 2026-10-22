@@ -57,7 +57,10 @@ export async function GET(req: NextRequest) {
           if (account.platform === 'facebook' && account.access_token) {
             try {
               const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
-              const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+              const appUrl =
+                process.env.APP_URL ||
+                process.env.NEXT_PUBLIC_APP_URL ||
+                (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
               const publishRes = await fetch(`${appUrl}/api/facebook/publish`, {
                 method: 'POST',
