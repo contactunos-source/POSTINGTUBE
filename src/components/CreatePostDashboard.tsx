@@ -12,6 +12,7 @@ import {
 import { PlatformLogo } from './SocialIcons';
 import { ScheduleDatePicker } from './ScheduleDatePicker';
 import { ConnectedAccountSelector } from './ConnectedAccountSelector';
+import { PostPreview } from './PostPreview';
 import {
   Calendar,
   Clock,
@@ -48,6 +49,10 @@ import {
   Flame,
   Copy,
   AlertTriangle,
+  RotateCcw,
+  Shield,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe } from '@/lib/dateUtils';
@@ -199,6 +204,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // Aspect ratio crop simulator (original, 1:1, 4:5, 9:16, 16:9)
   const [aspectRatio, setAspectRatio] = useState<'original' | '1:1' | '4:5' | '9:16' | '16:9'>('original');
+  const [mediaFitMode, setMediaFitMode] = useState<'contain' | 'cover'>('contain');
+  const [showSafeAreaGuide, setShowSafeAreaGuide] = useState<boolean>(false);
+
+  // Active Platform for Live Feed Preview
+  const [activePreviewPlatform, setActivePreviewPlatform] = useState<SocialPlatform>('instagram');
 
   // Scheduling states (Mode: 'schedule' vs 'instant')
   const [scheduleMode, setScheduleMode] = useState<'schedule' | 'instant'>('schedule');
@@ -265,6 +275,42 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       avatarUrl: '',
     };
   }, [accounts, selectedAccountIds]);
+
+  // Keep activePreviewPlatform synced with selectedPlatforms
+  useEffect(() => {
+    if (selectedPlatforms.length > 0 && !selectedPlatforms.includes(activePreviewPlatform)) {
+      setActivePreviewPlatform(selectedPlatforms[0]);
+    }
+  }, [selectedPlatforms, activePreviewPlatform]);
+
+  const previewAccount = useMemo(() => {
+    return (
+      accounts.find((a) => selectedAccountIds.includes(a.id) && a.platform === activePreviewPlatform) ||
+      accounts.find((a) => a.platform === activePreviewPlatform) ||
+      activeAccount
+    );
+  }, [accounts, selectedAccountIds, activePreviewPlatform, activeAccount]);
+
+  const previewPostData: Partial<Post> = useMemo(() => {
+    const overrides: Record<string, PlatformCaptionOverride> = {};
+    Object.entries(platformCaptions).forEach(([plat, cap]) => {
+      overrides[plat] = {
+        caption: cap.caption,
+        title: cap.title,
+        firstComment: firstComment,
+        isAiGenerated: isAiGenerated,
+      };
+    });
+
+    return {
+      content: mainCaption,
+      media: mediaList,
+      platformOverrides: overrides,
+      firstComment: firstComment,
+      isAiGenerated: isAiGenerated,
+      postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
+    };
+  }, [mainCaption, mediaList, platformCaptions, firstComment, isAiGenerated]);
 
   // Circular Platform Selection Handler
   const handleTogglePlatform = (platformId: SocialPlatform) => {
@@ -495,19 +541,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
+
+
   // Helper for aspect ratio container styles
   const getAspectRatioClass = () => {
     switch (aspectRatio) {
       case '1:1':
-        return 'aspect-square max-w-md mx-auto';
+        return 'aspect-square max-w-[380px] w-full mx-auto';
       case '4:5':
-        return 'aspect-[4/5] max-w-sm mx-auto';
+        return 'aspect-[4/5] max-w-[340px] w-full mx-auto';
       case '9:16':
-        return 'aspect-[9/16] max-w-xs mx-auto';
+        return 'aspect-[9/16] max-w-[280px] w-full mx-auto';
       case '16:9':
-        return 'aspect-video w-full';
+        return 'aspect-video max-w-xl w-full mx-auto';
+      case 'original':
       default:
-        return 'aspect-video w-full';
+        return 'max-h-[460px] w-auto max-w-full mx-auto';
     }
   };
 
@@ -660,52 +709,141 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         </span>
                       </div>
 
-                      {/* Aspect Ratio Resizer Selector */}
-                      <div className="flex items-center space-x-1 bg-gray-50 border border-gray-200 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
-                        <Crop className="w-3 h-3 text-gray-400 ml-1.5" />
-                        {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((ratio) => (
+                      {/* Canvas Controls: Aspect Ratio + Framing Fit + Safe Area */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Aspect Ratio Selector */}
+                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
+                          <Crop className="w-3 h-3 text-gray-400 ml-1.5" />
+                          {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((ratio) => (
+                            <button
+                              key={ratio}
+                              type="button"
+                              onClick={() => setAspectRatio(ratio)}
+                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                                aspectRatio === ratio
+                                  ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                                  : 'hover:text-gray-900'
+                              }`}
+                            >
+                              {ratio === 'original' ? 'Original' : ratio}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Framing Mode: Fit vs Fill */}
+                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
                           <button
-                            key={ratio}
                             type="button"
-                            onClick={() => setAspectRatio(ratio)}
-                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                              aspectRatio === ratio
+                            onClick={() => setMediaFitMode('contain')}
+                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
+                              mediaFitMode === 'contain'
                                 ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                                 : 'hover:text-gray-900'
                             }`}
+                            title="Contain: Shows complete media without cropping (letterboxed if needed)"
                           >
-                            {ratio}
+                            <Minimize2 className="w-2.5 h-2.5" />
+                            <span>Fit</span>
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => setMediaFitMode('cover')}
+                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
+                              mediaFitMode === 'cover'
+                                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                                : 'hover:text-gray-900'
+                            }`}
+                            title="Cover: Fills frame to edges"
+                          >
+                            <Maximize2 className="w-2.5 h-2.5" />
+                            <span>Fill</span>
+                          </button>
+                        </div>
+
+                        {/* Safe Area Guide Toggle for 9:16 / Reels / Shorts */}
+                        {(aspectRatio === '9:16' || mediaList[0].type === 'video') && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSafeAreaGuide(!showSafeAreaGuide)}
+                            className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors flex items-center space-x-1 cursor-pointer ${
+                              showSafeAreaGuide
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                            title="Toggle safe zones overlay to verify UI elements won't block video content"
+                          >
+                            <Shield className="w-3 h-3 text-emerald-600" />
+                            <span>Safe Areas</span>
+                          </button>
+                        )}
+
+                        {/* Reset to Original */}
+                        {(aspectRatio !== 'original' || mediaFitMode !== 'contain') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAspectRatio('original');
+                              setMediaFitMode('contain');
+                            }}
+                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                            title="Reset framing to original"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* Preview Box */}
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-950 flex items-center justify-center group shadow-xs">
+                    {/* Canvas Preview Box */}
+                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-[#0b0c10] flex items-center justify-center p-3 group shadow-inner min-h-[300px]">
                       <div
-                        className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center`}
+                        className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-black/40 rounded-xl`}
                       >
                         {mediaList[0].type === 'video' ? (
                           <video
                             src={mediaList[0].url}
                             controls
-                            className="w-full h-full object-contain"
+                            className={`w-full h-full ${
+                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                            }`}
                           />
                         ) : (
                           <img
                             src={mediaList[0].thumbnailUrl || mediaList[0].url}
                             alt="Media Preview"
-                            className="w-full h-full object-cover"
+                            className={`w-full h-full ${
+                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                            }`}
                           />
+                        )}
+
+                        {/* Safe Area Guides Overlay */}
+                        {showSafeAreaGuide && (
+                          <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-2">
+                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
+                              Top Safe Zone (Header, Audio, Search)
+                            </div>
+                            <div className="flex justify-between items-center px-1">
+                              <span className="text-[9px] text-white/70 bg-black/60 px-2 py-0.5 rounded font-mono">
+                                Focal Content Safe Area
+                              </span>
+                              <div className="border border-dashed border-amber-400/90 bg-amber-500/15 rounded p-1 text-[8px] font-bold text-amber-300 text-center">
+                                Action Buttons
+                              </div>
+                            </div>
+                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
+                              Bottom Safe Zone (Title, Handle, Sound Wave)
+                            </div>
+                          </div>
                         )}
                       </div>
 
-                      {/* Hover Actions */}
-                      <div className="absolute top-3 right-3 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Hover Actions: Replace & Remove */}
+                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20"
                         >
                           <Upload className="w-3 h-3" />
                           <span>Replace</span>
@@ -1357,81 +1495,87 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </button>
               </div>
             ) : (
-              /* Live Feed Preview Card */
-              <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-xs text-gray-900">
-                <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-600">
-                  <div className="flex items-center space-x-1.5">
-                    <PlatformLogo platform={activeAccount.platform} className="w-3.5 h-3.5" />
-                    <span className="capitalize">{activeAccount.platform} Feed Preview</span>
-                  </div>
-                  <MoreHorizontal className="w-4 h-4 text-gray-400" />
-                </div>
-
-                {/* Post Header */}
-                <div className="p-3 flex items-center space-x-2.5">
-                  <img
-                    src={activeAccount.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                    alt={activeAccount.displayName}
-                    className="w-9 h-9 rounded-full object-cover border border-gray-200"
-                  />
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-900 leading-tight">
-                      {activeAccount.displayName}
-                    </h4>
-                    <p className="text-[10px] text-gray-400 flex items-center space-x-1">
-                      <span>Just now</span>
-                      <span>•</span>
-                      <Globe className="w-2.5 h-2.5 text-gray-400" />
-                    </p>
-                  </div>
-                </div>
-
-                {/* Video Title (if YouTube) */}
-                {activeAccount.platform === 'youtube' && (
-                  <div className="px-3 pb-1 font-bold text-xs text-gray-900">
-                    {platformCaptions.youtube?.title || mainCaption.split('\n')[0] || 'Scheduled Video Title'}
-                  </div>
-                )}
-
-                {/* Caption in Preview (uses platform-specific caption if customized, else mainCaption) */}
-                <div className="px-3 pb-2 text-xs text-gray-800 leading-relaxed whitespace-pre-line break-words">
-                  {platformCaptions[activeAccount.platform]?.caption ||
-                    mainCaption ||
-                    'Your post caption preview will appear here in real-time...'}
-                </div>
-
-                {/* Media Preview in Card */}
-                {mediaList.length > 0 && (
-                  <div className="bg-black/90 aspect-video flex items-center justify-center overflow-hidden">
-                    {mediaList[0].type === 'video' ? (
-                      <video src={mediaList[0].url} className="w-full h-full object-cover" />
-                    ) : (
-                      <img
-                        src={mediaList[0].thumbnailUrl || mediaList[0].url}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Mock Actions Bar */}
-                <div className="p-3 pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                  <div className="flex items-center space-x-4">
-                    <span className="flex items-center space-x-1">
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                      <span>Like</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Comment</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
+              /* Platform-Specific Live Feed Preview */
+              <div className="space-y-4">
+                {/* Platform Preview Selector Bar */}
+                <div className="bg-white p-3 rounded-2xl border border-gray-200/90 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center space-x-1.5">
+                      <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-xs font-bold text-gray-800">Platform Preview</span>
+                    </div>
+                    <span className="text-[11px] text-gray-400 font-medium">
+                      {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'target' : 'targets'} selected
                     </span>
                   </div>
-                  <Bookmark className="w-3.5 h-3.5 text-gray-400" />
+
+                  {/* Platform Selector Tabs */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {(selectedPlatforms.length > 0
+                      ? selectedPlatforms
+                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
+                    ).map((platform) => {
+                      const isActive = activePreviewPlatform === platform;
+                      const hasCustomCaption = Boolean(
+                        platformCaptions[platform]?.caption || platformCaptions[platform]?.title
+                      );
+                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+                      const platformName = config?.name || (platform === 'twitter' ? 'X (Twitter)' : platform);
+
+                      return (
+                        <button
+                          key={platform}
+                          type="button"
+                          onClick={() => setActivePreviewPlatform(platform)}
+                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                          }`}
+                        >
+                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
+                          <span className="capitalize">{platformName}</span>
+                          {hasCustomCaption && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
+                              title="Customized caption"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Authentic Platform-Specific Post Preview */}
+                <PostPreview
+                  post={previewPostData}
+                  selectedPlatform={activePreviewPlatform}
+                  activeAccount={previewAccount}
+                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
+                  aspectRatio={aspectRatio}
+                  mediaFitMode={mediaFitMode}
+                />
+
+                {/* Quick Action Footer */}
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveRightTab('schedule')}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Configure Scheduling</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleExecute(scheduleMode === 'schedule' ? 'schedule' : 'publish-now')}
+                    className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{scheduleMode === 'schedule' ? 'Schedule' : 'Publish Live'}</span>
+                  </button>
                 </div>
               </div>
             )}
