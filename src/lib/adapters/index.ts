@@ -210,9 +210,13 @@ export const twitterAdapter: PlatformAdapter = {
           details: data.details,
         };
       } else {
+        const errorText = data.error || 'Failed to publish tweet';
+        const formattedError = errorText.startsWith('X API Error:')
+          ? errorText
+          : `X API Error: ${errorText}`;
         return {
           success: false,
-          errorMessage: `X API Error: ${data.error || 'Failed to publish tweet'}`,
+          errorMessage: formattedError,
         };
       }
     } catch (e: unknown) {

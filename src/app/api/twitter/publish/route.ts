@@ -97,10 +97,14 @@ export async function POST(req: NextRequest) {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        let rawError = data.detail || data.title || data.errors?.[0]?.message || `X API error (${res.status})`;
+        if (res.status === 402 || (typeof rawError === 'string' && rawError.toLowerCase().includes('credits depleted'))) {
+          rawError = 'Developer API balance is $0.00 (credits depleted). X now operates on a pay-per-use model. Please top up API credits in developer.x.com / console.x.com to publish tweets.';
+        }
         return {
           ok: false,
           status: res.status,
-          error: data.detail || data.title || data.errors?.[0]?.message || `X API error (${res.status})`,
+          error: rawError,
         };
       }
 
