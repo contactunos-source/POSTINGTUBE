@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { Post, SocialAccount, PostStatus, SocialPlatform } from '@/types/social';
+import { Post, SocialAccount, PostStatus, SocialPlatform, PlatformPostMetrics } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
   Search,
@@ -32,6 +32,11 @@ import {
   Play,
   ArrowUpDown,
   Sparkles,
+  BarChart3,
+  Heart,
+  ShieldCheck,
+  RefreshCw,
+  TrendingUp,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds } from '@/lib/dateUtils';
@@ -39,24 +44,119 @@ import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, f
 interface PostsManagerProps {
   posts: Post[];
   accounts: SocialAccount[];
+  workspaceId?: string;
   initialStatusFilter?: PostStatus | 'all';
   onEditPost: (post: Post) => void;
   onDeletePost: (id: string) => void;
   onPublishNow: (post: Post) => void;
   onRetryPost: (post: Post) => void;
   openCreateModal: () => void;
+  onPostsUpdated?: (updated: Post[]) => void;
+}
+
+function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'just now';
+  const diffSec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diffSec < 60) return 'just now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+function getAggregatedMetrics(post: Post) {
+  const analyticsMap: Record<string, PlatformPostMetrics> = {
+    ...(post.analytics || {}),
+  };
+
+  if (post.results) {
+    for (const [accId, res] of Object.entries(post.results)) {
+      if (res?.analytics && !analyticsMap[accId]) {
+        analyticsMap[accId] = res.analytics;
+      }
+    }
+  }
+
+  const entries = Object.values(analyticsMap);
+  if (entries.length === 0) {
+    return {
+      hasAnalytics: false,
+      totalViews: null,
+      totalImpressions: null,
+      totalReach: null,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: null,
+      lastFetchedAt: null,
+      destinations: [],
+      hasPermissionError: false,
+    };
+  }
+
+  let totalViews: number | null = null;
+  let totalImpressions: number | null = null;
+  let totalReach: number | null = null;
+  let totalLikes = 0;
+  let totalComments = 0;
+  let totalShares: number | null = null;
+  let latestFetchTime: string | null = null;
+  let hasPermissionError = false;
+
+  for (const m of entries) {
+    if (m.views !== null && m.views !== undefined) {
+      totalViews = (totalViews ?? 0) + m.views;
+    }
+    if (m.impressions !== null && m.impressions !== undefined) {
+      totalImpressions = (totalImpressions ?? 0) + m.impressions;
+    }
+    if (m.reach !== null && m.reach !== undefined) {
+      totalReach = (totalReach ?? 0) + m.reach;
+    }
+    if (m.likes !== null && m.likes !== undefined) {
+      totalLikes += m.likes;
+    }
+    if (m.comments !== null && m.comments !== undefined) {
+      totalComments += m.comments;
+    }
+    if (m.shares !== null && m.shares !== undefined) {
+      totalShares = (totalShares ?? 0) + m.shares;
+    }
+    if (m.lastFetchedAt) {
+      if (!latestFetchTime || new Date(m.lastFetchedAt) > new Date(latestFetchTime)) {
+        latestFetchTime = m.lastFetchedAt;
+      }
+    }
+    if (m.fetchStatus === 'permission_error' || m.fetchStatus === 'rate_limited') {
+      hasPermissionError = true;
+    }
+  }
+
+  return {
+    hasAnalytics: true,
+    totalViews,
+    totalImpressions,
+    totalReach,
+    totalLikes,
+    totalComments,
+    totalShares,
+    lastFetchedAt: latestFetchTime,
+    destinations: entries,
+    hasPermissionError,
+  };
 }
 
 export const PostsManager: React.FC<PostsManagerProps> = ({
   posts,
   accounts,
+  workspaceId,
   initialStatusFilter = 'all',
   onEditPost,
   onDeletePost,
   onPublishNow,
   onRetryPost,
   openCreateModal,
+  onPostsUpdated,
 }) => {
+  const [localPosts, setLocalPosts] = useState<Post[]>(posts);
   const [activeTab, setActiveTab] = useState<PostStatus | 'all'>(initialStatusFilter);
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<SocialPlatform | 'all'>('all');
@@ -64,6 +164,16 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   const [selectedPostForDetails, setSelectedPostForDetails] = useState<Post | null>(null);
   const [menuOpenPostId, setMenuOpenPostId] = useState<string | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<string, boolean>>({});
+
+  // Analytics Refresh States
+  const [refreshingPostId, setRefreshingPostId] = useState<string | null>(null);
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+  const [lastAnalyticsRefresh, setLastAnalyticsRefresh] = useState<Date | null>(null);
+
+  // Sync prop changes
+  useEffect(() => {
+    setLocalPosts(posts);
+  }, [posts]);
 
   const activeMenuRef = useRef<HTMLDivElement>(null);
   const detailsModalRef = useRef<HTMLDivElement>(null);
@@ -81,17 +191,136 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   // Calculate live counts for the status navigation bar
   const counts = useMemo(() => {
     return {
-      all: posts.length,
-      published: posts.filter((p) => p.status === 'published').length,
-      scheduled: posts.filter((p) => p.status === 'scheduled').length,
-      draft: posts.filter((p) => p.status === 'draft').length,
-      failed: posts.filter((p) => p.status === 'failed').length,
+      all: localPosts.length,
+      published: localPosts.filter((p) => p.status === 'published').length,
+      scheduled: localPosts.filter((p) => p.status === 'scheduled').length,
+      draft: localPosts.filter((p) => p.status === 'draft').length,
+      failed: localPosts.filter((p) => p.status === 'failed').length,
     };
-  }, [posts]);
+  }, [localPosts]);
+
+  // Refresh single post analytics
+  const handleRefreshSinglePost = async (post: Post) => {
+    setRefreshingPostId(post.id);
+    try {
+      const res = await fetch('/api/analytics/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, workspaceId }),
+      });
+      const data = await res.json();
+      if (data.success && data.analytics) {
+        setLocalPosts((prev) => {
+          const updated = prev.map((p) => {
+            if (p.id !== post.id) return p;
+            const updatedResults = { ...(p.results || {}) };
+            for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
+              if (updatedResults[accId]) {
+                updatedResults[accId].analytics = metrics;
+              } else {
+                updatedResults[accId] = {
+                  status: 'success',
+                  platform: metrics.platform,
+                  externalPostId: metrics.externalPostId,
+                  analytics: metrics,
+                };
+              }
+            }
+            const postObj: Post = {
+              ...p,
+              results: updatedResults,
+              analytics: data.analytics,
+            };
+            if (selectedPostForDetails && selectedPostForDetails.id === p.id) {
+              setSelectedPostForDetails(postObj);
+            }
+            return postObj;
+          });
+          onPostsUpdated?.(updated);
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to refresh analytics for post:', err);
+    } finally {
+      setRefreshingPostId(null);
+    }
+  };
+
+  // Refresh all published posts analytics
+  const handleRefreshAllAnalytics = async () => {
+    setIsRefreshingAll(true);
+    try {
+      const res = await fetch('/api/analytics/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      });
+      const data = await res.json();
+      if (data.success && data.analytics) {
+        setLastAnalyticsRefresh(new Date());
+        setLocalPosts((prev) => {
+          const updated = prev.map((p) => {
+            const postAnalytics = data.analytics[p.id];
+            if (!postAnalytics) return p;
+            const updatedResults = { ...(p.results || {}) };
+            for (const [accId, metrics] of Object.entries(postAnalytics as Record<string, PlatformPostMetrics>)) {
+              if (updatedResults[accId]) {
+                updatedResults[accId].analytics = metrics;
+              } else {
+                updatedResults[accId] = {
+                  status: 'success',
+                  platform: metrics.platform,
+                  externalPostId: metrics.externalPostId,
+                  analytics: metrics,
+                };
+              }
+            }
+            const postObj: Post = {
+              ...p,
+              results: updatedResults,
+              analytics: postAnalytics,
+            };
+            if (selectedPostForDetails && selectedPostForDetails.id === p.id) {
+              setSelectedPostForDetails(postObj);
+            }
+            return postObj;
+          });
+          onPostsUpdated?.(updated);
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to refresh all analytics:', err);
+    } finally {
+      setIsRefreshingAll(false);
+    }
+  };
+
+  // Auto-refresh analytics in background on initial view of published posts
+  useEffect(() => {
+    const publishedWithResults = localPosts.filter(
+      (p) => p.status === 'published' && p.results && Object.keys(p.results).length > 0
+    );
+    if (publishedWithResults.length === 0) return;
+
+    // Check if any post hasn't been fetched in the last 10 minutes
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const needsFetch = publishedWithResults.some((p) => {
+      const metrics = Object.values(p.analytics || {});
+      if (metrics.length === 0) return true;
+      const last = Math.max(...metrics.map((m) => new Date(m.lastFetchedAt).getTime() || 0));
+      return last < tenMinutesAgo;
+    });
+
+    if (needsFetch) {
+      handleRefreshAllAnalytics();
+    }
+  }, []);
 
   // Filtered & sorted posts
   const filteredPosts = useMemo(() => {
-    return posts
+    return localPosts
       .filter((post) => {
         // Status filter
         if (activeTab !== 'all' && post.status !== activeTab) {
@@ -100,23 +329,26 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
         // Platform filter
         if (platformFilter !== 'all') {
-          const targetAccounts = accounts.filter((a) => post.targetAccountIds.includes(a.id));
-          const matchesPlatform = targetAccounts.some((a) => a.platform === platformFilter);
-          if (!matchesPlatform) return false;
+          const hasPlatform = post.targetAccountIds?.some((accId) => {
+            const acc = accounts.find((a) => a.id === accId);
+            return acc?.platform === platformFilter;
+          });
+          if (!hasPlatform) return false;
         }
 
-        // Search filter
+        // Search filter (searches caption, tags, account names)
         if (searchTerm.trim()) {
-          const term = searchTerm.toLowerCase();
-          const matchesContent = post.content.toLowerCase().includes(term);
-          const matchesTags = (post.tags || []).some((t) => t.toLowerCase().includes(term));
-          const targetAccounts = accounts.filter((a) => post.targetAccountIds.includes(a.id));
-          const matchesAccount = targetAccounts.some(
-            (a) =>
-              a.displayName.toLowerCase().includes(term) ||
-              a.username.toLowerCase().includes(term)
-          );
-          if (!matchesContent && !matchesTags && !matchesAccount) {
+          const q = searchTerm.toLowerCase();
+          const matchContent = post.content?.toLowerCase().includes(q);
+          const matchTags = post.tags?.some((t) => t.toLowerCase().includes(q));
+          const matchAccount = post.targetAccountIds?.some((accId) => {
+            const acc = accounts.find((a) => a.id === accId);
+            return (
+              acc?.displayName?.toLowerCase().includes(q) ||
+              acc?.username?.toLowerCase().includes(q)
+            );
+          });
+          if (!matchContent && !matchTags && !matchAccount) {
             return false;
           }
         }
@@ -124,56 +356,53 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
         return true;
       })
       .sort((a, b) => {
-        const timeA = new Date(a.scheduledFor || a.publishedAt || a.createdAt).getTime();
-        const timeB = new Date(b.scheduledFor || b.publishedAt || b.createdAt).getTime();
-        return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+        const dateA = new Date(a.scheduledFor || a.publishedAt || a.createdAt).getTime();
+        const dateB = new Date(b.scheduledFor || b.publishedAt || b.createdAt).getTime();
+        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
       });
-  }, [posts, accounts, activeTab, platformFilter, searchTerm, sortOrder]);
+  }, [localPosts, activeTab, platformFilter, searchTerm, sortOrder, accounts]);
 
-  // Group posts by readable date heading
+  // Group filtered posts by day for visual timeline
   const groupedPosts = useMemo(() => {
-    const groups: { [key: string]: Post[] } = {};
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
-
-    filteredPosts.forEach((post) => {
-      const rawDate = post.scheduledFor || post.publishedAt || post.createdAt;
-      const parsed = parseDateSafe(rawDate);
-      let key = 'Upcoming';
-
-      if (parsed) {
-        if (isSameCalendarDay(parsed, today)) {
-          key = `Today, ${format(parsed, 'MMMM d')}`;
-        } else if (isSameCalendarDay(parsed, yesterday)) {
-          key = `Yesterday, ${format(parsed, 'MMMM d')}`;
-        } else if (isSameCalendarDay(parsed, tomorrow)) {
-          key = `Tomorrow, ${format(parsed, 'MMMM d')}`;
-        } else {
-          key = format(parsed, 'EEEE, MMMM d, yyyy');
-        }
+    const groups: Record<string, Post[]> = {};
+    for (const post of filteredPosts) {
+      const dateVal = post.scheduledFor || post.publishedAt || post.createdAt;
+      const dateKey = formatDateFullSafe(dateVal, 'Undated');
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
       }
-
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(post);
-    });
-
+      groups[dateKey].push(post);
+    }
     return groups;
   }, [filteredPosts]);
 
-  // Helper to get all accounts targeted by this post
+  // Accounts mapping helper
   const getPostAccounts = (post: Post): SocialAccount[] => {
-    const matched = accounts.filter((a) => post.targetAccountIds.includes(a.id));
-    if (matched.length > 0) return matched;
-    // Fallback if account was disconnected or deleted
+    const directAccounts = (post.targetAccountIds || [])
+      .map((id) => accounts.find((a) => a.id === id))
+      .filter(Boolean) as SocialAccount[];
+
+    if (directAccounts.length > 0) return directAccounts;
+
+    // Fallback: extract from results map
+    if (post.results) {
+      return Object.entries(post.results).map(([accId, res]) => {
+        const existing = accounts.find((a) => a.id === accId);
+        if (existing) return existing;
+        return {
+          id: accId,
+          platform: (res.platform as SocialPlatform) || 'facebook',
+          displayName: res.accountName || 'Connected Page',
+          username: res.accountName?.toLowerCase().replace(/\s+/g, '') || 'page',
+          avatarUrl: '',
+          status: 'connected',
+        };
+      });
+    }
+
     return accounts.slice(0, 1);
   };
 
-  // Helper to duplicate a post into a new draft
   const handleDuplicatePost = (post: Post) => {
     onEditPost({
       ...post,
@@ -197,16 +426,29 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Posts Management</h1>
             <p className="text-xs text-gray-500 mt-1">
-              Publish, schedule, and track unified multi-platform social updates.
+              Publish, schedule, and track real-time analytics across all your social channels.
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="self-start sm:self-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
-          >
-            <span>+ Create Post</span>
-          </button>
+          <div className="flex items-center space-x-2.5">
+            {/* Real-time Analytics Refresh Button */}
+            <button
+              onClick={handleRefreshAllAnalytics}
+              disabled={isRefreshingAll}
+              className="bg-white border border-gray-200/90 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-3.5 rounded-xl text-xs shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              title="Fetch real-time analytics from official platform APIs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
+              <span>{isRefreshingAll ? 'Refreshing Analytics...' : 'Refresh Analytics'}</span>
+            </button>
+
+            <button
+              onClick={openCreateModal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <span>+ Create Post</span>
+            </button>
+          </div>
         </div>
 
         {/* 1. Unified Status Navigation Bar (All Posts | Published | Scheduled | Drafts | Failed) */}
@@ -262,45 +504,42 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5"
+                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5 rounded"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
+
+            {/* Platform Filter */}
+            <select
+              value={platformFilter}
+              onChange={(e) => setPlatformFilter(e.target.value as any)}
+              className="text-xs py-2.5 px-3 rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Channels</option>
+              <option value="facebook">Facebook</option>
+              <option value="instagram">Instagram</option>
+              <option value="youtube">YouTube</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="threads">Threads</option>
+              <option value="pinterest">Pinterest</option>
+            </select>
           </div>
 
-          <div className="flex items-center space-x-2">
-            {/* Platform Filter */}
-            <div className="relative">
-              <select
-                value={platformFilter}
-                onChange={(e) => setPlatformFilter(e.target.value as any)}
-                className="text-xs bg-white border border-gray-200 rounded-xl px-3 py-2 text-gray-700 font-medium shadow-2xs focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="all">All Platforms</option>
-                <option value="facebook">Facebook</option>
-                <option value="instagram">Instagram</option>
-                <option value="youtube">YouTube</option>
-                <option value="linkedin">LinkedIn</option>
-                <option value="threads">Threads</option>
-                <option value="pinterest">Pinterest</option>
-              </select>
-            </div>
-
-            {/* Sort Toggle */}
+          <div className="flex items-center space-x-2 self-end sm:self-auto">
+            {/* Sort Order */}
             <button
               onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-              className="flex items-center space-x-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-2xs transition-colors cursor-pointer"
-              title="Toggle date sort order"
+              className="text-xs py-2 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 flex items-center space-x-1.5 shadow-2xs cursor-pointer"
             >
-              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
-              <span>{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+              <ArrowUpDown className="w-3.5 h-3.5 text-gray-500" />
+              <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
             </button>
           </div>
         </div>
 
-        {/* Empty State */}
+        {/* Posts List / Timeline */}
         {filteredPosts.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 p-8 shadow-xs">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mx-auto mb-3">
@@ -347,6 +586,8 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                     const mediaItem = hasMedia ? post.media[0] : null;
                     const isExpanded = !!expandedContentIds[post.id];
                     const isLongContent = post.content.length > 180;
+                    const analytics = getAggregatedMetrics(post);
+                    const isPostRefreshing = refreshingPostId === post.id || isRefreshingAll;
 
                     return (
                       <div key={post.id} className="flex items-start gap-4 md:gap-6">
@@ -533,6 +774,161 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               </div>
                             )}
 
+                          {/* Real-Time Social Media Analytics Bar (Official APIs) */}
+                          {post.status === 'published' && (
+                            <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3.5 space-y-2.5">
+                              {/* Analytics Header */}
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center space-x-2">
+                                  <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="font-bold text-gray-800">Official Social Analytics</span>
+                                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-semibold border border-emerald-200/60 flex items-center space-x-1">
+                                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                    <span>Verified</span>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  {analytics.lastFetchedAt ? (
+                                    <span
+                                      className="text-[11px] text-gray-500 font-medium"
+                                      title={`Last verified via official API: ${new Date(analytics.lastFetchedAt).toLocaleString()}`}
+                                    >
+                                      Updated {formatRelativeTime(analytics.lastFetchedAt)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-gray-400">Click to fetch live</span>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleRefreshSinglePost(post)}
+                                    disabled={isPostRefreshing}
+                                    className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-gray-200 disabled:opacity-40"
+                                    title="Fetch fresh real-time analytics from official platform APIs"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 ${isPostRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Metric Cards Grid */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                {/* Views */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <Eye className="w-3 h-3 text-sky-500" />
+                                    <span>Views</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalViews !== null ? (
+                                      analytics.totalViews.toLocaleString()
+                                    ) : (
+                                      <span
+                                        className="text-[11px] text-gray-400 font-normal italic"
+                                        title="Platform does not expose public view count for this post format"
+                                      >
+                                        Not available
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Impressions / Reach */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <TrendingUp className="w-3 h-3 text-indigo-500" />
+                                    <span>Impressions</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalImpressions !== null ? (
+                                      analytics.totalImpressions.toLocaleString()
+                                    ) : analytics.totalReach !== null ? (
+                                      <span>
+                                        {analytics.totalReach.toLocaleString()}{' '}
+                                        <span className="text-[10px] font-normal text-gray-400">(Reach)</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="text-[11px] text-gray-400 font-normal italic"
+                                        title="Impressions metric requires specific page insights permission"
+                                      >
+                                        Not available
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Likes */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <Heart className="w-3 h-3 text-rose-500" />
+                                    <span>Likes</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalLikes.toLocaleString()}
+                                  </div>
+                                </div>
+
+                                {/* Comments */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <MessageCircle className="w-3 h-3 text-amber-500" />
+                                    <span>Comments</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalComments.toLocaleString()}
+                                  </div>
+                                </div>
+
+                                {/* Shares */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs col-span-2 sm:col-span-1">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <Share2 className="w-3 h-3 text-emerald-500" />
+                                    <span>Shares</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalShares !== null ? (
+                                      analytics.totalShares.toLocaleString()
+                                    ) : (
+                                      <span
+                                        className="text-[11px] text-gray-400 font-normal italic"
+                                        title="Platform does not expose share counts publicly"
+                                      >
+                                        Not available
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Per-Platform Live Breakdown Pills */}
+                              {analytics.destinations.length > 0 && (
+                                <div className="pt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                  <span className="text-gray-400 font-medium">Breakdown:</span>
+                                  {analytics.destinations.map((dest) => (
+                                    <div
+                                      key={`${dest.platform}_${dest.externalPostId}`}
+                                      className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 shadow-2xs"
+                                    >
+                                      <PlatformLogo platform={dest.platform} className="w-3 h-3" />
+                                      <span className="capitalize font-semibold">{dest.platform}:</span>
+                                      <span>
+                                        {dest.views !== null && dest.views !== undefined ? `${dest.views} views · ` : ''}
+                                        {dest.reach !== null && dest.reach !== undefined ? `${dest.reach} reach · ` : ''}
+                                        {dest.likes ?? 0} likes · {dest.comments ?? 0} comments
+                                      </span>
+                                      {dest.fetchStatus === 'permission_error' && (
+                                        <span className="text-amber-600 font-medium ml-0.5" title={dest.errorMessage || 'Permission restricted'}>
+                                          ⚠️
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Bottom Action Footer */}
                           <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div className="text-gray-500 flex flex-wrap items-center gap-3">
@@ -621,7 +1017,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         setSelectedPostForDetails(post);
                                         setMenuOpenPostId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2"
+                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
                                     >
                                       <Info className="w-3.5 h-3.5 text-gray-500" />
                                       <span>View Full Details</span>
@@ -631,7 +1027,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         onEditPost(post);
                                         setMenuOpenPostId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2"
+                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
                                     >
                                       <FileEdit className="w-3.5 h-3.5 text-gray-500" />
                                       <span>Edit Post</span>
@@ -641,7 +1037,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         handleDuplicatePost(post);
                                         setMenuOpenPostId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2"
+                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
                                     >
                                       <Copy className="w-3.5 h-3.5 text-gray-500" />
                                       <span>Duplicate Draft</span>
@@ -651,7 +1047,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         onDeletePost(post.id);
                                         setMenuOpenPostId(null);
                                       }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-rose-50 text-rose-600 flex items-center space-x-2"
+                                      className="w-full text-left px-3 py-1.5 hover:bg-rose-50 text-rose-600 flex items-center space-x-2 cursor-pointer"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                       <span>Delete</span>
@@ -770,6 +1166,71 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
               )}
 
+              {/* Real-Time Platform Analytics Detailed Card */}
+              {selectedPostForDetails.status === 'published' && (() => {
+                const analytics = getAggregatedMetrics(selectedPostForDetails);
+                const isPostRefreshing = refreshingPostId === selectedPostForDetails.id || isRefreshingAll;
+
+                return (
+                  <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <BarChart3 className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-gray-900">
+                          Official Platform Analytics &amp; Engagement
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleRefreshSinglePost(selectedPostForDetails)}
+                        disabled={isPostRefreshing}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center space-x-1 cursor-pointer disabled:opacity-40"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isPostRefreshing ? 'animate-spin' : ''}`} />
+                        <span>{isPostRefreshing ? 'Fetching...' : 'Refresh Now'}</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-2xs">
+                        <span className="text-[11px] text-gray-500 block mb-1">Total Views</span>
+                        <span className="text-base font-bold text-gray-900">
+                          {analytics.totalViews !== null ? analytics.totalViews.toLocaleString() : (
+                            <span className="text-xs text-gray-400 font-normal italic">N/A</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-2xs">
+                        <span className="text-[11px] text-gray-500 block mb-1">Impressions / Reach</span>
+                        <span className="text-base font-bold text-gray-900">
+                          {analytics.totalImpressions !== null ? analytics.totalImpressions.toLocaleString() : analytics.totalReach !== null ? `${analytics.totalReach.toLocaleString()}` : (
+                            <span className="text-xs text-gray-400 font-normal italic">N/A</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-2xs">
+                        <span className="text-[11px] text-gray-500 block mb-1">Total Likes</span>
+                        <span className="text-base font-bold text-gray-900">
+                          {analytics.totalLikes.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-2xs">
+                        <span className="text-[11px] text-gray-500 block mb-1">Total Comments</span>
+                        <span className="text-base font-bold text-gray-900">
+                          {analytics.totalComments.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {analytics.lastFetchedAt && (
+                      <div className="text-[10px] text-gray-400">
+                        Last verified with official API: {new Date(analytics.lastFetchedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Per-Platform Results Breakdown */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -784,116 +1245,127 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                       res?.status === 'success' ||
                       (selectedPostForDetails.status === 'published' && !res?.errorMessage);
                     const isFailed = res?.status === 'failed';
+                    const postMetrics = res?.analytics || selectedPostForDetails.analytics?.[acc.id];
 
                     return (
                       <div
                         key={acc.id}
-                        className="p-3.5 rounded-xl border border-gray-200 bg-white shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="p-3.5 rounded-xl border border-gray-200 bg-white shadow-2xs space-y-2.5"
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className="relative">
-                            <img
-                              src={acc.avatarUrl}
-                              alt={acc.displayName}
-                              className="w-9 h-9 rounded-lg object-cover border border-gray-200"
-                            />
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-xs">
-                              <PlatformLogo platform={acc.platform} className="w-2.5 h-2.5" />
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="relative">
+                              <img
+                                src={acc.avatarUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200'}
+                                alt={acc.displayName}
+                                className="w-9 h-9 rounded-lg object-cover border border-gray-200"
+                              />
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-xs">
+                                <PlatformLogo platform={acc.platform} className="w-2.5 h-2.5" />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                                <span>{acc.displayName}</span>
+                                <span className="text-[10px] text-gray-400 capitalize">
+                                  ({acc.platform})
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-gray-500">
+                                @{acc.username}
+                              </div>
+                              {isFailed && res?.errorMessage && (
+                                <div className="text-[11px] text-rose-600 font-medium mt-0.5 max-w-sm">
+                                  {res.errorMessage}
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div>
-                            <div className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                              <span>{acc.displayName}</span>
-                              <span className="text-[10px] text-gray-400 capitalize">
-                                ({acc.platform})
+
+                          {/* Status & Link */}
+                          <div className="flex items-center space-x-2">
+                            {isSuccess && (
+                              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Published Successfully</span>
                               </span>
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              @{acc.username}
-                            </div>
-                            {isFailed && res?.errorMessage && (
-                              <div className="text-[11px] text-rose-600 font-medium mt-0.5 max-w-sm">
-                                {res.errorMessage}
-                              </div>
+                            )}
+                            {isFailed && (
+                              <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 flex items-center space-x-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Publication Failed</span>
+                              </span>
+                            )}
+                            {selectedPostForDetails.status === 'scheduled' && (
+                              <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 flex items-center space-x-1">
+                                <Clock className="w-3.5 h-3.5 text-sky-600" />
+                                <span>Scheduled</span>
+                              </span>
+                            )}
+
+                            {/* Live link if available */}
+                            {res?.externalPostUrl && (
+                              <a
+                                href={res.externalPostUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-800 transition-colors"
+                                title="Open live post"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
                             )}
                           </div>
                         </div>
 
-                        {/* Status & Link */}
-                        <div className="flex items-center space-x-2">
-                          {isSuccess && (
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center space-x-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Published Successfully</span>
-                              {(res as any)?.latencyMs && (
-                                <span className="text-[10px] text-emerald-600/80 font-normal">
-                                  ({(res as any).latencyMs}ms)
-                                </span>
-                              )}
+                        {/* Per-Platform Specific Metrics */}
+                        {postMetrics && isSuccess && (
+                          <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-3 text-xs bg-gray-50/70 p-2.5 rounded-lg">
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                              Live Stats:
                             </span>
-                          )}
-                          {isFailed && (
-                            <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 flex items-center space-x-1">
-                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                              <span>Publication Failed</span>
+                            {postMetrics.views !== null && postMetrics.views !== undefined && (
+                              <span className="font-semibold text-gray-800">
+                                👁️ {postMetrics.views.toLocaleString()} views
+                              </span>
+                            )}
+                            {postMetrics.reach !== null && postMetrics.reach !== undefined && (
+                              <span className="font-semibold text-gray-800">
+                                📈 {postMetrics.reach.toLocaleString()} reach
+                              </span>
+                            )}
+                            <span className="font-semibold text-gray-800">
+                              ❤️ {postMetrics.likes ?? 0} likes
                             </span>
-                          )}
-                          {selectedPostForDetails.status === 'scheduled' && (
-                            <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 flex items-center space-x-1">
-                              <Clock className="w-3.5 h-3.5 text-sky-600" />
-                              <span>Scheduled</span>
+                            <span className="font-semibold text-gray-800">
+                              💬 {postMetrics.comments ?? 0} comments
                             </span>
-                          )}
-
-                          {/* Live link if available */}
-                          {res?.externalPostUrl && (
-                            <a
-                              href={res.externalPostUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-800 transition-colors"
-                              title="Open live post"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                        </div>
+                            {postMetrics.shares !== null && postMetrics.shares !== undefined && (
+                              <span className="font-semibold text-gray-800">
+                                🔄 {postMetrics.shares} shares
+                              </span>
+                            )}
+                            {postMetrics.externalPostId && (
+                              <span className="text-[10px] text-gray-400 font-mono ml-auto">
+                                ID: {postMetrics.externalPostId}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+              {/* Close Button Footer */}
+              <div className="pt-4 border-t border-gray-100 flex items-center justify-end">
                 <button
-                  onClick={() => {
-                    onDeletePost(selectedPostForDetails.id);
-                    setSelectedPostForDetails(null);
-                  }}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors flex items-center space-x-1 cursor-pointer"
+                  onClick={() => setSelectedPostForDetails(null)}
+                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 transition-colors cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Post</span>
+                  Close
                 </button>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      onEditPost(selectedPostForDetails);
-                      setSelectedPostForDetails(null);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 transition-colors cursor-pointer"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setSelectedPostForDetails(null)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition-colors cursor-pointer"
-                  >
-                    Done
-                  </button>
-                </div>
               </div>
             </div>
           </div>

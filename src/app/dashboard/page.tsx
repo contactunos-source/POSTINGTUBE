@@ -767,6 +767,8 @@ export default function DashboardPage() {
           <PostsManager
             posts={posts}
             accounts={accounts}
+            workspaceId={currentWorkspace.id}
+            onPostsUpdated={(updated) => setPosts(updated)}
             initialStatusFilter={
               activeTab === 'posts-scheduled'
                 ? 'scheduled'

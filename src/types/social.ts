@@ -48,6 +48,24 @@ export interface PostMedia {
   duration?: number; // seconds
 }
 
+export interface PlatformPostMetrics {
+  views?: number | null;
+  impressions?: number | null;
+  reach?: number | null;
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  saved?: number | null;
+  clicks?: number | null;
+  engagementRate?: number | null;
+  lastFetchedAt: string;
+  fetchStatus: 'success' | 'rate_limited' | 'permission_error' | 'not_supported' | 'failed';
+  errorMessage?: string;
+  externalPostId: string;
+  platform: SocialPlatform;
+  rawDetails?: Record<string, unknown>;
+}
+
 export interface Post {
   id: string;
   workspaceId: string;
@@ -74,6 +92,7 @@ export interface Post {
     name: string;
     avatar: string;
   };
+  analytics?: Record<string, PlatformPostMetrics>;
   results?: Record<
     string,
     {
@@ -85,6 +104,7 @@ export interface Post {
       errorMessage?: string;
       publishedAt?: string;
       timestamp?: string;
+      analytics?: PlatformPostMetrics;
     }
   >;
 }

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { StorageService, INITIAL_ACCOUNTS, INITIAL_POSTS, INITIAL_WORKSPACES } from '@/lib/storage';
-import { Post, SocialAccount, Workspace, PostMedia } from '@/types/social';
+import { Post, SocialAccount, Workspace, PostMedia, PlatformPostMetrics } from '@/types/social';
 
 // Default Workspace ID matching the seeded row in Supabase
 export const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
@@ -33,6 +33,11 @@ export function mapDbPostToPost(row: any): Post {
     publishedAt: row.published_at || undefined,
     status: row.status || 'draft',
     results: row.results || {},
+    analytics: row.analytics || (row.results ? Object.fromEntries(
+      Object.entries(row.results)
+        .filter(([, r]: any) => r?.analytics)
+        .map(([k, r]: any) => [k, r.analytics])
+    ) : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     author: {
@@ -464,6 +469,76 @@ export const DatabaseService = {
         await supabase.from('connected_accounts').delete().eq('id', id);
       } catch (err) {
         console.error('Failed to delete account from Supabase:', err);
+      }
+    }
+  },
+
+  /**
+   * Persist fresh post analytics into Supabase and local cache
+   */
+  async savePostAnalytics(
+    postId: string,
+    metricsMap: Record<string, PlatformPostMetrics>,
+    workspaceId: string = DEFAULT_WORKSPACE_ID
+  ): Promise<void> {
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId)) ? workspaceId : DEFAULT_WORKSPACE_ID;
+
+    // 1. Fetch current post from cache or database
+    const posts = StorageService.getPosts(targetWsId);
+    const post = posts.find((p) => p.id === postId);
+    if (post) {
+      // 2. Attach analytics to results
+      const updatedResults = { ...(post.results || {}) };
+      for (const [accId, metrics] of Object.entries(metricsMap)) {
+        if (updatedResults[accId]) {
+          updatedResults[accId].analytics = metrics;
+        } else {
+          updatedResults[accId] = {
+            status: 'success',
+            platform: metrics.platform,
+            externalPostId: metrics.externalPostId,
+            analytics: metrics,
+          };
+        }
+      }
+
+      const updatedPost: Post = {
+        ...post,
+        results: updatedResults,
+        analytics: metricsMap,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 3. Persist post
+      await this.savePost(updatedPost);
+    }
+
+    // 4. Also attempt to upsert into dedicated post_analytics table if available
+    if (supabase) {
+      try {
+        const rows = Object.entries(metricsMap).map(([accId, m]) => ({
+          post_id: postId,
+          account_id: accId,
+          workspace_id: targetWsId,
+          platform: m.platform,
+          external_post_id: m.externalPostId,
+          views: m.views ?? null,
+          impressions: m.impressions ?? null,
+          reach: m.reach ?? null,
+          likes: m.likes ?? null,
+          comments: m.comments ?? null,
+          shares: m.shares ?? null,
+          saved: m.saved ?? null,
+          engagement_rate: m.engagementRate ?? null,
+          fetch_status: m.fetchStatus,
+          error_message: m.errorMessage || null,
+          last_fetched_at: m.lastFetchedAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+
+        await supabase.from('post_analytics').upsert(rows, { onConflict: 'post_id,account_id' });
+      } catch (err) {
+        console.warn('[Analytics DB] post_analytics table upsert skipped:', err);
       }
     }
   },
