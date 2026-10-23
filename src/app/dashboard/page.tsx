@@ -29,9 +29,9 @@ import { UserAvatar } from '@/components/UserAvatar';
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(INITIAL_WORKSPACES[0]);
-  const [accounts, setAccounts] = useState<SocialAccount[]>(INITIAL_ACCOUNTS);
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [mediaItems, setMediaItems] = useState<PostMedia[]>(INITIAL_MEDIA);
+  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [mediaItems, setMediaItems] = useState<PostMedia[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -61,15 +61,21 @@ export default function DashboardPage() {
     }
   };
 
-  // Active tab state initialized with OAuth return detection
+  // Active tab state: On browser refresh/reload, ALWAYS redirect to main dashboard ('new-post')
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     if (typeof window !== 'undefined') {
+      const navEntry = window.performance?.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      const isReload = navEntry?.type === 'reload' || (window.performance && (window.performance as any).navigation?.type === 1);
+
+      // If user refreshed the browser, always stay on the main dashboard!
+      if (isReload) {
+        return 'new-post';
+      }
+
       const params = new URLSearchParams(window.location.search);
       if (
-        params.get('tab') === 'connections' ||
         params.get('fb_connect_success') === 'true' ||
-        params.get('ig_connect_success') === 'true' ||
-        params.get('error')
+        params.get('ig_connect_success') === 'true'
       ) {
         return 'connections';
       }
@@ -108,8 +114,8 @@ export default function DashboardPage() {
       if (guest) {
         if (isMounted) {
           setAuthUser(guest);
+          await initUserData(guest);
           setAuthChecking(false);
-          initUserData(guest);
         }
         return;
       }
@@ -121,8 +127,8 @@ export default function DashboardPage() {
           if (session?.user) {
             if (isMounted) {
               setAuthUser(session.user);
+              await initUserData(session.user);
               setAuthChecking(false);
-              initUserData(session.user);
             }
             return;
           }
@@ -131,12 +137,12 @@ export default function DashboardPage() {
         }
 
         // Listen for auth change: ONLY redirect if user explicitly clicked sign out
-        const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
           if (session?.user) {
             setAuthUser(session.user);
-            setAuthChecking(false);
-            initUserData(session.user);
+              await initUserData(session.user);
+              setAuthChecking(false);
           } else if (event === 'SIGNED_OUT') {
             window.location.href = '/login?redirectTo=/dashboard';
           }
@@ -147,8 +153,8 @@ export default function DashboardPage() {
         if (currentSession?.user) {
           if (isMounted) {
             setAuthUser(currentSession.user);
+            await initUserData(currentSession.user);
             setAuthChecking(false);
-            initUserData(currentSession.user);
           }
           return;
         }
@@ -163,8 +169,8 @@ export default function DashboardPage() {
           };
           if (isMounted) {
             setAuthUser(restored);
+            await initUserData(restored);
             setAuthChecking(false);
-            initUserData(restored);
           }
           return;
         }
@@ -179,8 +185,8 @@ export default function DashboardPage() {
           };
           if (isMounted) {
             setAuthUser(autoGuest);
+            await initUserData(autoGuest);
             setAuthChecking(false);
-            initUserData(autoGuest);
           }
           return;
         }
@@ -198,8 +204,8 @@ export default function DashboardPage() {
         };
         if (isMounted) {
           setAuthUser(fallbackGuest);
+          await initUserData(fallbackGuest);
           setAuthChecking(false);
-          initUserData(fallbackGuest);
         }
       }
     }
@@ -214,14 +220,32 @@ export default function DashboardPage() {
   // Listen for OAuth callbacks or URL navigation params
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const navEntry = window.performance?.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      const isReload = navEntry?.type === 'reload' || (window.performance && (window.performance as any).navigation?.type === 1);
+
+      if (isReload) {
+        // User refreshed the page: Clean up URL query parameters and stay on main dashboard!
+        window.history.replaceState(null, '', window.location.pathname);
+        setActiveTab('new-post');
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
-      if (
-        params.get('tab') === 'connections' ||
+      const isOauthReturn =
         params.get('fb_connect_success') === 'true' ||
         params.get('ig_connect_success') === 'true' ||
-        params.get('error')
-      ) {
+        params.get('error');
+
+      if (isOauthReturn) {
+        if (params.get('fb_connect_success') === 'true' || params.get('ig_connect_success') === 'true') {
+          setSuccessToast('Account connected successfully!');
+        }
         setActiveTab('connections');
+        // Clean URL search parameters immediately so subsequent refreshes stay on the main dashboard!
+        window.history.replaceState(null, '', window.location.pathname);
+      } else if (params.get('tab') === 'connections') {
+        // Clean URL search parameters immediately so subsequent refreshes stay on the main dashboard!
+        window.history.replaceState(null, '', window.location.pathname);
       }
     }
   }, []);
@@ -536,8 +560,8 @@ export default function DashboardPage() {
     }
   };
 
-  // Clean Apple auth checking screen
-  if (authChecking) {
+  // Clean Apple auth and workspace initialization loading screen
+  if (authChecking || !isLoaded) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-white text-gray-900 font-sans">
         <div className="flex flex-col items-center space-y-4 text-center">
