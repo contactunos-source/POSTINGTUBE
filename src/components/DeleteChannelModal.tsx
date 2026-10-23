@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { SocialAccount } from '@/types/social';
 import { AlertTriangle, Trash2, X, ShieldAlert, Loader2 } from 'lucide-react';
 
@@ -22,6 +23,13 @@ export const DeleteChannelModal: React.FC<DeleteChannelModalProps> = ({
   const [confirmationInput, setConfirmationInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modalBoxRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(modalBoxRef, () => {
+    if (!isDeleting) onClose();
+  }, {
+    enabled: isOpen,
+  });
 
   if (!isOpen) return null;
 
@@ -67,8 +75,16 @@ export const DeleteChannelModal: React.FC<DeleteChannelModalProps> = ({
     : account.platform.charAt(0).toUpperCase() + account.platform.slice(1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-md w-full border border-gray-200 shadow-2xl overflow-hidden animate-scale-in">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isDeleting) onClose();
+      }}
+    >
+      <div
+        ref={modalBoxRef}
+        className="bg-white rounded-2xl max-w-md w-full border border-gray-200 shadow-2xl overflow-hidden animate-scale-in"
+      >
         {/* Header */}
         <div className="px-6 pt-6 pb-4 flex items-start justify-between border-b border-gray-100">
           <div className="flex items-center space-x-3">

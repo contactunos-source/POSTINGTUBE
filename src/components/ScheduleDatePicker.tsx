@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -49,20 +50,10 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     setViewMonth(selectedDateObj.getMonth());
   }, [scheduledDate]);
 
-  // Close calendar popover on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
-        setIsCalendarOpen(false);
-      }
-    };
-    if (isCalendarOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isCalendarOpen]);
+  // Close calendar popover on outside click or Escape key
+  useClickOutside(calendarRef, () => setIsCalendarOpen(false), {
+    enabled: isCalendarOpen,
+  });
 
   // Today reference at midnight
   const today = useMemo(() => {

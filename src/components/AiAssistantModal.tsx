@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   X,
@@ -13,25 +13,18 @@ import {
   Tag,
   MessageSquare,
   Globe,
-  Sliders,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
-  HelpCircle,
   Share2,
   AlertTriangle,
 } from 'lucide-react';
 import {
   generateSocialContent,
-  AiObjective,
-  AiAudience,
-  AiTone,
-  AiFormat,
   AiGeneratedResult,
   CaptionLanguage,
 } from '@/lib/ai';
 import { SocialPlatform } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 export interface AiApplyPayload {
   title?: string;
@@ -84,17 +77,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     initialPrompt || 'Announce the launch of our new social media scheduling feature that saves creators hours every week'
   );
   const [platform, setPlatform] = useState<SocialPlatform>(initialPlatform);
-  const [objective, setObjective] = useState<AiObjective>('engagement');
-  const [audience, setAudience] = useState<AiAudience>('creators');
-  const [tone, setTone] = useState<AiTone>('engaging');
-  const [format, setFormat] = useState<AiFormat>('feed');
   const [language, setLanguage] = useState<CaptionLanguage>('en');
-
-  // Advanced context (collapsible)
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [keywords, setKeywords] = useState('');
-  const [productContext, setProductContext] = useState('');
-  const [customCta, setCustomCta] = useState('');
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -115,27 +98,33 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   const [variations, setVariations] = useState<string[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
 
+  // Modal click-outside & Escape key handling
+  const modalBoxRef = useRef<HTMLDivElement>(null);
+  const overwriteModalRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(modalBoxRef, onClose, {
+    enabled: !showOverwriteModal,
+  });
+
+  useClickOutside(overwriteModalRef, () => {
+    setShowOverwriteModal(false);
+    setPendingApplyAction(null);
+  }, {
+    enabled: showOverwriteModal,
+  });
+
   // Execute AI generation
   const handleGenerate = async (
-    action: 'generate' | 'shorter' | 'longer' | 'tone' | 'regenerate' = 'generate',
-    overrideTone?: AiTone
+    action: 'generate' | 'shorter' | 'longer' | 'regenerate' = 'generate'
   ) => {
     if (!prompt.trim()) return;
     setIsGenerating(true);
 
     try {
-      const activeTone = overrideTone || tone;
       const result: AiGeneratedResult = await generateSocialContent({
         prompt,
         platform,
-        objective,
-        audience,
-        tone: activeTone,
-        format,
         language,
-        keywords,
-        productContext,
-        customCta,
         action,
       });
 
@@ -220,8 +209,16 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   const isOverLimit = editableCaption.length > charLimit;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl max-w-5xl w-full h-[92vh] max-h-[860px] flex flex-col shadow-2xl border border-gray-100 overflow-hidden relative">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 font-sans animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !showOverwriteModal) onClose();
+      }}
+    >
+      <div
+        ref={modalBoxRef}
+        className="bg-white rounded-2xl max-w-5xl w-full h-[92vh] max-h-[860px] flex flex-col shadow-2xl border border-gray-100 overflow-hidden relative"
+      >
         {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 bg-white shrink-0">
           <div className="flex items-center space-x-3">
@@ -240,7 +237,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-gray-500">
-                Generate platform-tailored hooks, captions, SEO tags, and CTAs in English, Telugu &amp; Hindi
+                Generate high-converting, platform-native social content in English, Telugu &amp; Hindi
               </p>
             </div>
           </div>
@@ -248,6 +245,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
             type="button"
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+            aria-label="Close Assistant"
           >
             <X className="w-5 h-5" />
           </button>
@@ -255,19 +253,19 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
         {/* 2-Column Responsive Body */}
         <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 overflow-hidden">
-          {/* LEFT COLUMN: Input Controls */}
+          {/* LEFT COLUMN: Input Controls (Focused & Clutter-Free) */}
           <div className="lg:col-span-5 border-r border-gray-100 p-5 overflow-y-auto space-y-4 bg-gray-50/40">
             {/* Primary Prompt Input */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-800 flex items-center justify-between">
                 <span>What do you want to post about?</span>
-                <span className="text-[11px] text-gray-400 font-normal">Primary Prompt</span>
+                <span className="text-[11px] text-gray-400 font-normal">Topic &amp; Core Idea</span>
               </label>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                rows={3}
-                placeholder="E.g., Announce our new product launch with early access discount..."
+                rows={4}
+                placeholder="E.g., Announce the launch of our new instant social scheduler with 1-click publishing..."
                 className="w-full text-xs p-3 rounded-xl border border-gray-200/90 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white placeholder:text-gray-400 leading-relaxed resize-none shadow-2xs"
               />
 
@@ -292,6 +290,15 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 >
                   🚀 Product Launch
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPrompt('Why building an audience in public is the ultimate unfair advantage in 2026')
+                  }
+                  className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 text-gray-600 hover:text-emerald-700 truncate cursor-pointer transition-colors"
+                >
+                  📈 Build in Public
+                </button>
               </div>
             </div>
 
@@ -307,9 +314,9 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                         key={plat}
                         type="button"
                         onClick={() => setPlatform(plat)}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                        className={`flex items-center space-x-1.5 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-emerald-50/80 border-emerald-500 text-emerald-900 shadow-2xs'
+                            ? 'bg-emerald-50/80 border-emerald-500 text-emerald-900 shadow-2xs font-bold'
                             : 'bg-white border-gray-200/80 text-gray-600 hover:border-gray-300'
                         }`}
                       >
@@ -356,149 +363,18 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
               </div>
             </div>
 
-            {/* Grid of Key Strategy Selectors */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Content Objective */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-700 block">Content Objective</label>
-                <select
-                  value={objective}
-                  onChange={(e) => setObjective(e.target.value as AiObjective)}
-                  className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="engagement">💬 Drive Engagement</option>
-                  <option value="promote">🚀 Promote a Product</option>
-                  <option value="tip">💡 Share a Pro Tip</option>
-                  <option value="story">📖 Tell a Story</option>
-                  <option value="question">❓ Ask a Question</option>
-                  <option value="news">📢 Announce News</option>
-                </select>
-              </div>
-
-              {/* Target Audience */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-700 block">Target Audience</label>
-                <select
-                  value={audience}
-                  onChange={(e) => setAudience(e.target.value as AiAudience)}
-                  className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="creators">Creators &amp; Marketers</option>
-                  <option value="founders">Founders &amp; Startups</option>
-                  <option value="developers">Developers &amp; Tech</option>
-                  <option value="consumers">Consumers &amp; Buyers</option>
-                  <option value="general">General Audience</option>
-                </select>
-              </div>
-
-              {/* Voice and Tone */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-700 block">Voice &amp; Tone</label>
-                <select
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value as AiTone)}
-                  className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="engaging">✨ Engaging &amp; Friendly</option>
-                  <option value="bold">⚡ Bold &amp; Disruptive</option>
-                  <option value="professional">👔 Professional &amp; Authoritative</option>
-                  <option value="humorous">😄 Humorous &amp; Playful</option>
-                  <option value="informative">📚 Informative &amp; Educational</option>
-                  <option value="concise">🎯 Concise &amp; Direct</option>
-                </select>
-              </div>
-
-              {/* Content Format */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-700 block">Content Format</label>
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as AiFormat)}
-                  className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="feed">Standard Feed Post</option>
-                  <option value="reel_short">Reel / Short Script</option>
-                  <option value="long_form">Long-Form Story</option>
-                  <option value="carousel">Carousel Breakdown</option>
-                  <option value="thread">Thread Series</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Collapsible Advanced Context (Keywords, Product, CTA) */}
-            <div className="border border-gray-200/80 rounded-xl bg-white overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                <span className="flex items-center space-x-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-gray-400" />
-                  <span>Advanced Context (Keywords, Brand, CTA)</span>
-                </span>
-                {showAdvanced ? (
-                  <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                )}
-              </button>
-
-              {showAdvanced && (
-                <div className="p-3 border-t border-gray-100 space-y-3 bg-gray-50/30 text-xs">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
-                      Target Keywords (SEO / Search)
-                    </label>
-                    <input
-                      type="text"
-                      value={keywords}
-                      onChange={(e) => setKeywords(e.target.value)}
-                      placeholder="e.g., saas, productivity, automation, nextjs"
-                      className="w-full text-xs p-2 rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
-                      Product or Brand Context
-                    </label>
-                    <input
-                      type="text"
-                      value={productContext}
-                      onChange={(e) => setProductContext(e.target.value)}
-                      placeholder="e.g., PostBridge SaaS - cross-post to 6 platforms with one click"
-                      className="w-full text-xs p-2 rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
-                      Custom Call to Action
-                    </label>
-                    <input
-                      type="text"
-                      value={customCta}
-                      onChange={(e) => setCustomCta(e.target.value)}
-                      placeholder="e.g., Click the link in bio to try our free trial today!"
-                      className="w-full text-xs p-2 rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Primary Generate Button */}
             <div className="pt-2">
               <button
                 type="button"
                 onClick={() => handleGenerate('generate')}
                 disabled={isGenerating || !prompt.trim()}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-emerald-600/15 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-emerald-600/15 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isGenerating ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-emerald-100" />
-                    <span>Crafting High-Converting Copy...</span>
+                    <span>Crafting Engaging Social Copy...</span>
                   </>
                 ) : (
                   <>
@@ -514,7 +390,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
           {/* RIGHT COLUMN: Interactive Structured Workspace */}
           <div className="lg:col-span-7 flex flex-col min-h-0 bg-white">
-            {/* Top Toolbar: Iterative Refinements */}
+            {/* Top Toolbar: Iterative Refinements & Prominent Top "Insert for All Platforms" Button */}
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2 bg-gray-50/50 shrink-0">
               <div className="flex items-center space-x-1.5 flex-wrap">
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mr-1">
@@ -552,55 +428,51 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                   <Plus className="w-3 h-3 text-blue-600" />
                   <span>Improve Caption</span>
                 </button>
-
-                {/* Quick Tone Switcher */}
-                <select
-                  disabled={isGenerating || !hasGenerated}
-                  onChange={(e) => {
-                    const newTone = e.target.value as AiTone;
-                    setTone(newTone);
-                    handleGenerate('tone', newTone);
-                  }}
-                  value={tone}
-                  className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-700 font-semibold text-xs cursor-pointer shadow-2xs disabled:opacity-40 focus:outline-hidden"
-                >
-                  <option value="engaging">Tone: Engaging</option>
-                  <option value="bold">Tone: Bold</option>
-                  <option value="professional">Tone: Professional</option>
-                  <option value="humorous">Tone: Humorous</option>
-                  <option value="informative">Tone: Informative</option>
-                </select>
               </div>
 
-              {/* Copy Complete Post */}
-              {hasGenerated && (
+              {/* Top Action Buttons: "Insert for All Platforms" Moved Here to Top! */}
+              <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    const fullText = [
-                      editableTitle ? `TITLE: ${editableTitle}` : '',
-                      editableCaption,
-                      activeHashtags.length > 0 ? activeHashtags.join(' ') : '',
-                    ]
-                      .filter(Boolean)
-                      .join('\n\n');
-                    handleCopy(fullText, 'all');
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-gray-300 text-gray-700 font-semibold text-xs flex items-center space-x-1 transition-colors cursor-pointer shadow-2xs"
+                  onClick={() => handleApplyClick(true)}
+                  disabled={!hasGenerated || !editableCaption.trim()}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-40 cursor-pointer shadow-xs shadow-purple-600/20"
+                  title="Apply this caption across all selected social platforms"
                 >
-                  {copiedField === 'all' ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      <span className="text-emerald-700">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-gray-500" />
-                      <span>Copy Caption</span>
-                    </>
-                  )}
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Insert for All Platforms</span>
                 </button>
-              )}
+
+                {/* Copy Complete Post */}
+                {hasGenerated && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fullText = [
+                        editableTitle ? `TITLE: ${editableTitle}` : '',
+                        editableCaption,
+                        activeHashtags.length > 0 ? activeHashtags.join(' ') : '',
+                      ]
+                        .filter(Boolean)
+                        .join('\n\n');
+                      handleCopy(fullText, 'all');
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 text-gray-700 font-semibold text-xs flex items-center space-x-1 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    {copiedField === 'all' ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-700">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-gray-500" />
+                        <span>Copy Caption</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Structured Content Area */}
@@ -614,7 +486,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                     Ready to Generate for {PLATFORM_NAMES[platform]}
                   </h4>
                   <p className="text-xs text-gray-400 max-w-sm mb-4">
-                    Choose your language (English, Telugu, Hindi) and click Generate Platform Content.
+                    Choose your language (English, Telugu, Hindi) and click Generate Content.
                   </p>
                   <div className="text-[11px] bg-gray-50 rounded-xl p-3 border border-gray-100 max-w-md text-left text-gray-500 space-y-1">
                     <div className="font-bold text-gray-700">Supported Languages:</div>
@@ -625,17 +497,26 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 </div>
               ) : (
                 <>
-                  {/* Platform & Language Intelligence Banner */}
-                  <div className="flex items-center justify-between text-xs px-3.5 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-emerald-900">
+                  {/* Platform & Language Intelligence Banner with Prominent One-Click All Platforms CTA */}
+                  <div className="flex items-center justify-between text-xs px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-purple-50/60 border border-emerald-200/80 text-emerald-900">
                     <div className="flex items-center space-x-2">
                       <PlatformLogo platform={platform} className="w-4 h-4" />
                       <span className="font-semibold">
                         Optimized for {PLATFORM_NAMES[platform]} ({LANGUAGES.find((l) => l.code === language)?.name})
                       </span>
+                      <span className="text-[11px] text-gray-500">
+                        • {editableCaption.length} characters
+                      </span>
                     </div>
-                    <span className="text-[11px] text-emerald-700 font-medium">
-                      {`${editableCaption.length} characters`}
-                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyClick(true)}
+                      className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] flex items-center space-x-1 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <Share2 className="w-3 h-3 text-purple-100" />
+                      <span>Insert for All Platforms</span>
+                    </button>
                   </div>
 
                   {/* 1. Title / Hook Section (Always for YouTube or if title present) */}
@@ -815,7 +696,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
               )}
             </div>
 
-            {/* Bottom Sticky Action Bar */}
+            {/* Bottom Sticky Action Bar: Only Cancel & Insert for Current Platform */}
             <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-white shrink-0">
               <button
                 type="button"
@@ -826,18 +707,6 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
               </button>
 
               <div className="flex items-center space-x-2">
-                {/* One-Click Apply to All Platforms */}
-                <button
-                  type="button"
-                  onClick={() => handleApplyClick(true)}
-                  disabled={!hasGenerated || !editableCaption.trim()}
-                  className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/80 text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
-                  title="Apply this caption across all selected accounts"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Insert for All Platforms</span>
-                </button>
-
                 {/* Apply to Current Platform */}
                 <button
                   type="button"
@@ -857,8 +726,19 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
         {/* Overwrite Confirmation Dialog */}
         {showOverwriteModal && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-gray-100 space-y-3 animate-in fade-in zoom-in-95">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-4 z-50"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowOverwriteModal(false);
+                setPendingApplyAction(null);
+              }
+            }}
+          >
+            <div
+              ref={overwriteModalRef}
+              className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-gray-100 space-y-3 animate-in fade-in zoom-in-95"
+            >
               <div className="flex items-center space-x-2.5 text-amber-600">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 <h4 className="text-sm font-bold text-gray-900">Replace Existing Caption?</h4>
@@ -873,7 +753,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                     setShowOverwriteModal(false);
                     setPendingApplyAction(null);
                   }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-100"
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-100 cursor-pointer"
                 >
                   Keep Existing
                 </button>
@@ -884,7 +764,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                     executeApply(pendingApplyAction === 'all');
                     setPendingApplyAction(null);
                   }}
-                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
                 >
                   Overwrite &amp; Apply
                 </button>

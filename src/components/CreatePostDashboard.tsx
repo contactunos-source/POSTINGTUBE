@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import {
   Post,
   SocialAccount,
@@ -245,6 +246,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Close emoji picker on click-outside or Escape key
+  useClickOutside(emojiPickerRef, () => setShowEmojiPicker(false), {
+    enabled: showEmojiPicker,
+    ignoreRefs: [emojiButtonRef],
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -1052,7 +1061,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
               {/* Emoji Picker Bar */}
               {showEmojiPicker && (
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base">
+                <div
+                  ref={emojiPickerRef}
+                  className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base"
+                >
                   {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
                     (em) => (
                       <button
@@ -1072,6 +1084,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div className="flex items-center space-x-2">
                   <button
+                    ref={emojiButtonRef}
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                     className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5 border border-gray-200/80 bg-gray-50/50"

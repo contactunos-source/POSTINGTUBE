@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { Post, SocialAccount, PostStatus, SocialPlatform } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
@@ -63,6 +64,19 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   const [selectedPostForDetails, setSelectedPostForDetails] = useState<Post | null>(null);
   const [menuOpenPostId, setMenuOpenPostId] = useState<string | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<string, boolean>>({});
+
+  const activeMenuRef = useRef<HTMLDivElement>(null);
+  const detailsModalRef = useRef<HTMLDivElement>(null);
+
+  // Close open action menu on outside click or Escape key
+  useClickOutside(activeMenuRef, () => setMenuOpenPostId(null), {
+    enabled: menuOpenPostId !== null,
+  });
+
+  // Close post details modal on outside click or Escape key
+  useClickOutside(detailsModalRef, () => setSelectedPostForDetails(null), {
+    enabled: selectedPostForDetails !== null,
+  });
 
   // Calculate live counts for the status navigation bar
   const counts = useMemo(() => {
@@ -587,7 +601,10 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 })}
 
                               {/* Dropdown Menu (Edit, Duplicate, Delete) */}
-                              <div className="relative">
+                              <div
+                                className="relative"
+                                ref={menuOpenPostId === post.id ? activeMenuRef : undefined}
+                              >
                                 <button
                                   onClick={() =>
                                     setMenuOpenPostId(menuOpenPostId === post.id ? null : post.id)
@@ -656,8 +673,16 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
         {/* Comprehensive Post Details Modal */}
         {selectedPostForDetails && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-200 text-gray-900 max-h-[90vh] overflow-y-auto space-y-6">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedPostForDetails(null);
+            }}
+          >
+            <div
+              ref={detailsModalRef}
+              className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-200 text-gray-900 max-h-[90vh] overflow-y-auto space-y-6"
+            >
               {/* Header */}
               <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                 <div className="flex items-center space-x-2">

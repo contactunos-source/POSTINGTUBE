@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { SocialAccount, SocialPlatform } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
@@ -105,6 +106,19 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     avatarUrl?: string;
     errorMessage?: string;
   } | null>(null);
+
+  const resultModalRef = useRef<HTMLDivElement>(null);
+  const connectModalRef = useRef<HTMLDivElement>(null);
+
+  // Close result modal on outside click or Escape key
+  useClickOutside(resultModalRef, () => setResultModal(null), {
+    enabled: !!(resultModal && resultModal.isOpen),
+  });
+
+  // Close connecting platform modal on outside click or Escape key
+  useClickOutside(connectModalRef, () => setConnectingPlatform(null), {
+    enabled: !!connectingPlatform,
+  });
 
   const renderPlatformCornerBadge = (platform: SocialPlatform) => {
     if (platform === 'youtube') {
@@ -735,8 +749,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       {/* Redesigned Social Account Connection Result Screen (Matching Reference Image) */}
       {resultModal && resultModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#1c1d1f] border border-zinc-800 text-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200">
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setResultModal(null);
+          }}
+        >
+          <div
+            ref={resultModalRef}
+            className="bg-[#1c1d1f] border border-zinc-800 text-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200"
+          >
             {/* Top Close Button 'X' */}
             <button
               onClick={() => setResultModal(null)}
@@ -975,8 +997,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       {/* Buffer-Style Step-by-Step Connection Modal */}
       {connectingPlatform && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-[#18191a] text-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-800 animate-in fade-in zoom-in-95">
+        <div
+          className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConnectingPlatform(null);
+          }}
+        >
+          <div
+            ref={connectModalRef}
+            className="bg-[#18191a] text-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-800 animate-in fade-in zoom-in-95"
+          >
             {/* Top Navigation Bar */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/80">
               <div className="flex items-center space-x-3">

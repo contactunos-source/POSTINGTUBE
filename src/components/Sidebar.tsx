@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import {
   PlusCircle,
   FileText,
@@ -78,6 +79,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     : 'AD';
   const avatarUrl = authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture;
   const [showWorkspaceMenu, setShowWorkspaceMenu] = React.useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(workspaceRef, () => setShowWorkspaceMenu(false), {
+    enabled: showWorkspaceMenu,
+  });
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans">
@@ -92,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Workspace Switcher */}
-      <div className="px-3 pt-3 pb-2 relative">
+      <div ref={workspaceRef} className="px-3 pt-3 pb-2 relative">
         <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2">
           Workspace
         </label>

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { Post, SocialAccount, SocialPlatform, PostStatus } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
@@ -71,6 +72,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'published' | 'draft' | 'failed'>('all');
   const [selectedDayForModal, setSelectedDayForModal] = useState<Date | null>(null);
   const [inspectedPost, setInspectedPost] = useState<Post | null>(null);
+
+  const dayModalRef = useRef<HTMLDivElement>(null);
+  const postModalRef = useRef<HTMLDivElement>(null);
+
+  // Close day inspection modal on outside click or Escape key
+  useClickOutside(dayModalRef, () => setSelectedDayForModal(null), {
+    enabled: selectedDayForModal !== null,
+  });
+
+  // Close inspected post modal on outside click or Escape key
+  useClickOutside(postModalRef, () => setInspectedPost(null), {
+    enabled: inspectedPost !== null,
+  });
 
   // Drag and drop state
   const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
@@ -661,8 +675,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       {/* Date Inspection Modal (when clicking on a day cell) */}
       {selectedDayForModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedDayForModal(null);
+          }}
+        >
+          <div
+            ref={dayModalRef}
+            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-4 max-h-[85vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="text-base font-bold text-gray-900">
@@ -759,8 +781,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       {/* Comprehensive Post Details Modal */}
       {inspectedPost && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInspectedPost(null);
+          }}
+        >
+          <div
+            ref={postModalRef}
+            className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-5 max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center space-x-2">
                 <span className="text-base font-bold text-gray-900">Post Details</span>
