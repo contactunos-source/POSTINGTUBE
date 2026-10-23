@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Layers, ArrowLeft, FileText } from 'lucide-react';
+import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 
 export default function TermsOfServicePage() {
   return (
@@ -10,12 +11,7 @@ export default function TermsOfServicePage() {
       {/* Top Header */}
       <header className="border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
-              <Layers className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-bold tracking-tight text-gray-900">PostBridge</span>
-          </Link>
+          <PostingTubeLogo size="sm" href="/" />
 
           <Link
             href="/"
@@ -46,21 +42,21 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">1. Acceptance of Terms</h2>
             <p>
-              By accessing or using PostBridge, you agree to comply with and be bound by these Terms of Service and all applicable platform developer rules, including Meta&apos;s Platform Terms and Instagram Community Guidelines.
+              By accessing or using PostingTube, you agree to comply with and be bound by these Terms of Service and all applicable platform developer rules, including Meta&apos;s Platform Terms and Instagram Community Guidelines.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">2. Multi-Channel Publishing & Content Ownership</h2>
             <p>
-              You retain 100% ownership of all text, media, images, and videos published through PostBridge. You represent and warrant that your content does not violate any copyright, trademark, or platform policies.
+              You retain 100% ownership of all text, media, images, and videos published through PostingTube. You represent and warrant that your content does not violate any copyright, trademark, or platform policies.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">3. Prohibited Use</h2>
             <p>
-              Users may not use PostBridge to distribute spam, malware, hate speech, or automated bot activities that violate Meta, Google, or LinkedIn API usage policies.
+              Users may not use PostingTube to distribute spam, malware, hate speech, or automated bot activities that violate Meta, Google, or LinkedIn API usage policies.
             </p>
           </section>
         </div>
@@ -68,7 +64,7 @@ export default function TermsOfServicePage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8 px-6 max-w-4xl mx-auto text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>&copy; 2026 PostBridge Technologies Inc. All rights reserved.</div>
+        <div>&copy; 2026 PostingTube Technologies Inc. All rights reserved.</div>
         <div className="flex items-center space-x-4">
           <Link href="/privacy" className="hover:text-black">Privacy Policy</Link>
           <Link href="/data-deletion" className="hover:text-black">Data Deletion</Link>

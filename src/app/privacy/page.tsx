@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Layers, ArrowLeft, ShieldCheck, Lock, CheckCircle2 } from 'lucide-react';
+import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 
 export default function PrivacyPolicyPage() {
   return (
@@ -10,12 +11,7 @@ export default function PrivacyPolicyPage() {
       {/* Top Header */}
       <header className="border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
-              <Layers className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-bold tracking-tight text-gray-900">PostBridge</span>
-          </Link>
+          <PostingTubeLogo size="sm" href="/" />
 
           <Link
             href="/"
@@ -46,7 +42,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">1. Overview</h2>
             <p>
-              PostBridge (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) operates the multi-channel social publishing and scheduling platform. This Privacy Policy outlines our practices regarding the collection, use, and disclosure of information when you connect social media platforms, including Meta (Facebook Pages and Instagram Business), YouTube, LinkedIn, X, and others.
+              PostingTube (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) operates the multi-channel social publishing and scheduling platform. This Privacy Policy outlines our practices regarding the collection, use, and disclosure of information when you connect social media platforms, including Meta (Facebook Pages and Instagram Business), YouTube, LinkedIn, X, and others.
             </p>
           </section>
 
@@ -59,7 +55,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>Basic Profile:</strong> Your public name and profile picture to identify your workspace.</li>
               <li><strong>Page & Account Access:</strong> Names, IDs, and avatars of Facebook Pages and Instagram Business accounts you manage so you can select where to publish.</li>
               <li><strong>Access Tokens:</strong> Secure OAuth tokens used strictly to execute scheduled posts on your behalf.</li>
-              <li><strong>Media & Post Content:</strong> Captions, images, and videos you draft in PostBridge to be published to connected networks.</li>
+              <li><strong>Media & Post Content:</strong> Captions, images, and videos you draft in PostingTube to be published to connected networks.</li>
             </ul>
           </section>
 
@@ -99,7 +95,7 @@ export default function PrivacyPolicyPage() {
               If you have any questions about this Privacy Policy or our compliance with Meta Platform Policies, please contact us at:
             </p>
             <p className="mt-1 font-semibold text-gray-900 text-xs">
-              Email: privacy@postbridge.ai • support@postbridge.ai
+              Email: privacy@postingtube.com • support@postingtube.com
             </p>
           </section>
         </div>
@@ -107,7 +103,7 @@ export default function PrivacyPolicyPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8 px-6 max-w-4xl mx-auto text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>&copy; 2026 PostBridge Technologies Inc. All rights reserved.</div>
+        <div>&copy; 2026 PostingTube Technologies Inc. All rights reserved.</div>
         <div className="flex items-center space-x-4">
           <Link href="/privacy" className="text-gray-900 font-semibold">Privacy Policy</Link>
           <Link href="/data-deletion" className="hover:text-black">Data Deletion</Link>

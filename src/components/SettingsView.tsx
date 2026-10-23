@@ -774,7 +774,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="space-y-1 max-w-xl">
             <h3 className="text-sm font-bold text-gray-900">Delete your account</h3>
             <p className="text-xs text-gray-500 leading-relaxed">
-              When you delete your account, you lose access to PostBridge services, scheduled posts, and
+              When you delete your account, you lose access to PostingTube services, scheduled posts, and
               connected social channels. This action is irreversible.
             </p>
           </div>

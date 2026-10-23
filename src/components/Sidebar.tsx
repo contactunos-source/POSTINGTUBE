@@ -22,6 +22,7 @@ import {
 import { Workspace, SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
 import { PlatformLogo } from './SocialIcons';
+import { PostingTubeLogo } from './PostingTubeLogo';
 
 export type ActiveTab =
   | 'new-post'
@@ -99,12 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans">
       {/* Brand Header */}
       <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-lg shadow-sm shadow-emerald-200">
-            P
-          </div>
-          <span className="font-semibold text-lg text-gray-900 tracking-tight">PostBridge</span>
-        </div>
+        <PostingTubeLogo size="md" />
       </div>
 
       {/* Workspace Switcher */}

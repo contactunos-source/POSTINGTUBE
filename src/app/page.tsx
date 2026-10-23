@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { PlatformLogo } from '@/components/SocialIcons';
 import { supabase, getGuestUser } from '@/lib/supabase';
+import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 
 // Supported channels for showcase
 const SUPPORTED_NETWORKS = [
@@ -102,7 +103,7 @@ export default function LandingPage() {
     } else if (tone === 'story') {
       setSimCaption('✨ 3 months ago, our social workflow was fragmented across 6 open tabs. Every morning felt like copy-paste chaos.\n\nToday, everything publishes through a single autonomous bridge with sub-second accuracy.');
     } else {
-      setSimCaption('🎯 Why modern creator teams choose PostBridge:\n\n• Sub-second autonomous background scheduler\n• 100% isolated workspaces per client\n• Automatic 9:16 video aspect conversion\n• Smart first-comment hashtag auto-drop');
+      setSimCaption('🎯 Why modern creator teams choose PostingTube:\n\n• Sub-second autonomous background scheduler\n• 100% isolated workspaces per client\n• Automatic 9:16 video aspect conversion\n• Smart first-comment hashtag auto-drop');
     }
   };
 
@@ -124,7 +125,7 @@ export default function LandingPage() {
           <span className="px-2 py-0.5 rounded-full bg-black text-white text-[10px] font-bold tracking-wide uppercase">
             New
           </span>
-          <span>PostBridge v2.4 released: YouTube Shorts API & Meta Graph v20 support</span>
+          <span>PostingTube v2.4 released: YouTube Shorts API & Meta Graph v20 support</span>
           <ArrowRight className="w-3.5 h-3.5 text-gray-500" />
         </div>
       </div>
@@ -133,19 +134,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2.5 group cursor-pointer">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
-              <Layers className="w-4 h-4 text-white" />
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-base font-bold tracking-tight text-gray-900">
-                PostBridge
-              </span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                v2.4
-              </span>
-            </div>
-          </Link>
+          <PostingTubeLogo size="md" href="/" badge="v2.4" />
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-600">
@@ -291,7 +280,7 @@ export default function LandingPage() {
               <span className="w-3 h-3 rounded-full bg-amber-400"></span>
               <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
               <span className="text-xs font-mono text-gray-400 ml-3 hidden sm:inline">
-                https://app.postbridge.ai
+                https://app.postingtube.com
               </span>
             </div>
 
@@ -477,7 +466,7 @@ export default function LandingPage() {
                             <span>Acme Studio</span>
                             <PlatformLogo platform={simPlatform} className="w-3.5 h-3.5" />
                           </div>
-                          <div className="text-[10px] text-gray-600">Just now • Published via PostBridge</div>
+                          <div className="text-[10px] text-gray-600">Just now • Published via PostingTube</div>
                         </div>
                       </div>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -494,7 +483,7 @@ export default function LandingPage() {
                     {simIncludeFirstComment && (
                       <div className="mt-2 p-2.5 rounded-xl bg-white border border-gray-200 text-[11px] text-gray-600">
                         <span className="font-bold text-gray-900 mr-1.5">First Comment (Auto):</span>
-                        <span>🔗 https://postbridge.ai/launch #marketing #creators #saas</span>
+                        <span>🔗 https://postingtube.com/launch #marketing #creators #saas</span>
                       </div>
                     )}
 
@@ -668,7 +657,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900">Autonomous 10-Second Scheduler Daemon</h3>
               <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Never worry about keeping your browser tab open. The PostBridge background worker checks queue status continuously, dispatches due posts directly to official APIs, and records delivery audits.
+                Never worry about keeping your browser tab open. The PostingTube background worker checks queue status continuously, dispatches due posts directly to official APIs, and records delivery audits.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-emerald-700">
@@ -702,7 +691,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900">Platform-Adaptive Formatting</h3>
               <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Say goodbye to broken video aspect ratios or failed image uploads. PostBridge validates file constraints, conforms 9:16 reels for Facebook and Instagram, and formats caption breaks for maximum organic readability.
+                Say goodbye to broken video aspect ratios or failed image uploads. PostingTube validates file constraints, conforms 9:16 reels for Facebook and Instagram, and formats caption breaks for maximum organic readability.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-gray-900">
@@ -719,7 +708,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900">Smart First-Comment Link Pinning</h3>
               <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Keep your post copy clean and uncluttered. PostBridge automatically posts your promotional links and hashtag clusters into the very first comment as soon as the main post publishes.
+                Keep your post copy clean and uncluttered. PostingTube automatically posts your promotional links and hashtag clusters into the very first comment as soon as the main post publishes.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-gray-900">
@@ -748,7 +737,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-base font-bold text-gray-900">Connect Your Social Channels</h3>
             <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Authenticate directly via official OAuth. PostBridge automatically discovers all Facebook Pages, Instagram, and YouTube channels you manage with zero manual token handling.
+              Authenticate directly via official OAuth. PostingTube automatically discovers all Facebook Pages, Instagram, and YouTube channels you manage with zero manual token handling.
             </p>
           </div>
 
@@ -768,7 +757,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-base font-bold text-gray-900">Schedule & Relax</h3>
             <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Hit Schedule or Publish Now. The PostBridge autonomous background worker handles timing, retry queues, idempotency, and live delivery validation automatically.
+              Hit Schedule or Publish Now. The PostingTube autonomous background worker handles timing, retry queues, idempotency, and live delivery validation automatically.
             </p>
           </div>
         </div>
@@ -955,11 +944,11 @@ export default function LandingPage() {
           {[
             {
               q: 'Do I need to keep my laptop open or browser tab running for posts to publish?',
-              a: 'No. PostBridge runs an autonomous background scheduling daemon that continuously monitors scheduled queues every 10 seconds. Once scheduled, your post dispatches deterministically to the target networks on time, even if your device is completely powered down.',
+              a: 'No. PostingTube runs an autonomous background scheduling daemon that continuously monitors scheduled queues every 10 seconds. Once scheduled, your post dispatches deterministically to the target networks on time, even if your device is completely powered down.',
             },
             {
               q: 'How does Facebook and Instagram connection work?',
-              a: 'We integrate with the official Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and PostBridge discovers all verified Facebook Pages and Instagram accounts you manage with official long-lived security tokens.',
+              a: 'We integrate with the official Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and PostingTube discovers all verified Facebook Pages and Instagram accounts you manage with official long-lived security tokens.',
             },
             {
               q: 'Are my client workspaces isolated from other accounts?',
@@ -967,7 +956,7 @@ export default function LandingPage() {
             },
             {
               q: 'Can I publish to Facebook Groups?',
-              a: 'Meta deprecated direct third-party API posting to Facebook Groups in Graph API v19+. In compliance with official Meta developer policies, PostBridge focuses exclusively on Facebook Pages (businesses, creators, public figures) where full automated posting is supported.',
+              a: 'Meta deprecated direct third-party API posting to Facebook Groups in Graph API v19+. In compliance with official Meta developer policies, PostingTube focuses exclusively on Facebook Pages (businesses, creators, public figures) where full automated posting is supported.',
             },
             {
               q: 'Where are my media attachments and images stored?',
@@ -1040,10 +1029,7 @@ export default function LandingPage() {
       {/* ================= 11. APPLE-STYLE CLEAN FOOTER ================= */}
       <footer className="px-6 py-12 max-w-6xl mx-auto border-t border-gray-100 text-xs text-gray-500 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center space-x-3">
-          <div className="w-6 h-6 rounded-md bg-black flex items-center justify-center text-white font-bold text-xs">
-            PB
-          </div>
-          <span className="font-bold text-gray-900 text-sm">PostBridge</span>
+          <PostingTubeLogo size="sm" />
           <span>•</span>
           <span>Autonomous Multi-Platform Publishing Engine</span>
         </div>
@@ -1072,7 +1058,7 @@ export default function LandingPage() {
         </div>
 
         <div>
-          &copy; 2026 PostBridge Technologies Inc. All rights reserved.
+          &copy; 2026 PostingTube Technologies Inc. All rights reserved.
         </div>
       </footer>
     </div>

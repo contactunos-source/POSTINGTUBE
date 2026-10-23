@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         const supabase = createClient(supabaseUrl, supabaseAnonKey);
         
         // Try known bucket names
-        for (const bucketName of ['postbridge-media', 'media', 'uploads', 'public']) {
+        for (const bucketName of ['postingtube-media', 'postbridge-media', 'media', 'uploads', 'public']) {
           const { data: sData, error: sErr } = await supabase.storage
             .from(bucketName)
             .upload(filename, buffer, { contentType: file.type, upsert: true });

@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Layers, ArrowLeft, Trash2, CheckCircle2 } from 'lucide-react';
+import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 
 export default function DataDeletionPage() {
   return (
@@ -10,12 +11,7 @@ export default function DataDeletionPage() {
       {/* Top Header */}
       <header className="border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
-              <Layers className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-bold tracking-tight text-gray-900">PostBridge</span>
-          </Link>
+          <PostingTubeLogo size="sm" href="/" />
 
           <Link
             href="/"
@@ -44,19 +40,19 @@ export default function DataDeletionPage() {
 
         <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
           <section>
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Option 1: Remove PostBridge Access from Facebook</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Option 1: Remove PostingTube Access from Facebook</h2>
             <p className="mb-3">
-              You can instantly revoke PostBridge&apos;s access to your Facebook and Instagram accounts at any time:
+              You can instantly revoke PostingTube&apos;s access to your Facebook and Instagram accounts at any time:
             </p>
             <ol className="list-decimal pl-5 space-y-2 text-xs text-gray-600">
               <li>Log in to your Facebook account.</li>
               <li>Go to <strong>Settings & Privacy</strong> &gt; <strong>Settings</strong>.</li>
               <li>In the left sidebar, click <strong>Apps and Websites</strong>.</li>
-              <li>Find <strong>PostBridge</strong> (or your app name) in the list of active apps.</li>
+              <li>Find <strong>PostingTube</strong> (or your app name) in the list of active apps.</li>
               <li>Click <strong>Remove</strong> and confirm.</li>
             </ol>
             <p className="mt-3 text-xs text-gray-500">
-              Once removed, PostBridge can no longer access your Pages, Instagram accounts, or publish any posts on your behalf.
+              Once removed, PostingTube can no longer access your Pages, Instagram accounts, or publish any posts on your behalf.
             </p>
           </section>
 
@@ -67,7 +63,7 @@ export default function DataDeletionPage() {
             </p>
             <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs space-y-2">
               <p>
-                <strong>Send an email to:</strong> <span className="font-mono text-black">privacy@postbridge.ai</span>
+                <strong>Send an email to:</strong> <span className="font-mono text-black">privacy@postingtube.com</span>
               </p>
               <p>
                 <strong>Subject line:</strong> User Data Deletion Request
@@ -82,7 +78,7 @@ export default function DataDeletionPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8 px-6 max-w-4xl mx-auto text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>&copy; 2026 PostBridge Technologies Inc. All rights reserved.</div>
+        <div>&copy; 2026 PostingTube Technologies Inc. All rights reserved.</div>
         <div className="flex items-center space-x-4">
           <Link href="/privacy" className="hover:text-black">Privacy Policy</Link>
           <Link href="/data-deletion" className="text-gray-900 font-semibold">Data Deletion</Link>

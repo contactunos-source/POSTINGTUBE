@@ -1377,7 +1377,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         Change to professional account?
                       </h2>
                       <p className="text-xs text-gray-400 mt-1">
-                        You need a professional Instagram account to connect Instagram to PostBridge
+                        You need a professional Instagram account to connect Instagram to PostingTube
                       </p>
                     </div>
 
@@ -1390,7 +1390,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       <div className="font-bold text-white text-sm">Change to professional account?</div>
 
                       <p className="text-xs text-gray-300 leading-relaxed px-1">
-                        You need a professional Instagram account to connect Instagram to PostBridge. Anyone will be able
+                        You need a professional Instagram account to connect Instagram to PostingTube. Anyone will be able
                         to see your posts and reels, but you can change who sees them anytime in settings.
                       </p>
 
@@ -1688,7 +1688,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           <span>Instagram Connection &amp; Publishing Guide</span>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
-                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, PostBridge will save your Instagram profile directly into your workspace. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
+                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, PostingTube will save your Instagram profile directly into your workspace. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
                         </p>
                       </div>
                     )}
@@ -2096,7 +2096,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </div>
                       <h2 className="text-xl font-bold text-white tracking-tight">Connect YouTube Channel</h2>
                       <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                        Authorize PostBridge to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
+                        Authorize PostingTube to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
                       </p>
                     </div>
 

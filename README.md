@@ -1,6 +1,6 @@
-# PostBridge - Multi-Platform Social Media Management SaaS
+# PostingTube - Multi-Platform Social Media Management SaaS
 
-A professional Social Media Management SaaS platform inspired by **PostBridge** and **Buffer**, engineered with an enterprise publishing pipeline, multi-channel composer, platform-specific overrides, content calendar, team approvals, and modular official API adapters.
+A professional Social Media Management SaaS platform engineered for **PostingTube**, featuring an enterprise publishing pipeline, multi-channel composer, platform-specific overrides, content calendar, team approvals, and modular official API adapters.
 
 ---
 

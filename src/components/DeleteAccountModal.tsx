@@ -103,7 +103,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
               <span>Warning: This cannot be undone</span>
             </div>
             <p className="text-xs text-red-700/90 leading-relaxed">
-              You are about to permanently delete your PostBridge account ({authUser?.email || 'Current Account'}).
+              You are about to permanently delete your PostingTube account ({authUser?.email || 'Current Account'}).
             </p>
             <ul className="text-[11px] text-red-700/90 space-y-1 list-disc list-inside leading-relaxed pl-1">
               <li>All connected Facebook Pages & Instagram accounts will be revoked and disconnected.</li>

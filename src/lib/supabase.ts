@@ -97,7 +97,7 @@ export function signInAsGuest() {
       'pb_guest_session',
       JSON.stringify({
         id: 'usr_guest_demo',
-        email: 'founder@preview.postbridge.ai',
+        email: 'founder@preview.postingtube.com',
         user_metadata: {
           full_name: 'Alex Rivera (Demo)',
           avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',

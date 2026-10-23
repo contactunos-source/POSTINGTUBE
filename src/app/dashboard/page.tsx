@@ -171,8 +171,8 @@ export default function DashboardPage() {
           signInAsGuest();
           const restored = getGuestUser() || {
             id: 'usr_oauth_user',
-            email: 'creator@postbridge.ai',
-            user_metadata: { full_name: 'PostBridge Creator' },
+            email: 'creator@postingtube.com',
+            user_metadata: { full_name: 'PostingTube Creator' },
           };
           if (isMounted) {
             setAuthUser(restored);
@@ -187,8 +187,8 @@ export default function DashboardPage() {
           signInAsGuest();
           const autoGuest = getGuestUser() || {
             id: 'usr_guest_demo',
-            email: 'creator@postbridge.ai',
-            user_metadata: { full_name: 'PostBridge Creator' },
+            email: 'creator@postingtube.com',
+            user_metadata: { full_name: 'PostingTube Creator' },
           };
           if (isMounted) {
             setAuthUser(autoGuest);
@@ -206,7 +206,7 @@ export default function DashboardPage() {
         signInAsGuest();
         const fallbackGuest = getGuestUser() || {
           id: 'usr_guest_demo',
-          email: 'demo@postbridge.ai',
+          email: 'demo@postingtube.com',
           user_metadata: { full_name: 'Demo Creator' },
         };
         if (isMounted) {
@@ -350,7 +350,7 @@ export default function DashboardPage() {
   // Prevent browser back from leaving the application when composer is active
   useEffect(() => {
     if (activeTab === 'create-composer') {
-      window.history.pushState({ postbridge_composer: true }, '');
+      window.history.pushState({ postingtube_composer: true }, '');
 
       const handlePopState = () => {
         setEditingPost(null);
@@ -611,7 +611,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
-      {/* PostBridge Sidebar */}
+      {/* PostingTube Sidebar */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {

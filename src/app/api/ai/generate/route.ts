@@ -63,7 +63,7 @@ async function callGeminiApi(
   const language = options.language || 'en';
   const langName = language === 'te' ? 'Telugu (తెలుగు)' : language === 'hi' ? 'Hindi (हिन्दी)' : 'English';
 
-  const systemPrompt = `You are PostBridge AI, an elite social media copywriter.
+  const systemPrompt = `You are PostingTube AI, an elite social media copywriter.
 Generate engaging, platform-native social media content.
 Target Platform: ${platform.toUpperCase()}
 Target Language: ${langName}
@@ -129,7 +129,7 @@ async function callOpenAiApi(
   const language = options.language || 'en';
   const langName = language === 'te' ? 'Telugu (తెలుగు)' : language === 'hi' ? 'Hindi (हिन्दी)' : 'English';
 
-  const systemPrompt = `You are PostBridge AI, an elite social media copywriter.
+  const systemPrompt = `You are PostingTube AI, an elite social media copywriter.
 Generate engaging, platform-native social media content.
 Target Platform: ${platform.toUpperCase()}
 Target Language: ${langName}

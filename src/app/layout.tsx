@@ -18,8 +18,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PostBridge - Social Media Management & Intelligence",
-  description: "Enterprise multi-platform social media publishing and intelligence",
+  title: "PostingTube - Social Media Management & Intelligence",
+  description: "Enterprise multi-platform social media publishing, scheduling, and intelligence",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

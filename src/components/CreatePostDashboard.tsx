@@ -286,8 +286,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const activeAccount = useMemo(() => {
     return accounts.find((a) => selectedAccountIds.includes(a.id)) || accounts[0] || {
       id: 'fb_default',
-      displayName: 'PostBridge Studio',
-      username: 'postbridge',
+      displayName: 'PostingTube Studio',
+      username: 'postingtube',
       platform: 'facebook' as SocialPlatform,
       avatarUrl: '',
     };
@@ -665,7 +665,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <span>Back</span>
               </button>
               <span>•</span>
-              <span className="text-gray-500 font-medium">PostBridge Studio</span>
+              <span className="text-gray-500 font-medium">PostingTube Studio</span>
             </div>
 
             <div className="flex items-center space-x-3">
