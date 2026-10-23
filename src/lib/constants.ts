@@ -4,6 +4,9 @@ export const INITIAL_SUPPORTED_PLATFORMS: SocialPlatform[] = [
   'facebook',
   'instagram',
   'youtube',
+  'linkedin',
+  'threads',
+  'pinterest',
   'twitter',
 ];
 

@@ -100,6 +100,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     'facebook',
     'instagram',
     'youtube',
+    'linkedin',
+    'threads',
+    'pinterest',
     'twitter',
   ];
 
@@ -1917,6 +1920,234 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            ) : connectingPlatform === 'linkedin' ? (
+              /* LINKEDIN DEDICATED FLOW */
+              <div className="p-6 space-y-5">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0A66C2] text-white flex items-center justify-center mx-auto mb-3 shadow-md">
+                    <PlatformLogo platform="linkedin" className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Connect LinkedIn Account</h2>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                    Publish professional articles, image posts, and company updates via the official free Share on LinkedIn API.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                  <div className="flex items-start space-x-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Official Microsoft LinkedIn Community Management &amp; Share APIs (100% Free).</span>
+                  </div>
+                  <div className="flex items-start space-x-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Supports Company Pages, Creator profiles, and multi-image posts up to 3,000 characters.</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                      LinkedIn Page / Profile Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Acme Agency or Jane Doe"
+                      value={genericHandle}
+                      onChange={(e) => setGenericHandle(e.target.value)}
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-[#0A66C2]"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = genericHandle.trim() || 'My LinkedIn Profile';
+                      const newAcc: SocialAccount = {
+                        id: `li_${Date.now()}`,
+                        platform: 'linkedin',
+                        username: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                        displayName: name,
+                        avatarUrl:
+                          'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&auto=format&fit=crop&q=80',
+                        accountType: 'business',
+                        status: 'connected',
+                        followersCount: 1250,
+                        externalId: `li_${Date.now()}`,
+                      };
+                      onAddAccount(newAcc);
+                      setConnectingPlatform(null);
+                      setGenericHandle('');
+                      if (onShowSuccessToast) onShowSuccessToast('LinkedIn account successfully connected!');
+                    }}
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
+                    <span>Authorize LinkedIn Account</span>
+                  </button>
+                </div>
+
+                <div className="text-center pt-2 border-t border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => setConnectingPlatform(null)}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : connectingPlatform === 'threads' ? (
+              /* THREADS DEDICATED FLOW */
+              <div className="p-6 space-y-5">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 border border-gray-800 shadow-md">
+                    <PlatformLogo platform="threads" className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Connect Threads Profile</h2>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                    Publish fast short-form threads, photos, and videos using the official 100% free Meta Threads API.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                  <div className="flex items-start space-x-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Official Meta Graph Threads API (100% Free with zero API credit fees).</span>
+                  </div>
+                  <div className="flex items-start space-x-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>500-character posts with photos, carousels, and video publishing.</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                      Threads Handle
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. @yourbrand or @creator"
+                      value={genericHandle}
+                      onChange={(e) => setGenericHandle(e.target.value)}
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-white"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = genericHandle.trim().replace(/^@/, '') || 'threads_user';
+                      const newAcc: SocialAccount = {
+                        id: `th_${Date.now()}`,
+                        platform: 'threads',
+                        username: clean,
+                        displayName: `@${clean}`,
+                        avatarUrl:
+                          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+                        accountType: 'creator',
+                        status: 'connected',
+                        followersCount: 890,
+                        externalId: `th_${Date.now()}`,
+                      };
+                      onAddAccount(newAcc);
+                      setConnectingPlatform(null);
+                      setGenericHandle('');
+                      if (onShowSuccessToast) onShowSuccessToast('Threads account successfully connected!');
+                    }}
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white hover:bg-gray-200 text-black transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <PlatformLogo platform="threads" className="w-4 h-4 text-black" />
+                    <span>Authorize Threads Profile</span>
+                  </button>
+                </div>
+
+                <div className="text-center pt-2 border-t border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => setConnectingPlatform(null)}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : connectingPlatform === 'pinterest' ? (
+              /* PINTEREST DEDICATED FLOW */
+              <div className="p-6 space-y-5">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-[#BD081C] text-white flex items-center justify-center mx-auto mb-3 shadow-md">
+                    <PlatformLogo platform="pinterest" className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Connect Pinterest Account</h2>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                    Publish image and video pins to your boards with custom destination links using the official free Pinterest API v5.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                  <div className="flex items-start space-x-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Official Pinterest API v5 (100% Free with zero credit charges).</span>
+                  </div>
+                  <div className="flex items-start space-x-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Direct pin publishing with custom destination links and board organization.</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                      Pinterest Username / Board
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. MyStudio or @creativepins"
+                      value={genericHandle}
+                      onChange={(e) => setGenericHandle(e.target.value)}
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-[#BD081C]"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = genericHandle.trim().replace(/^@/, '') || 'pinterest_creator';
+                      const newAcc: SocialAccount = {
+                        id: `pin_${Date.now()}`,
+                        platform: 'pinterest',
+                        username: clean.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                        displayName: `${clean} (Pinterest)`,
+                        avatarUrl:
+                          'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
+                        accountType: 'business',
+                        status: 'connected',
+                        followersCount: 4200,
+                        externalId: `pin_${Date.now()}`,
+                      };
+                      onAddAccount(newAcc);
+                      setConnectingPlatform(null);
+                      setGenericHandle('');
+                      if (onShowSuccessToast) onShowSuccessToast('Pinterest account successfully connected!');
+                    }}
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#BD081C] hover:bg-[#a00718] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <PlatformLogo platform="pinterest" className="w-4 h-4 text-white" />
+                    <span>Authorize Pinterest Account</span>
+                  </button>
+                </div>
+
+                <div className="text-center pt-2 border-t border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => setConnectingPlatform(null)}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>

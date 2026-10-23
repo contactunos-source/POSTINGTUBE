@@ -52,6 +52,42 @@ export const INITIAL_ACCOUNTS: SocialAccount[] = [
     followersCount: 2450,
     externalId: 'tw_unos_digital',
   },
+  {
+    id: 'li_primary_account',
+    platform: 'linkedin',
+    username: 'unosagency',
+    displayName: 'U NOS Agency (LinkedIn)',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&auto=format&fit=crop&q=80',
+    accountType: 'business',
+    status: 'connected',
+    followersCount: 5200,
+    externalId: 'li_unos_agency',
+  },
+  {
+    id: 'th_primary_account',
+    platform: 'threads',
+    username: 'unosdigital',
+    displayName: 'U NOS (Threads)',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+    accountType: 'creator',
+    status: 'connected',
+    followersCount: 3100,
+    externalId: 'th_unos_digital',
+  },
+  {
+    id: 'pin_primary_account',
+    platform: 'pinterest',
+    username: 'unoscreative',
+    displayName: 'U NOS Design (Pinterest)',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
+    accountType: 'business',
+    status: 'connected',
+    followersCount: 8400,
+    externalId: 'pin_unos_creative',
+  },
 ];
 
 export const INITIAL_MEDIA: PostMedia[] = [
