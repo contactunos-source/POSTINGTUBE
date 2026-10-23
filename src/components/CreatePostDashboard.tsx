@@ -11,7 +11,6 @@ import {
 } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import { ScheduleDatePicker } from './ScheduleDatePicker';
-import { ConnectedAccountSelector } from './ConnectedAccountSelector';
 import { PostPreview } from './PostPreview';
 import {
   Calendar,
@@ -21,38 +20,24 @@ import {
   FileImage,
   Video,
   X,
-  ChevronDown,
-  ChevronUp,
   Sparkles,
   Check,
   Send,
   Save,
   ArrowLeft,
-  Search,
-  Filter,
   CheckCircle2,
-  FileUp,
-  Smile,
-  Hash,
-  Link as LinkIcon,
-  MessageSquare,
-  Users,
-  Eye,
   Crop,
   ShieldCheck,
-  Zap,
-  Globe,
-  Share2,
-  ThumbsUp,
-  Bookmark,
-  MoreHorizontal,
-  Flame,
-  Copy,
-  AlertTriangle,
   RotateCcw,
-  Shield,
   Maximize2,
   Minimize2,
+  Layers,
+  SlidersHorizontal,
+  Trash2,
+  Lightbulb,
+  ExternalLink,
+  MessageCircle,
+  Hash,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe } from '@/lib/dateUtils';
@@ -67,12 +52,12 @@ interface CreatePostDashboardProps {
   openAiModal: (initialPrompt: string, onGenerated: (caption: string) => void) => void;
 }
 
-// 4 Primary Supported Social Platforms with Brand Specifications
 interface PlatformConfig {
   id: SocialPlatform;
   name: string;
   brandColor: string;
   badgeBg: string;
+  borderColor: string;
   limit: number;
   placeholder: string;
 }
@@ -83,48 +68,63 @@ const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     name: 'YouTube',
     brandColor: '#FF0000',
     badgeBg: 'bg-red-600',
+    borderColor: 'border-red-400 focus-within:border-red-500',
     limit: 5000,
-    placeholder: 'Write video description, links, and timestamps...',
+    placeholder: 'Write video description, timestamps, and links...',
   },
   {
     id: 'instagram',
     name: 'Instagram',
     brandColor: '#E1306C',
     badgeBg: 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600',
+    borderColor: 'border-pink-400 focus-within:border-pink-500',
     limit: 2200,
-    placeholder: 'Write an engaging Instagram caption with line breaks and #hashtags...',
+    placeholder: 'Write an engaging Instagram caption with #hashtags and line breaks...',
   },
   {
     id: 'facebook',
     name: 'Facebook',
     brandColor: '#1877F2',
     badgeBg: 'bg-blue-600',
+    borderColor: 'border-blue-400 focus-within:border-blue-500',
     limit: 63206,
     placeholder: 'Write a detailed Facebook post update for your audience...',
   },
   {
-    id: 'linkedin',
-    name: 'LinkedIn',
-    brandColor: '#0A66C2',
-    badgeBg: 'bg-[#0A66C2]',
-    limit: 3000,
-    placeholder: 'Share insights, industry lessons, or professional updates with your network...',
+    id: 'twitter',
+    name: 'X (Twitter)',
+    brandColor: '#000000',
+    badgeBg: 'bg-black',
+    borderColor: 'border-gray-800 focus-within:border-black',
+    limit: 280,
+    placeholder: 'What is happening?! Write your tweet...',
   },
   {
     id: 'threads',
     name: 'Threads',
     brandColor: '#000000',
     badgeBg: 'bg-black',
+    borderColor: 'border-gray-700',
     limit: 500,
     placeholder: 'Start a thread or share a quick thought (max 500 characters)...',
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    brandColor: '#0A66C2',
+    badgeBg: 'bg-[#0A66C2]',
+    borderColor: 'border-blue-700',
+    limit: 3000,
+    placeholder: 'Share insights, industry lessons, or professional updates...',
   },
   {
     id: 'pinterest',
     name: 'Pinterest',
     brandColor: '#BD081C',
     badgeBg: 'bg-[#BD081C]',
+    borderColor: 'border-red-700',
     limit: 500,
-    placeholder: 'Describe your pin with descriptive keywords, tags, and link in bio...',
+    placeholder: 'Describe your pin with keywords, tags, and link in bio...',
   },
 ];
 
@@ -140,77 +140,133 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   // Format Switcher (text / image / video)
   const [currentPostType, setCurrentPostType] = useState<'text' | 'image' | 'video'>(initialPostType);
 
-  // Accounts state
+  // Fallback virtual accounts to ensure all 4 core platforms (YouTube, Instagram, Facebook, X) are represented
+  const availableAccounts = useMemo(() => {
+    const list = [...accounts];
+    const corePlatforms: { platform: SocialPlatform; name: string; username: string }[] = [
+      { platform: 'youtube', name: 'YouTube Channel', username: 'unosmedia' },
+      { platform: 'instagram', name: 'Instagram', username: 'unosdigitalmarketing' },
+      { platform: 'facebook', name: 'Facebook Page', username: 'unosdigitalmarketing' },
+      { platform: 'twitter', name: 'X (Twitter)', username: 'unosagency' },
+    ];
+    corePlatforms.forEach((p) => {
+      if (!list.some((a) => a.platform === p.platform)) {
+        list.push({
+          id: `preview_${p.platform}`,
+          platform: p.platform,
+          username: p.username,
+          displayName: p.name,
+          avatarUrl: '',
+          status: 'connected',
+        });
+      }
+    });
+    return list;
+  }, [accounts]);
+
+  // Selected accounts state
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(() => {
     if (initialPost?.targetAccountIds && initialPost.targetAccountIds.length > 0) {
       return initialPost.targetAccountIds;
     }
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pb_remembered_accounts');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
-    return accounts.length > 0 ? [accounts[0].id] : [];
+    // Default to the 4 core accounts from the user's workflow sketch!
+    const defaultIds = availableAccounts
+      .filter((a) => ['youtube', 'instagram', 'facebook', 'twitter'].includes(a.platform))
+      .map((a) => a.id);
+    return defaultIds.length > 0 ? defaultIds : availableAccounts.map((a) => a.id).slice(0, 4);
   });
 
-  const [rememberAccounts, setRememberAccounts] = useState(true);
+  // Media Sharing Mode: 'shared' (Same media for all) vs 'per-platform' (Different media for each)
+  const [mediaSharingMode, setMediaSharingMode] = useState<'shared' | 'per-platform'>('shared');
 
-  // Main Caption state
+  // Shared media state (used when mediaSharingMode === 'shared')
+  const [mediaList, setMediaList] = useState<PostMedia[]>(initialPost?.media || []);
+
+  // Per-platform independent media assets (used when mediaSharingMode === 'per-platform')
+  const [platformMedia, setPlatformMedia] = useState<Record<SocialPlatform, PostMedia[]>>(() => {
+    const initial: Record<string, PostMedia[]> = {
+      youtube: [],
+      instagram: [],
+      facebook: [],
+      twitter: [],
+      threads: [],
+      linkedin: [],
+      pinterest: [],
+      tiktok: [],
+      bluesky: [],
+    };
+    if (initialPost?.platformOverrides) {
+      Object.entries(initialPost.platformOverrides).forEach(([plat, override]) => {
+        if (override?.media && override.media.length > 0) {
+          initial[plat] = override.media;
+        }
+      });
+    }
+    return initial as Record<SocialPlatform, PostMedia[]>;
+  });
+
+  // Per-platform aspect ratios
+  const [platformAspectRatios, setPlatformAspectRatios] = useState<
+    Record<SocialPlatform, 'original' | '1:1' | '4:5' | '9:16' | '16:9'>
+  >({
+    youtube: '16:9',
+    instagram: '1:1',
+    facebook: 'original',
+    twitter: '16:9',
+    threads: 'original',
+    linkedin: 'original',
+    pinterest: '9:16',
+    tiktok: '9:16',
+    bluesky: 'original',
+  });
+
+  // Per-platform fit modes
+  const [platformFitModes, setPlatformFitModes] = useState<Record<SocialPlatform, 'contain' | 'cover'>>({
+    youtube: 'contain',
+    instagram: 'contain',
+    facebook: 'contain',
+    twitter: 'contain',
+    threads: 'contain',
+    linkedin: 'contain',
+    pinterest: 'contain',
+    tiktok: 'contain',
+    bluesky: 'contain',
+  });
+
+  // Captions state
   const [mainCaption, setMainCaption] = useState<string>(initialPost?.content || '');
-
-  // Separate platform-specific captions state (dynamically shown when multiple platforms are selected)
   const [platformCaptions, setPlatformCaptions] = useState<
     Record<SocialPlatform, { caption: string; title?: string }>
   >(() => {
     return {
-      facebook: {
-        caption: initialPost?.platformOverrides?.facebook?.caption || '',
+      youtube: {
+        title: initialPost?.platformOverrides?.youtube?.title || '',
+        caption: initialPost?.platformOverrides?.youtube?.caption || '',
       },
       instagram: {
         caption: initialPost?.platformOverrides?.instagram?.caption || '',
       },
-      youtube: {
-        caption: initialPost?.platformOverrides?.youtube?.caption || '',
-        title: initialPost?.platformOverrides?.youtube?.title || '',
+      facebook: {
+        caption: initialPost?.platformOverrides?.facebook?.caption || '',
       },
-      linkedin: { caption: '' },
-      twitter: { caption: '' },
-      tiktok: { caption: '' },
-      pinterest: { caption: '' },
+      twitter: {
+        caption: initialPost?.platformOverrides?.twitter?.caption || '',
+      },
       threads: { caption: '' },
+      linkedin: { caption: '' },
+      pinterest: { caption: '' },
+      tiktok: { caption: '' },
       bluesky: { caption: '' },
     };
   });
-
-  // Collapsed / Expanded state for platform-specific caption cards
-  const [collapsedPlatforms, setCollapsedPlatforms] = useState<Record<string, boolean>>({});
-
-  // Media state
-  const [mediaList, setMediaList] = useState<PostMedia[]>(initialPost?.media || []);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Advanced configurations
   const [firstComment, setFirstComment] = useState(initialPost?.firstComment || '');
   const [destinationLink, setDestinationLink] = useState('');
   const [collaborators, setCollaborators] = useState(initialPost?.collaborators || '');
   const [isAiGenerated, setIsAiGenerated] = useState(initialPost?.isAiGenerated || false);
-  const [activeConfigTab, setActiveConfigTab] = useState<'none' | 'comment' | 'link' | 'collab'>('none');
 
-  // Aspect ratio crop simulator (original, 1:1, 4:5, 9:16, 16:9)
-  const [aspectRatio, setAspectRatio] = useState<'original' | '1:1' | '4:5' | '9:16' | '16:9'>('original');
-  const [mediaFitMode, setMediaFitMode] = useState<'contain' | 'cover'>('contain');
-  const [showSafeAreaGuide, setShowSafeAreaGuide] = useState<boolean>(false);
-
-  // Active Platform for Live Feed Preview
-  const [activePreviewPlatform, setActivePreviewPlatform] = useState<SocialPlatform>('instagram');
-
-  // Scheduling states (Mode: 'schedule' vs 'instant')
+  // Scheduling states
   const [scheduleMode, setScheduleMode] = useState<'schedule' | 'instant'>('schedule');
   const [scheduledDate, setScheduledDate] = useState(() => {
     if (initialPost?.scheduledFor) {
@@ -230,133 +286,77 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   });
   const [isScheduleValid, setIsScheduleValid] = useState(true);
 
-  // Right column tab: 'schedule' or 'preview'
-  const [activeRightTab, setActiveRightTab] = useState<'schedule' | 'preview'>('schedule');
-
-  // UI state
+  // General UI states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const sharedFileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Clipboard Paste (Ctrl+V) listener
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
-        handleFiles(e.clipboardData.files);
-        showToast('Image pasted from clipboard!');
-      }
-    };
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, []);
-
-  // Compute selected platforms from selectedAccountIds
+  // Compute selected platforms and accounts
   const selectedPlatforms = useMemo(() => {
     const plats = new Set<SocialPlatform>();
     selectedAccountIds.forEach((id) => {
-      const acc = accounts.find((a) => a.id === id);
+      const acc = availableAccounts.find((a) => a.id === id);
       if (acc) plats.add(acc.platform);
     });
     return Array.from(plats);
-  }, [selectedAccountIds, accounts]);
+  }, [selectedAccountIds, availableAccounts]);
 
-  // Active account for live preview
-  const activeAccount = useMemo(() => {
-    return accounts.find((a) => selectedAccountIds.includes(a.id)) || accounts[0] || {
-      id: 'fb_default',
-      displayName: 'PostBridge Studio',
-      username: 'postbridge',
-      platform: 'facebook' as SocialPlatform,
-      avatarUrl: '',
-    };
-  }, [accounts, selectedAccountIds]);
+  const selectedAccounts = useMemo(() => {
+    return availableAccounts.filter((a) => selectedAccountIds.includes(a.id));
+  }, [availableAccounts, selectedAccountIds]);
 
-  // Keep activePreviewPlatform synced with selectedPlatforms
-  useEffect(() => {
-    if (selectedPlatforms.length > 0 && !selectedPlatforms.includes(activePreviewPlatform)) {
-      setActivePreviewPlatform(selectedPlatforms[0]);
-    }
-  }, [selectedPlatforms, activePreviewPlatform]);
-
-  const previewAccount = useMemo(() => {
-    return (
-      accounts.find((a) => selectedAccountIds.includes(a.id) && a.platform === activePreviewPlatform) ||
-      accounts.find((a) => a.platform === activePreviewPlatform) ||
-      activeAccount
-    );
-  }, [accounts, selectedAccountIds, activePreviewPlatform, activeAccount]);
-
-  const previewPostData: Partial<Post> = useMemo(() => {
-    const overrides: Record<string, PlatformCaptionOverride> = {};
-    Object.entries(platformCaptions).forEach(([plat, cap]) => {
-      overrides[plat] = {
-        caption: cap.caption,
-        title: cap.title,
-        firstComment: firstComment,
-        isAiGenerated: isAiGenerated,
-      };
-    });
-
-    return {
-      content: mainCaption,
-      media: mediaList,
-      platformOverrides: overrides,
-      firstComment: firstComment,
-      isAiGenerated: isAiGenerated,
-      postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
-    };
-  }, [mainCaption, mediaList, platformCaptions, firstComment, isAiGenerated]);
-
-  // Circular Platform Selection Handler
-  const handleTogglePlatform = (platformId: SocialPlatform) => {
-    const platformAccounts = accounts.filter((a) => a.platform === platformId);
-
-    if (platformAccounts.length === 0) {
-      showToast(`No ${platformId} account connected yet. Add one in Connections.`);
-      return;
-    }
-
-    const platformAccountIds = platformAccounts.map((a) => a.id);
-    const isCurrentlySelected = platformAccountIds.some((id) => selectedAccountIds.includes(id));
-
-    let nextAccountIds: string[];
-    if (isCurrentlySelected) {
-      // Deselect platform accounts (keep at least one account overall if possible)
-      const remaining = selectedAccountIds.filter((id) => !platformAccountIds.includes(id));
-      nextAccountIds = remaining.length > 0 ? remaining : selectedAccountIds;
-    } else {
-      // Select all accounts for this platform
-      nextAccountIds = Array.from(new Set([...selectedAccountIds, ...platformAccountIds]));
-    }
-
-    setSelectedAccountIds(nextAccountIds);
-    if (rememberAccounts && typeof window !== 'undefined') {
-      localStorage.setItem('pb_remembered_accounts', JSON.stringify(nextAccountIds));
-    }
-  };
-
-  // Specific account toggler
+  // Account selection toggle handler
   const handleToggleAccount = (id: string) => {
-    let next: string[];
-    if (selectedAccountIds.includes(id)) {
-      if (selectedAccountIds.length === 1) return; // Keep at least one
-      next = selectedAccountIds.filter((accId) => accId !== id);
-    } else {
-      next = [...selectedAccountIds, id];
-    }
-    setSelectedAccountIds(next);
-    if (rememberAccounts && typeof window !== 'undefined') {
-      localStorage.setItem('pb_remembered_accounts', JSON.stringify(next));
-    }
+    setSelectedAccountIds((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) return prev; // Keep at least one account selected
+        return prev.filter((accId) => accId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
   };
 
-  // File Upload Handler
-  const handleFiles = async (files: FileList | null) => {
+  // Safe Mode Switcher (preserves assets when switching modes)
+  const handleSetSharingMode = (newMode: 'shared' | 'per-platform') => {
+    if (newMode === 'per-platform' && mediaSharingMode === 'shared') {
+      // If shared media exists, copy it into any platform media that is currently empty
+      if (mediaList.length > 0) {
+        setPlatformMedia((prev) => {
+          const next = { ...prev };
+          selectedPlatforms.forEach((p) => {
+            if (!next[p] || next[p].length === 0) {
+              next[p] = [...mediaList];
+            }
+          });
+          return next;
+        });
+      }
+    } else if (newMode === 'shared' && mediaSharingMode === 'per-platform') {
+      // If mediaList is empty but a platform has media, copy the first available platform's media as shared
+      if (mediaList.length === 0) {
+        const firstAvailable = Object.values(platformMedia).find((m) => m && m.length > 0);
+        if (firstAvailable && firstAvailable.length > 0) {
+          setMediaList([...firstAvailable]);
+        }
+      }
+    }
+    setMediaSharingMode(newMode);
+    showToast(
+      newMode === 'shared'
+        ? 'Switched to Same Media for All Platforms'
+        : 'Switched to Different Media for Each Platform'
+    );
+  };
+
+  // Shared file upload handler
+  const handleSharedFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
 
@@ -374,7 +374,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         size: file.size,
         aspectRatio: isVideoFile ? '9:16' : '1:1',
       };
-      setMediaList((prev) => [...prev, tempMedia]);
+      setMediaList([tempMedia]);
 
       if (isVideoFile && currentPostType !== 'video') {
         setCurrentPostType('video');
@@ -388,104 +388,119 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           body: formData,
         });
         const data = await res.json();
-        if (data.success && data.url) {
-          setMediaList((prev) =>
-            prev.map((item) =>
-              item.id === mediaId
-                ? { ...item, url: data.url, thumbnailUrl: data.thumbnailUrl || data.url }
-                : item
-            )
-          );
+        if (data.url) {
+          setMediaList([
+            {
+              ...tempMedia,
+              url: data.url,
+              thumbnailUrl: data.url,
+            },
+          ]);
         }
       } catch (err) {
-        console.error('Media upload error:', err);
+        console.warn('Background upload failed, retaining blob preview', err);
       }
     }
     setIsUploading(false);
+    showToast('Shared media updated!');
   };
 
-  // AI Quick Writing Helpers
-  const applyAiEnhancement = (
-    mode: 'improve' | 'punchy' | 'cta' | 'hashtags',
-    targetPlatform?: SocialPlatform
-  ) => {
-    const currentText = targetPlatform
-      ? platformCaptions[targetPlatform]?.caption || mainCaption
-      : mainCaption;
+  // Platform-specific file upload handler
+  const handleUploadForPlatform = async (platform: SocialPlatform, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
 
-    let enhanced = currentText;
+    for (const file of Array.from(files)) {
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
+      const localBlob = URL.createObjectURL(file);
+      const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    if (mode === 'improve') {
-      if (!currentText.trim()) {
-        enhanced =
-          '🚀 We are excited to announce our newest breakthrough feature!\n\nDesigned to make multi-channel publishing seamless and fast. Let us know what you think below! 👇';
-      } else {
-        enhanced = `✨ ${currentText.trim()}\n\nDrop a comment below with your thoughts and share with someone who needs this!`;
-      }
-    } else if (mode === 'punchy') {
-      enhanced = `⚡ Quick realization:\n\n${
-        currentText.trim() || 'Consistency beats intensity every single time.'
-      }\n\nAgree or disagree?`;
-    } else if (mode === 'cta') {
-      enhanced = `${currentText.trim()}\n\n👉 Save this post for later and click the link in bio to learn more!`;
-    } else if (mode === 'hashtags') {
-      enhanced = `${currentText.trim()}\n\n#marketing #growth #socialmedia #business #productivity #tech`;
-    }
+      const tempMedia: PostMedia = {
+        id: mediaId,
+        name: file.name,
+        url: localBlob,
+        thumbnailUrl: localBlob,
+        type: isVideo ? 'video' : 'image',
+        size: file.size,
+        aspectRatio: isVideo ? '9:16' : '1:1',
+      };
 
-    if (targetPlatform) {
-      setPlatformCaptions((prev) => ({
+      setPlatformMedia((prev) => ({
         ...prev,
-        [targetPlatform]: {
-          ...prev[targetPlatform],
-          caption: enhanced,
-        },
+        [platform]: [tempMedia],
       }));
-      showToast(`Enhanced ${targetPlatform} caption!`);
-    } else {
-      setMainCaption(enhanced);
-      showToast('Main caption enhanced!');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/media/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.url) {
+          setPlatformMedia((prev) => ({
+            ...prev,
+            [platform]: [
+              {
+                ...tempMedia,
+                url: data.url,
+                thumbnailUrl: data.url,
+              },
+            ],
+          }));
+        }
+      } catch (err) {
+        console.warn('Platform media upload error, retaining local preview', err);
+      }
     }
+    setIsUploading(false);
+    showToast(`${platform.toUpperCase()} media attached!`);
   };
 
-  // Copy Main Caption into specific Platform Caption
-  const copyFromMainCaption = (platformId: SocialPlatform) => {
+  // Platform caption updates
+  const updatePlatformCaption = (platform: SocialPlatform, text: string) => {
     setPlatformCaptions((prev) => ({
       ...prev,
-      [platformId]: {
-        ...prev[platformId],
-        caption: mainCaption,
-        title:
-          platformId === 'youtube' && !prev[platformId]?.title
-            ? mainCaption.split('\n')[0] || ''
-            : prev[platformId]?.title,
+      [platform]: {
+        ...prev[platform],
+        caption: text,
       },
     }));
-    showToast(`Copied main caption to ${platformId}`);
   };
 
-  // Handle Save / Publish execution
-  const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
-    // Idempotency: prevent double-clicks or repeated submissions while in progress
-    if (isSubmitting) return;
+  const updatePlatformTitle = (platform: SocialPlatform, title: string) => {
+    setPlatformCaptions((prev) => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        title,
+      },
+    }));
+  };
 
-    if (action !== 'draft' && selectedAccountIds.length === 0) {
-      alert('Please select at least one social platform to publish to.');
+  // Execute Save / Publish / Schedule
+  const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
+    if (selectedAccountIds.length === 0) {
+      alert('Please select at least one social media account before proceeding.');
       return;
     }
 
-    // Platform validation: YouTube requires video media
-    const hasYouTubeTarget = selectedAccountIds.some(
-      (id) => accounts.find((a) => a.id === id)?.platform === 'youtube'
-    );
-    const hasVideo = mediaList.some((m) => m.type === 'video');
+    // YouTube Video validation
+    const hasYouTubeTarget = selectedPlatforms.includes('youtube');
+    const youtubeMedia =
+      mediaSharingMode === 'per-platform'
+        ? platformMedia.youtube
+        : mediaList;
+    const hasVideo = youtubeMedia?.some((m) => m.type === 'video');
+
     if (action !== 'draft' && hasYouTubeTarget && !hasVideo) {
       alert(
-        'YouTube requires a video upload (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.'
+        'YouTube requires a video upload (MP4, MOV, WEBM). Please attach a video file to the YouTube section or deselect YouTube before publishing.'
       );
       return;
     }
 
-    // Schedule validation
     if (action === 'schedule' && !isScheduleValid) {
       alert('The selected schedule time is in the past. Please select a future date and time.');
       return;
@@ -498,11 +513,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString()
           : undefined;
 
-      // Build platformOverrides for each selected platform
+      // Construct independent platform overrides
       const overrides: Partial<Record<SocialPlatform, PlatformCaptionOverride>> = {};
       selectedPlatforms.forEach((p) => {
         const platData = platformCaptions[p];
         const captionText = platData?.caption?.trim() ? platData.caption : mainCaption;
+        const platMedia =
+          mediaSharingMode === 'per-platform' && platformMedia[p]?.length > 0
+            ? platformMedia[p]
+            : mediaList;
+
         overrides[p] = {
           caption: destinationLink ? `${captionText}\n\n🔗 ${destinationLink}` : captionText,
           title:
@@ -511,14 +531,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               : undefined,
           firstComment: p === 'instagram' ? firstComment || undefined : undefined,
           collaborator: p === 'instagram' ? collaborators || undefined : undefined,
+          media: platMedia,
+          aspectRatio: platformAspectRatios[p],
         };
       });
+
+      // Primary media: shared media if present, else first available platform media
+      const primaryMedia =
+        mediaList.length > 0
+          ? mediaList
+          : Object.values(platformMedia).find((m) => m && m.length > 0) || [];
 
       const payload: Partial<Post> = {
         content: destinationLink ? `${mainCaption}\n\n🔗 ${destinationLink}` : mainCaption,
         targetAccountIds: selectedAccountIds,
-        media: mediaList,
-        postType: currentPostType === 'video' ? 'reel' : 'post',
+        media: primaryMedia,
+        postType: primaryMedia.length > 0 && primaryMedia[0].type === 'video' ? 'reel' : 'post',
         platformOverrides: overrides,
         firstComment: firstComment || undefined,
         collaborators: collaborators || undefined,
@@ -529,7 +557,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       await onSave(payload, action);
       showToast(
         action === 'schedule'
-          ? 'Post successfully scheduled!'
+          ? 'Post successfully scheduled across all selected accounts!'
           : action === 'publish-now'
           ? 'Post published live!'
           : 'Post saved to drafts!'
@@ -541,31 +569,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
-
-
-  // Helper for aspect ratio container styles
-  const getAspectRatioClass = () => {
-    switch (aspectRatio) {
-      case '1:1':
-        return 'aspect-square max-w-[380px] w-full mx-auto';
-      case '4:5':
-        return 'aspect-[4/5] max-w-[340px] w-full mx-auto';
-      case '9:16':
-        return 'aspect-[9/16] max-w-[280px] w-full mx-auto';
-      case '16:9':
-        return 'aspect-video max-w-xl w-full mx-auto';
-      case 'original':
-      default:
-        return 'max-h-[460px] w-auto max-w-full mx-auto';
-    }
-  };
-
-  // Live character stats for main caption
-  const mainCharsRemaining = Math.max(0, 2200 - mainCaption.length);
-  const mainHashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
-
   return (
-    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-6 md:p-8 font-sans">
+    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-4 md:p-6 lg:p-8 font-sans">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs z-50 animate-fade-in border border-white/10">
@@ -574,9 +579,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/80">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* TOP BAR: Navigation, Page Title, Format Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200/80">
           <div>
             <div className="flex items-center space-x-2 text-xs text-gray-400 mb-1">
               <button
@@ -598,11 +603,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
             <div className="flex items-center space-x-3">
               <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-                {currentPostType === 'video'
-                  ? 'Create Video & Reel'
-                  : currentPostType === 'image'
-                  ? 'Create Image Post'
-                  : 'Create Text Post'}
+                Create Social Media Post
               </h1>
 
               {/* Format Switcher Pills */}
@@ -644,946 +645,693 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </div>
           </div>
 
-          {/* Publishing Ready Status */}
+          {/* Selection Counter */}
           <div className="flex items-center space-x-3 text-xs text-gray-500">
             <span className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200/80 font-bold shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>
-                {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'Platform' : 'Platforms'} Selected
+                {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'Platform' : 'Platforms'} Active
               </span>
             </span>
           </div>
         </div>
 
-        {/* 1. EXACT BUFFER-STYLE CIRCULAR SOCIAL ACCOUNT SELECTOR (from User Image) */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs">
-          <ConnectedAccountSelector
-            accounts={accounts}
-            selectedAccountIds={selectedAccountIds}
-            onToggleAccount={handleToggleAccount}
-            onSelectAll={() => {
-              const allAccIds = accounts.map((a) => a.id);
-              setSelectedAccountIds(allAccIds);
-              if (rememberAccounts && typeof window !== 'undefined') {
-                localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
-              }
-            }}
-            onClearAll={() => {
-              setSelectedAccountIds([]);
-              if (rememberAccounts && typeof window !== 'undefined') {
-                localStorage.setItem('pb_remembered_accounts', JSON.stringify([]));
-              }
-            }}
-            onGoToConnections={onGoToConnections || onBack}
-          />
+        {/* 1. SOCIAL MEDIA ACCOUNTS (Exact Visual Header from User Sketch) */}
+        <div className="bg-white rounded-3xl border border-blue-200/80 p-6 shadow-xs relative">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            {/* Header Box from Sketch: "Social Media Accounts" */}
+            <div className="px-6 py-2 rounded-2xl border-2 border-blue-400 bg-blue-50/40 text-blue-900 font-extrabold text-base md:text-lg shadow-2xs tracking-tight">
+              Social Media Accounts
+            </div>
+
+            {/* Tree Branch Line from Box down to Accounts */}
+            <div className="w-0.5 h-4 bg-blue-400" />
+
+            {/* Accounts Row with Note Bubble */}
+            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Account Selection Circles (YouTube, Instagram, Facebook, X, etc.) */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap flex-1">
+                {availableAccounts
+                  .filter((a) => ['youtube', 'instagram', 'facebook', 'twitter'].includes(a.platform))
+                  .map((acc) => {
+                    const isSelected = selectedAccountIds.includes(acc.id);
+                    const config = SUPPORTED_PLATFORMS.find((p) => p.id === acc.platform);
+
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => handleToggleAccount(acc.id)}
+                        className={`group flex flex-col items-center space-y-1.5 transition-all cursor-pointer relative ${
+                          isSelected ? 'scale-105' : 'opacity-60 hover:opacity-100 hover:scale-102'
+                        }`}
+                      >
+                        {/* Circle Avatar with Brand Color Border */}
+                        <div
+                          className={`w-14 h-14 rounded-full flex items-center justify-center border-2 transition-all p-1 shadow-xs ${
+                            isSelected
+                              ? acc.platform === 'youtube'
+                                ? 'border-red-500 bg-red-50/30 ring-3 ring-red-400/20'
+                                : acc.platform === 'instagram'
+                                ? 'border-pink-500 bg-pink-50/30 ring-3 ring-pink-400/20'
+                                : acc.platform === 'facebook'
+                                ? 'border-blue-500 bg-blue-50/30 ring-3 ring-blue-400/20'
+                                : 'border-gray-900 bg-gray-50 ring-3 ring-gray-400/20'
+                              : 'border-gray-300 bg-white'
+                          }`}
+                        >
+                          <PlatformLogo platform={acc.platform} className="w-8 h-8" />
+                        </div>
+
+                        {/* Platform Name */}
+                        <span
+                          className={`text-xs font-bold capitalize transition-colors ${
+                            isSelected ? 'text-gray-900' : 'text-gray-400'
+                          }`}
+                        >
+                          {config?.name || acc.platform}
+                        </span>
+
+                        {/* Selected Check Pill */}
+                        {isSelected && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+
+              {/* Note Bubble from Sketch */}
+              <div className="bg-purple-50/80 border border-purple-200/90 rounded-2xl p-3.5 max-w-xs text-xs text-purple-900 leading-relaxed shadow-2xs font-medium relative">
+                <span className="font-bold block text-purple-800 mb-0.5">💡 Publishing Tip:</span>
+                We can select one media for every platform or one can select only one media for one platform.
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 2-Column Main Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* LEFT 2 COLUMNS: Media + Captions + Customizations */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Media Dropzone (when postType is image or video) */}
-            {currentPostType !== 'text' && (
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
-                  multiple
-                  onChange={(e) => handleFiles(e.target.files)}
-                  className="hidden"
-                />
+        {/* 2. MEDIA SHARING MODE CONTROL */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-200/90 shadow-2xs">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+              <SlidersHorizontal className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-gray-900">Media Sharing Mode</h4>
+              <p className="text-[11px] text-gray-500">
+                {mediaSharingMode === 'shared'
+                  ? 'Mode A: One media asset shared across all selected platforms with independent framing.'
+                  : 'Mode B: Independent uploads — select different images or videos for each platform.'}
+              </p>
+            </div>
+          </div>
 
-                {mediaList.length > 0 ? (
-                  /* Attached Media Preview Card */
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                          {currentPostType === 'video' ? (
-                            <Video className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <FileImage className="w-4 h-4 text-emerald-600" />
-                          )}
-                          <span>Attached Media ({mediaList.length})</span>
-                        </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-mono">
-                          {mediaList[0].size
-                            ? `${(mediaList[0].size / 1024 / 1024).toFixed(1)} MB`
-                            : 'Ready'}
-                        </span>
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80">
+            <button
+              type="button"
+              onClick={() => handleSetSharingMode('shared')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                mediaSharingMode === 'shared'
+                  ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Same Media for All</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetSharingMode('per-platform')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                mediaSharingMode === 'per-platform'
+                  ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Different Media per Platform</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3. DEDICATED SHARED MEDIA CANVAS (When in Shared Mode) */}
+        {mediaSharingMode === 'shared' && currentPostType !== 'text' && (
+          <div className="bg-white rounded-3xl border border-gray-200/90 p-5 shadow-xs space-y-4">
+            <input
+              type="file"
+              ref={sharedFileInputRef}
+              accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
+              onChange={(e) => handleSharedFiles(e.target.files)}
+              className="hidden"
+            />
+
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                  <Layers className="w-4 h-4 text-emerald-600" />
+                  <span>Shared Media Asset</span>
+                </span>
+                <span className="text-[11px] text-gray-400">
+                  {mediaList.length > 0
+                    ? `${mediaList[0].name} (${(mediaList[0].size ? mediaList[0].size / 1024 / 1024 : 0).toFixed(1)} MB)`
+                    : 'No media uploaded yet'}
+                </span>
+              </div>
+
+              {mediaList.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => sharedFileInputRef.current?.click()}
+                    className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                  >
+                    Replace Asset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMediaList([])}
+                    className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer ml-2"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {mediaList.length === 0 ? (
+              <div
+                onClick={() => sharedFileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 hover:border-emerald-500 rounded-2xl p-8 flex flex-col items-center justify-center space-y-2 cursor-pointer transition-colors bg-gray-50/60 hover:bg-emerald-50/20"
+              >
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-bold text-gray-800">Click to upload or drag and drop</p>
+                  <p className="text-[11px] text-gray-400">Shared asset for all selected platforms (Images, videos)</p>
+                </div>
+              </div>
+            ) : (
+              <div className="relative rounded-2xl overflow-hidden bg-black/90 max-h-[300px] flex items-center justify-center">
+                {mediaList[0].type === 'video' ? (
+                  <video src={mediaList[0].url} controls className="max-h-[300px] w-auto object-contain" />
+                ) : (
+                  <img src={mediaList[0].thumbnailUrl || mediaList[0].url} alt="Shared asset" className="max-h-[300px] w-auto object-contain" />
+                )}
+                <span className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-xs text-[10px] text-white font-semibold">
+                  Shared across {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 4. VISUAL CONNECTOR LINES (Desktop Curved SVG Lines) */}
+        <div className="w-full hidden lg:block overflow-visible h-12 pointer-events-none relative -my-2">
+          <svg className="w-full h-full overflow-visible" preserveAspectRatio="none">
+            {selectedPlatforms.map((plat, idx) => {
+              const stroke =
+                plat === 'youtube'
+                  ? '#EF4444'
+                  : plat === 'instagram'
+                  ? '#EC4899'
+                  : plat === 'facebook'
+                  ? '#3B82F6'
+                  : '#111827';
+
+              const total = selectedPlatforms.length;
+              const accountX = 50 + (idx - (total - 1) / 2) * 12;
+              const columnX = ((idx + 0.5) / total) * 100;
+
+              return (
+                <path
+                  key={plat}
+                  d={`M ${accountX}% 0 C ${accountX}% 24, ${columnX}% 24, ${columnX}% 48`}
+                  fill="none"
+                  stroke={stroke}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  className="transition-all duration-300 drop-shadow-2xs"
+                />
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* 5. DYNAMIC PLATFORM-BY-PLATFORM CONTENT SECTIONS (Exact Sketch Order) */}
+        <div
+          className={`grid gap-6 items-start ${
+            selectedPlatforms.length === 1
+              ? 'grid-cols-1 max-w-xl mx-auto'
+              : selectedPlatforms.length === 2
+              ? 'grid-cols-1 md:grid-cols-2'
+              : selectedPlatforms.length === 3
+              ? 'grid-cols-1 md:grid-cols-3'
+              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+          }`}
+        >
+          {selectedPlatforms.map((platform) => {
+            const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+            const account =
+              availableAccounts.find((a) => a.platform === platform && selectedAccountIds.includes(a.id)) ||
+              availableAccounts.find((a) => a.platform === platform) || {
+                id: `acc_${platform}`,
+                platform,
+                displayName: config?.name || platform,
+                username: 'yourchannel',
+                avatarUrl: '',
+                status: 'connected',
+              };
+
+            // Current media for this platform (Shared vs Per-Platform)
+            const currentMedia =
+              mediaSharingMode === 'per-platform'
+                ? platformMedia[platform] || []
+                : mediaList;
+
+            const currentAspect = platformAspectRatios[platform] || 'original';
+            const currentFit = platformFitModes[platform] || 'contain';
+            const currentCaption = platformCaptions[platform]?.caption ?? mainCaption;
+            const currentTitle = platformCaptions[platform]?.title ?? '';
+
+            // Card Post Data for Live Preview
+            const cardPostData: Partial<Post> = {
+              content: currentCaption,
+              media: currentMedia,
+              postType: currentMedia.length > 0 && currentMedia[0].type === 'video' ? 'reel' : 'post',
+              platformOverrides: {
+                [platform]: {
+                  caption: currentCaption,
+                  title: currentTitle,
+                  media: currentMedia,
+                  aspectRatio: currentAspect,
+                  firstComment: firstComment,
+                  isAiGenerated: isAiGenerated,
+                },
+              },
+            };
+
+            const fileInputId = `file-input-${platform}`;
+
+            return (
+              <div
+                key={platform}
+                className={`bg-white rounded-3xl border-2 shadow-xs overflow-hidden flex flex-col space-y-4 p-5 transition-all ${
+                  platform === 'youtube'
+                    ? 'border-red-500/80'
+                    : platform === 'instagram'
+                    ? 'border-pink-500/80'
+                    : platform === 'facebook'
+                    ? 'border-blue-500/80'
+                    : 'border-gray-800'
+                }`}
+              >
+                {/* 1. PLATFORM HEADER & IDENTITY */}
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center space-x-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center p-1.5 shadow-2xs ${
+                        platform === 'youtube'
+                          ? 'bg-red-50 text-red-600'
+                          : platform === 'instagram'
+                          ? 'bg-pink-50 text-pink-600'
+                          : platform === 'facebook'
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'bg-gray-100 text-gray-900'
+                      }`}
+                    >
+                      <PlatformLogo platform={platform} className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-gray-900">{config?.name || platform}</h3>
+                      <p className="text-[11px] text-gray-400 truncate max-w-[140px]">
+                        @{account.username || account.displayName}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      platform === 'youtube'
+                        ? 'bg-red-100 text-red-700'
+                        : platform === 'instagram'
+                        ? 'bg-pink-100 text-pink-700'
+                        : platform === 'facebook'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-200 text-gray-800'
+                    }`}
+                  >
+                    Active
+                  </span>
+                </div>
+
+                {/* STEP 1: UPLOAD MEDIA */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-2xs ${
+                        platform === 'youtube'
+                          ? 'bg-red-100 text-red-800'
+                          : platform === 'instagram'
+                          ? 'bg-pink-100 text-pink-800'
+                          : platform === 'facebook'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-200 text-gray-900'
+                      }`}
+                    >
+                      1. Upload Media
+                    </span>
+
+                    {currentMedia.length > 0 && (
+                      <span className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                        <span>Attached</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    id={fileInputId}
+                    type="file"
+                    accept={platform === 'youtube' ? 'video/*' : 'image/*,video/*'}
+                    onChange={(e) => handleUploadForPlatform(platform, e.target.files)}
+                    className="hidden"
+                  />
+
+                  {currentMedia.length === 0 ? (
+                    <div
+                      onClick={() => {
+                        if (mediaSharingMode === 'shared') {
+                          sharedFileInputRef.current?.click();
+                        } else {
+                          document.getElementById(fileInputId)?.click();
+                        }
+                      }}
+                      className="border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-2xl p-6 flex flex-col items-center justify-center space-y-1.5 cursor-pointer transition-colors bg-blue-50/20 hover:bg-blue-50/40 text-center"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-800">Click to upload or drag and drop</p>
+                      <p className="text-[10px] text-gray-400">
+                        {platform === 'youtube' ? '(Videos only)' : '(Images, videos)'}
+                      </p>
+                    </div>
+                  ) : (
+                    /* Media Canvas with Aspect Ratio Controls */
+                    <div className="space-y-2">
+                      <div className="relative rounded-2xl overflow-hidden bg-black/90 aspect-video flex items-center justify-center">
+                        {currentMedia[0].type === 'video' ? (
+                          <video src={currentMedia[0].url} controls className={`w-full h-full ${currentFit === 'cover' ? 'object-cover' : 'object-contain'}`} />
+                        ) : (
+                          <img
+                            src={currentMedia[0].thumbnailUrl || currentMedia[0].url}
+                            alt="Media Preview"
+                            className={`w-full h-full ${currentFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                          />
+                        )}
                       </div>
 
-                      {/* Canvas Controls: Aspect Ratio + Framing Fit + Safe Area */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Aspect Ratio Selector */}
-                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
-                          <Crop className="w-3 h-3 text-gray-400 ml-1.5" />
+                      {/* Aspect Ratio Selector Pills */}
+                      <div className="flex items-center justify-between text-[11px] font-medium text-gray-600 pt-1">
+                        <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none py-0.5">
                           {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((ratio) => (
                             <button
                               key={ratio}
                               type="button"
-                              onClick={() => setAspectRatio(ratio)}
-                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                                aspectRatio === ratio
-                                  ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                  : 'hover:text-gray-900'
+                              onClick={() =>
+                                setPlatformAspectRatios((prev) => ({
+                                  ...prev,
+                                  [platform]: ratio,
+                                }))
+                              }
+                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer text-[10px] ${
+                                currentAspect === ratio
+                                  ? 'bg-gray-900 text-white font-bold'
+                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                               }`}
                             >
-                              {ratio === 'original' ? 'Original' : ratio}
+                              {ratio === 'original' ? 'Orig' : ratio}
                             </button>
                           ))}
                         </div>
 
-                        {/* Framing Mode: Fit vs Fill */}
-                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
-                          <button
-                            type="button"
-                            onClick={() => setMediaFitMode('contain')}
-                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
-                              mediaFitMode === 'contain'
-                                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                : 'hover:text-gray-900'
-                            }`}
-                            title="Contain: Shows complete media without cropping (letterboxed if needed)"
-                          >
-                            <Minimize2 className="w-2.5 h-2.5" />
-                            <span>Fit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMediaFitMode('cover')}
-                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
-                              mediaFitMode === 'cover'
-                                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                : 'hover:text-gray-900'
-                            }`}
-                            title="Cover: Fills frame to edges"
-                          >
-                            <Maximize2 className="w-2.5 h-2.5" />
-                            <span>Fill</span>
-                          </button>
-                        </div>
-
-                        {/* Safe Area Guide Toggle for 9:16 / Reels / Shorts */}
-                        {(aspectRatio === '9:16' || mediaList[0].type === 'video') && (
-                          <button
-                            type="button"
-                            onClick={() => setShowSafeAreaGuide(!showSafeAreaGuide)}
-                            className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors flex items-center space-x-1 cursor-pointer ${
-                              showSafeAreaGuide
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                            title="Toggle safe zones overlay to verify UI elements won't block video content"
-                          >
-                            <Shield className="w-3 h-3 text-emerald-600" />
-                            <span>Safe Areas</span>
-                          </button>
-                        )}
-
-                        {/* Reset to Original */}
-                        {(aspectRatio !== 'original' || mediaFitMode !== 'contain') && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAspectRatio('original');
-                              setMediaFitMode('contain');
-                            }}
-                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            title="Reset framing to original"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Canvas Preview Box */}
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-[#0b0c10] flex items-center justify-center p-3 group shadow-inner min-h-[300px]">
-                      <div
-                        className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-black/40 rounded-xl`}
-                      >
-                        {mediaList[0].type === 'video' ? (
-                          <video
-                            src={mediaList[0].url}
-                            controls
-                            className={`w-full h-full ${
-                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            }`}
-                          />
-                        ) : (
-                          <img
-                            src={mediaList[0].thumbnailUrl || mediaList[0].url}
-                            alt="Media Preview"
-                            className={`w-full h-full ${
-                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            }`}
-                          />
-                        )}
-
-                        {/* Safe Area Guides Overlay */}
-                        {showSafeAreaGuide && (
-                          <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-2">
-                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
-                              Top Safe Zone (Header, Audio, Search)
-                            </div>
-                            <div className="flex justify-between items-center px-1">
-                              <span className="text-[9px] text-white/70 bg-black/60 px-2 py-0.5 rounded font-mono">
-                                Focal Content Safe Area
-                              </span>
-                              <div className="border border-dashed border-amber-400/90 bg-amber-500/15 rounded p-1 text-[8px] font-bold text-amber-300 text-center">
-                                Action Buttons
-                              </div>
-                            </div>
-                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
-                              Bottom Safe Zone (Title, Handle, Sound Wave)
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Hover Actions: Replace & Remove */}
-                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                        {/* Replace / Change Media */}
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20"
+                          onClick={() => {
+                            if (mediaSharingMode === 'shared') {
+                              sharedFileInputRef.current?.click();
+                            } else {
+                              document.getElementById(fileInputId)?.click();
+                            }
+                          }}
+                          className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer ml-1"
                         >
-                          <Upload className="w-3 h-3" />
-                          <span>Replace</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMediaList([])}
-                          className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md cursor-pointer"
-                          title="Remove media"
-                        >
-                          <X className="w-4 h-4" />
+                          Change
                         </button>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  /* High-Converting Dropzone */
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDragging(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDragging(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDragging(false);
-                      if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
-                    }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] ${
-                      isDragging
-                        ? 'border-emerald-500 bg-emerald-50/60 scale-[0.99]'
-                        : 'border-gray-300 hover:border-emerald-500 bg-gray-50/40 hover:bg-emerald-50/20'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5 border border-emerald-100 shadow-2xs">
-                      <FileUp className="w-6 h-6" />
-                    </div>
-
-                    <h3 className="text-sm font-bold text-gray-800">
-                      Click to upload or drag & drop media
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Or press <kbd className="bg-gray-200/80 px-1.5 py-0.5 rounded font-mono text-[10px] text-gray-700">Ctrl + V</kbd> anywhere to paste from clipboard
-                    </p>
-
-                    <div className="flex items-center space-x-2 text-[11px] text-gray-400 mt-3">
-                      <span className="px-2 py-0.5 rounded-md bg-gray-100 font-semibold uppercase">
-                        {currentPostType === 'video' ? 'MP4, MOV, WEBM' : 'JPG, PNG, WEBP, GIF'}
-                      </span>
-                      <span>•</span>
-                      <span>Up to 500 MB</span>
-                    </div>
-                  </div>
-                )}
-
-                {isUploading && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-2 animate-pulse">
-                    <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <span>Uploading and syncing media securely...</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 2. MAIN / DEFAULT CAPTION EDITOR */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-3 focus-within:border-emerald-500 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                    <span>
-                      {selectedPlatforms.length > 1
-                        ? 'Main Caption (Master / Default)'
-                        : selectedPlatforms[0] === 'youtube'
-                        ? 'YouTube Video Description'
-                        : selectedPlatforms[0] === 'instagram'
-                        ? 'Instagram Caption'
-                        : 'Post Caption'}
-                    </span>
-                    <Info className="w-3.5 h-3.5 text-gray-400" />
-                  </span>
-                  {selectedPlatforms.length > 1 && (
-                    <span className="text-[11px] text-gray-400 block mt-0.5">
-                      Applies automatically across all selected platforms unless customized below.
-                    </span>
                   )}
                 </div>
 
-                {/* Live Character & Hashtag Counter */}
-                <div className="flex items-center space-x-3 text-xs text-gray-400 font-medium">
-                  <span className="flex items-center space-x-1">
-                    <Hash className="w-3 h-3 text-gray-400" />
-                    <span>{mainHashtagsCount}/30</span>
-                  </span>
-                  <span>•</span>
-                  <span
-                    className={`font-mono ${
-                      mainCharsRemaining < 50 ? 'text-amber-600 font-bold' : ''
-                    }`}
-                  >
-                    {mainCaption.length} chars
-                  </span>
-                </div>
-              </div>
-
-              {/* YouTube Title field (shown when only YouTube is selected) */}
-              {selectedPlatforms.length === 1 && selectedPlatforms[0] === 'youtube' && (
-                <div className="space-y-1 pb-1 border-b border-gray-100">
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
-                    YouTube Video Title (Required)
-                  </label>
-                  <input
-                    type="text"
-                    value={platformCaptions.youtube?.title || ''}
-                    onChange={(e) =>
-                      setPlatformCaptions((prev) => ({
-                        ...prev,
-                        youtube: { ...prev.youtube, title: e.target.value },
-                      }))
-                    }
-                    placeholder="Enter an engaging video title (max 100 characters)..."
-                    maxLength={100}
-                    className="w-full text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-hidden focus:border-emerald-500"
-                  />
-                </div>
-              )}
-
-              {/* Textarea */}
-              <textarea
-                value={mainCaption}
-                onChange={(e) => setMainCaption(e.target.value)}
-                placeholder="What would you like to share? Write your post or use AI to craft engaging copy..."
-                className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
-              />
-
-              {/* Emoji Picker Bar */}
-              {showEmojiPicker && (
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base">
-                  {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
-                    (em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => setMainCaption(mainCaption + ' ' + em)}
-                        className="hover:scale-125 transition-transform p-1 cursor-pointer"
-                      >
-                        {em}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
-
-              {/* Quick AI Writing Pills */}
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                  <span className="text-[11px] font-semibold text-gray-400 mr-1">AI Enhancers:</span>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('improve')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
-                    <span>Engage</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('punchy')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <Flame className="w-3 h-3 text-amber-500" />
-                    <span>Punchy Hook</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('cta')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <span>+ CTA</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('hashtags')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <span># Viral Tags</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center space-x-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                    title="Insert Emoji"
-                  >
-                    <Smile className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAiModal(mainCaption, (gen) => setMainCaption(gen))}
-                    className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Full AI Generator</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EACH SELECTED PLATFORM (Shown when >1 platform selected) */}
-            {selectedPlatforms.length > 1 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-2">
-                      <span>Platform-Specific Captions</span>
-                      <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                        {selectedPlatforms.length} active
-                      </span>
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Customize independent captions for each platform, or leave blank to inherit the main caption.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stack of Platform Caption Editors */}
-                <div className="space-y-3">
-                  {selectedPlatforms.map((platId) => {
-                    const platConfig =
-                      SUPPORTED_PLATFORMS.find((p) => p.id === platId) || {
-                        id: platId,
-                        name: platId,
-                        brandColor: '#4F46E5',
-                        badgeBg: 'bg-indigo-600',
-                        limit: 2200,
-                        placeholder: 'Write platform caption...',
-                      };
-
-                    const platData = platformCaptions[platId] || { caption: '' };
-                    const currentCaptionText = platData.caption;
-                    const charCount = currentCaptionText.length;
-                    const isOverLimit = platConfig.limit && charCount > platConfig.limit;
-                    const isCollapsed = collapsedPlatforms[platId];
-
-                    return (
-                      <div
-                        key={platId}
-                        className={`bg-white rounded-2xl border transition-all ${
-                          isOverLimit
-                            ? 'border-rose-400 ring-2 ring-rose-400/20 shadow-xs'
-                            : 'border-gray-200/90 hover:border-gray-300 shadow-xs'
-                        }`}
-                      >
-                        {/* Platform Caption Header */}
-                        <div className="p-4 flex items-center justify-between border-b border-gray-100">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
-                              <PlatformLogo platform={platId} className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <span className="text-xs font-bold text-gray-900 block leading-tight">
-                                {platConfig.name} Caption
-                              </span>
-                              <span className="text-[10px] text-gray-400">
-                                {platData.caption.trim() ? 'Customized' : 'Inheriting main caption'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            {/* Live Char Limit Counter */}
-                            <span
-                              className={`text-xs font-mono px-2 py-0.5 rounded-md ${
-                                isOverLimit
-                                  ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200'
-                                  : 'bg-gray-50 text-gray-500 font-medium'
-                              }`}
-                            >
-                              {charCount} / {platConfig.limit}
-                            </span>
-
-                            {/* Copy from Main Caption Button */}
-                            <button
-                              type="button"
-                              onClick={() => copyFromMainCaption(platId)}
-                              className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                              title="Copy main caption into this field"
-                            >
-                              <Copy className="w-3 h-3 text-gray-400" />
-                              <span className="hidden sm:inline">Copy Main</span>
-                            </button>
-
-                            {/* Collapse/Expand Toggle */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCollapsedPlatforms((prev) => ({
-                                  ...prev,
-                                  [platId]: !prev[platId],
-                                }))
-                              }
-                              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-                            >
-                              {isCollapsed ? (
-                                <ChevronDown className="w-4 h-4" />
-                              ) : (
-                                <ChevronUp className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Collapsible Caption Input Area */}
-                        {!isCollapsed && (
-                          <div className="p-4 space-y-3">
-                            {/* Special YouTube Title Field */}
-                            {platId === 'youtube' && (
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
-                                  YouTube Video Title (Required)
-                                </label>
-                                <input
-                                  type="text"
-                                  value={platData.title || ''}
-                                  onChange={(e) =>
-                                    setPlatformCaptions((prev) => ({
-                                      ...prev,
-                                      youtube: { ...prev.youtube, title: e.target.value },
-                                    }))
-                                  }
-                                  placeholder="Enter YouTube title (e.g., How to Build a SaaS in 2026)..."
-                                  maxLength={100}
-                                  className="w-full text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-hidden focus:border-emerald-500"
-                                />
-                              </div>
-                            )}
-
-                            {/* Specific Caption Textarea */}
-                            <textarea
-                              value={platData.caption}
-                              onChange={(e) =>
-                                setPlatformCaptions((prev) => ({
-                                  ...prev,
-                                  [platId]: {
-                                    ...prev[platId],
-                                    caption: e.target.value,
-                                  },
-                                }))
-                              }
-                              placeholder={
-                                platData.caption.trim()
-                                  ? platConfig.placeholder
-                                  : `${platConfig.placeholder} (Leave blank to use main caption)`
-                              }
-                              className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200/80 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
-                            />
-
-                            {/* Platform Validation Warning if exceeded */}
-                            {isOverLimit && (
-                              <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
-                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                <span>
-                                  Exceeds {platConfig.name} character limit ({charCount} / {platConfig.limit}). Please trim text.
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Platform AI Quick Actions */}
-                            <div className="flex items-center justify-between text-xs pt-1">
-                              <div className="flex items-center space-x-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => applyAiEnhancement('punchy', platId)}
-                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
-                                >
-                                  ⚡ Punchy
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => applyAiEnhancement('hashtags', platId)}
-                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
-                                >
-                                  # Tags
-                                </button>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openAiModal(platData.caption || mainCaption, (gen) => {
-                                    setPlatformCaptions((prev) => ({
-                                      ...prev,
-                                      [platId]: { ...prev[platId], caption: gen },
-                                    }));
-                                  })
-                                }
-                                className="text-emerald-700 hover:text-emerald-800 font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
-                              >
-                                <Sparkles className="w-3 h-3 text-emerald-600" />
-                                <span>AI Generator for {platConfig.name}</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Advanced Configurations Tabbed Strip */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-xs space-y-3">
-              <div className="flex items-center space-x-2 border-b border-gray-100 pb-2">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Post Features:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveConfigTab(activeConfigTab === 'comment' ? 'none' : 'comment')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
-                    activeConfigTab === 'comment' || firstComment
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>First Comment {firstComment && '✓'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveConfigTab(activeConfigTab === 'link' ? 'none' : 'link')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
-                    activeConfigTab === 'link' || destinationLink
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <LinkIcon className="w-3.5 h-3.5" />
-                  <span>Destination Link {destinationLink && '✓'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveConfigTab(activeConfigTab === 'collab' ? 'none' : 'collab')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
-                    activeConfigTab === 'collab' || collaborators
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Collaborators</span>
-                </button>
-              </div>
-
-              {/* Active Tab Panel */}
-              {activeConfigTab === 'comment' && (
-                <div className="pt-1 space-y-2 text-xs animate-fade-in">
+                {/* STEP 2: CAPTIONS & TEXT EDITOR */}
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-gray-700">
-                      First Comment (Published automatically with post)
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-2xs ${
+                        platform === 'youtube'
+                          ? 'bg-red-100 text-red-800'
+                          : platform === 'instagram'
+                          ? 'bg-pink-100 text-pink-800'
+                          : platform === 'facebook'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-200 text-gray-900'
+                      }`}
+                    >
+                      2. Captions
                     </span>
+
                     <button
                       type="button"
                       onClick={() =>
-                        setFirstComment(
-                          'Drop your thoughts below! Check the link in bio for more details. 🚀 #viral'
-                        )
+                        openAiModal(`Write a high-converting ${config?.name || platform} post`, (generated) => {
+                          updatePlatformCaption(platform, generated);
+                        })
                       }
-                      className="text-emerald-600 hover:underline font-semibold cursor-pointer"
+                      className="text-[11px] font-bold text-purple-600 hover:text-purple-700 flex items-center space-x-1 cursor-pointer"
                     >
-                      Insert Suggested
+                      <Sparkles className="w-3 h-3 text-purple-500" />
+                      <span>AI Assist</span>
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={firstComment}
-                    onChange={(e) => setFirstComment(e.target.value)}
-                    placeholder="e.g. Leave a comment or link in bio for full story..."
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-hidden focus:border-emerald-500 text-xs"
-                  />
-                </div>
-              )}
 
-              {activeConfigTab === 'link' && (
-                <div className="pt-1 space-y-2 text-xs animate-fade-in">
-                  <span className="font-semibold text-gray-700">Destination URL / Call to Action</span>
-                  <input
-                    type="url"
-                    value={destinationLink}
-                    onChange={(e) => setDestinationLink(e.target.value)}
-                    placeholder="https://yourwebsite.com/product"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-hidden focus:border-emerald-500 text-xs"
-                  />
-                </div>
-              )}
+                  {/* YouTube: Title Field */}
+                  {platform === 'youtube' && (
+                    <div>
+                      <input
+                        type="text"
+                        value={currentTitle}
+                        onChange={(e) => updatePlatformTitle(platform, e.target.value)}
+                        placeholder="Add your video title (required)..."
+                        maxLength={100}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-red-500"
+                      />
+                      <div className="text-right text-[10px] text-gray-400 mt-0.5">
+                        {currentTitle.length}/100
+                      </div>
+                    </div>
+                  )}
 
-              {activeConfigTab === 'collab' && (
-                <div className="pt-1 space-y-2 text-xs animate-fade-in">
-                  <span className="font-semibold text-gray-700">Instagram / Facebook Collaborators</span>
-                  <input
-                    type="text"
-                    value={collaborators}
-                    onChange={(e) => setCollaborators(e.target.value)}
-                    placeholder="@ Enter an account username"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-hidden focus:border-emerald-500 text-xs"
-                  />
+                  {/* Caption Textarea */}
+                  <div className="relative">
+                    <textarea
+                      rows={platform === 'youtube' ? 4 : 5}
+                      value={currentCaption}
+                      onChange={(e) => updatePlatformCaption(platform, e.target.value)}
+                      placeholder={config?.placeholder || `Write your ${platform} caption...`}
+                      maxLength={config?.limit || 2200}
+                      className={`w-full px-3 py-2.5 rounded-2xl border text-xs leading-relaxed focus:outline-hidden resize-none transition-colors ${config?.borderColor || 'border-gray-200 focus:border-emerald-500'}`}
+                    />
+                    <div className="text-right text-[10px] text-gray-400 mt-0.5 font-mono">
+                      {currentCaption.length}/{config?.limit || 2200}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* STEP 3: PREVIEW */}
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-2xs ${
+                        platform === 'youtube'
+                          ? 'bg-red-100 text-red-800'
+                          : platform === 'instagram'
+                          ? 'bg-pink-100 text-pink-800'
+                          : platform === 'facebook'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-200 text-gray-900'
+                      }`}
+                    >
+                      3. Preview
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                      Live Feed
+                    </span>
+                  </div>
+
+                  {/* Authentic Platform Live Feed Preview Component */}
+                  <div className="pt-1">
+                    <PostPreview
+                      post={cardPostData}
+                      selectedPlatform={platform}
+                      activeAccount={account}
+                      aspectRatio={currentAspect}
+                      mediaFitMode={currentFit}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 6. KEY FEATURES BANNER (Matching Exact Bottom Box from Sketch) */}
+        <div className="bg-[#EFF6FF] border border-blue-200 rounded-3xl p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-2xs">
+          <div className="flex items-center space-x-3 shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-lg shadow-2xs">
+              💡
+            </div>
+            <div>
+              <span className="font-extrabold text-gray-900 text-base block">Key Features</span>
+              <span className="text-xs text-blue-800 font-medium">Production Publishing Workspace</span>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Redesigned Scheduling Engine & Live Feed Preview */}
-          <div className="space-y-4">
-            {/* Tab switch between Schedule Settings and Live Preview */}
-            <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200/80">
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('schedule')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                  activeRightTab === 'schedule'
-                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Scheduling</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('preview')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                  activeRightTab === 'preview'
-                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Live Feed Preview</span>
-              </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 flex-1 font-medium text-xs text-gray-700">
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Platform-wise media upload</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Aspect ratio selection</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Accurate platform layouts</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Independent captions</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Crop & adjust (if needed)</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>No cropping in main preview</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Real-time preview</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>One or all platforms option</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+              <span>Save draft & schedule</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 7. SCHEDULING DOCK & EXECUTION CONTROLS */}
+        <div className="bg-white rounded-3xl border border-gray-200/90 p-5 md:p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-900">Publishing Timeline & Schedule</h4>
+                <p className="text-xs text-gray-400">
+                  Targeting {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'platform' : 'platforms'} ({selectedAccountIds.length} destination accounts)
+                </p>
+              </div>
             </div>
 
-            {activeRightTab === 'schedule' ? (
-              /* Redesigned Scheduling Engine Card */
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
-                {/* Publishing Mode Switcher (Schedule vs Instant) */}
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
-                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('schedule')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'schedule'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Schedule
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('instant')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'instant'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Instant
-                    </button>
-                  </div>
-                </div>
+            {/* Mode Switcher */}
+            <div className="flex items-center bg-gray-100 p-1 rounded-2xl border border-gray-200/80">
+              <button
+                type="button"
+                onClick={() => setScheduleMode('schedule')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  scheduleMode === 'schedule'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Schedule Post
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleMode('instant')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  scheduleMode === 'instant'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Publish Now
+              </button>
+            </div>
+          </div>
 
-                {scheduleMode === 'schedule' ? (
-                  <div className="space-y-5">
-                    {/* Professional Date & Time Picker Component */}
-                    <ScheduleDatePicker
-                      scheduledDate={scheduledDate}
-                      scheduledTime={scheduledTime}
-                      onDateChange={(d) => setScheduledDate(d)}
-                      onTimeChange={(t) => setScheduledTime(t)}
-                      onValidationChange={(valid) => setIsScheduleValid(valid)}
-                    />
+          {/* Schedule Date & Time Picker */}
+          {scheduleMode === 'schedule' && (
+            <div className="pt-1">
+              <ScheduleDatePicker
+                scheduledDate={scheduledDate}
+                scheduledTime={scheduledTime}
+                onDateChange={setScheduledDate}
+                onTimeChange={setScheduledTime}
+                onValidationChange={setIsScheduleValid}
+              />
+            </div>
+          )}
 
-                    {/* Schedule Post Action Button */}
-                    <button
-                      type="button"
-                      disabled={isSubmitting || !isScheduleValid}
-                      onClick={() => handleExecute('schedule')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
-                    </button>
-                  </div>
-                ) : (
-                  /* Instant Live Dispatch Mode */
-                  <div className="space-y-4">
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-                      <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                        <span>
-                          Your post will be published immediately to all {selectedPlatforms.length} selected platforms using official APIs.
-                        </span>
-                      </div>
-                    </div>
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleExecute('draft')}
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl text-xs font-bold border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5 text-gray-500" />
+              <span>Save as Draft</span>
+            </button>
 
-                    <button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => handleExecute('publish-now')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Status Bar */}
-                <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
-                  <span className="flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>
-                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
-                    </span>
-                  </span>
-                  <span>Supabase Queue Active</span>
-                </div>
-
-                {/* Secondary Save to Draft */}
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleExecute('draft')}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Save className="w-3.5 h-3.5 text-gray-500" />
-                  <span>Save as Draft</span>
-                </button>
-              </div>
-            ) : (
-              /* Platform-Specific Live Feed Preview */
-              <div className="space-y-4">
-                {/* Platform Preview Selector Bar */}
-                <div className="bg-white p-3 rounded-2xl border border-gray-200/90 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center space-x-1.5">
-                      <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-xs font-bold text-gray-800">Platform Preview</span>
-                    </div>
-                    <span className="text-[11px] text-gray-400 font-medium">
-                      {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'target' : 'targets'} selected
-                    </span>
-                  </div>
-
-                  {/* Platform Selector Tabs */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                    {(selectedPlatforms.length > 0
-                      ? selectedPlatforms
-                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
-                    ).map((platform) => {
-                      const isActive = activePreviewPlatform === platform;
-                      const hasCustomCaption = Boolean(
-                        platformCaptions[platform]?.caption || platformCaptions[platform]?.title
-                      );
-                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                      const platformName = config?.name || (platform === 'twitter' ? 'X (Twitter)' : platform);
-
-                      return (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setActivePreviewPlatform(platform)}
-                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-gray-900 text-white shadow-xs'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                          }`}
-                        >
-                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
-                          <span className="capitalize">{platformName}</span>
-                          {hasCustomCaption && (
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
-                              title="Customized caption"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Authentic Platform-Specific Post Preview */}
-                <PostPreview
-                  post={previewPostData}
-                  selectedPlatform={activePreviewPlatform}
-                  activeAccount={previewAccount}
-                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
-                  aspectRatio={aspectRatio}
-                  mediaFitMode={mediaFitMode}
-                />
-
-                {/* Quick Action Footer */}
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveRightTab('schedule')}
-                    className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                    <span>Configure Scheduling</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => handleExecute(scheduleMode === 'schedule' ? 'schedule' : 'publish-now')}
-                    className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{scheduleMode === 'schedule' ? 'Schedule' : 'Publish Live'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleExecute(scheduleMode === 'schedule' ? 'schedule' : 'publish-now')}
+              className="w-full sm:w-auto px-7 py-3 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+              <span>
+                {isSubmitting
+                  ? 'Processing...'
+                  : scheduleMode === 'schedule'
+                  ? 'Confirm & Schedule Across Selected Platforms'
+                  : 'Publish Live to All Selected Platforms'}
+              </span>
+            </button>
           </div>
         </div>
       </div>

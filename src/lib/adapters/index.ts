@@ -25,15 +25,17 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const facebookAdapter: PlatformAdapter = {
   validatePost(post, override) {
     const text = override?.caption || post.content;
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
     const errors: string[] = [];
-    if (!text && (!post.media || post.media.length === 0)) {
+    if (!text && (!effectiveMedia || effectiveMedia.length === 0)) {
       errors.push('Facebook requires either text or at least one media asset.');
     }
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
     const text = override?.caption || post.content;
-    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
+    const mediaUrl = effectiveMedia && effectiveMedia.length > 0 ? effectiveMedia[0].url : undefined;
     
     // If a real Page Access Token is configured, make real call to Meta Graph API
     if (account.accessToken) {
@@ -88,8 +90,9 @@ export const facebookAdapter: PlatformAdapter = {
 export const instagramAdapter: PlatformAdapter = {
   validatePost(post, override) {
     const text = override?.caption || post.content;
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
     const errors: string[] = [];
-    if (!post.media || post.media.length === 0) {
+    if (!effectiveMedia || effectiveMedia.length === 0) {
       errors.push('Instagram requires at least one image or video container.');
     }
     if (text.length > 2200) {
@@ -100,7 +103,8 @@ export const instagramAdapter: PlatformAdapter = {
   async publish(account, post, override) {
     const text = override?.caption || post.content;
     const isReel = post.postType === 'reel';
-    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
+    const mediaUrl = effectiveMedia && effectiveMedia.length > 0 ? effectiveMedia[0].url : undefined;
 
     // Real API call via Meta Graph API if access token is configured
     if (account.accessToken && mediaUrl) {
@@ -221,7 +225,8 @@ export const linkedinAdapter: PlatformAdapter = {
 export const youtubeAdapter: PlatformAdapter = {
   validatePost(post, override) {
     const errors: string[] = [];
-    const hasVideo = post.media?.some((m) => m.type === 'video');
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
+    const hasVideo = effectiveMedia?.some((m) => m.type === 'video');
     if (!hasVideo) {
       errors.push('YouTube only supports video uploads (MP4, MOV, WEBM). Text-only or photo posts cannot be published to YouTube.');
     }
@@ -237,7 +242,8 @@ export const youtubeAdapter: PlatformAdapter = {
   async publish(account, post, override) {
     const title = override?.title || post.content.split('\n')[0] || 'Scheduled Video';
     const description = override?.caption || post.content;
-    const videoMedia = post.media?.find((m) => m.type === 'video') || post.media?.[0];
+    const effectiveMedia = override?.media && override.media.length > 0 ? override.media : post.media;
+    const videoMedia = effectiveMedia?.find((m) => m.type === 'video') || effectiveMedia?.[0];
 
     if (!videoMedia) {
       return {
