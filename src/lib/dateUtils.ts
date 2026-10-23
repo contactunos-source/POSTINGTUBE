@@ -48,6 +48,16 @@ export function formatLocalToUtcIso(dateStr: string, timeStr: string): string {
 }
 
 /**
+ * Converts a UTC ISO 8601 string into a local 'YYYY-MM-DDTHH:mm' string suitable
+ * for HTML5 <input type="datetime-local">, preserving the user's local timezone.
+ */
+export function formatToDateTimeLocal(isoDateString: string | undefined | null): string {
+  if (!isoDateString) return '';
+  const { date, time } = extractLocalDateAndTime(isoDateString);
+  return `${date}T${time}`;
+}
+
+/**
  * Accurately extracts local YYYY-MM-DD and HH:mm from an ISO UTC string.
  */
 export function extractLocalDateAndTime(isoDateString: string | undefined | null): { date: string; time: string } {
@@ -61,6 +71,19 @@ export function extractLocalDateAndTime(isoDateString: string | undefined | null
     date: `${year}-${month}-${day}`,
     time: `${hours}:${minutes}`,
   };
+}
+
+/**
+ * Format full date & time with seconds precision e.g. "Oct 23, 2026, 8:00:02 PM"
+ */
+export function formatDateTimeWithSeconds(dateInput: string | Date | undefined | null, fallback = ''): string {
+  const d = parseDateSafe(dateInput);
+  if (!d) return fallback;
+  try {
+    return format(d, 'MMM d, yyyy, h:mm:ss a');
+  } catch {
+    return fallback;
+  }
 }
 
 /**

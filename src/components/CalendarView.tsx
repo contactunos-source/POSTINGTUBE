@@ -45,6 +45,8 @@ import {
   postMatchesDay,
   formatTimeSafe,
   formatDateFullSafe,
+  formatToDateTimeLocal,
+  formatLocalToUtcIso,
 } from '@/lib/dateUtils';
 
 interface CalendarViewProps {
@@ -902,7 +904,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     type="datetime-local"
                     value={
                       rescheduleDateInput ||
-                      (inspectedPost.scheduledFor ? inspectedPost.scheduledFor.slice(0, 16) : '')
+                      formatToDateTimeLocal(inspectedPost.scheduledFor)
                     }
                     onChange={(e) => setRescheduleDateInput(e.target.value)}
                     className="text-xs bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 flex-1 text-gray-800"
@@ -910,11 +912,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!rescheduleDateInput) return;
-                      const validDate = new Date(rescheduleDateInput);
-                      const validIso = isNaN(validDate.getTime())
-                        ? new Date().toISOString()
-                        : validDate.toISOString();
+                      const inputVal = rescheduleDateInput || formatToDateTimeLocal(inspectedPost.scheduledFor);
+                      if (!inputVal) return;
+                      const [dPart, tPart] = inputVal.split('T');
+                      const validIso = formatLocalToUtcIso(dPart, tPart || '12:00');
                       await onReschedulePost(inspectedPost.id, validIso);
                       setRescheduleSuccessMsg('Post schedule updated!');
                       setTimeout(() => setRescheduleSuccessMsg(null), 3000);

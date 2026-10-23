@@ -266,23 +266,30 @@ export const DatabaseService = {
           console.log('[Supabase] Post successfully persisted:', post.id);
         }
 
-        // If scheduled, also upsert background job queue
+        // If scheduled, also upsert background job queue for all target destinations
         if (post.status === 'scheduled' && post.scheduledFor) {
-          const idempotencyKey = `job_${post.id}_${new Date(post.scheduledFor).getTime()}`;
-          const { error: jobErr } = await supabase.from('scheduled_jobs').upsert(
-            {
-              post_id: post.id,
-              account_id: post.targetAccountIds[0] || 'fb_868941086292404',
-              scheduled_for: post.scheduledFor,
-              status: 'pending',
-              idempotency_key: idempotencyKey,
-            },
-            { onConflict: 'idempotency_key' }
-          );
-          if (jobErr) {
-            console.error('Failed to upsert scheduled_job to Supabase:', jobErr);
-          } else {
-            console.log('[Supabase] Scheduled job persisted:', idempotencyKey);
+          const targetIds = post.targetAccountIds && post.targetAccountIds.length > 0
+            ? post.targetAccountIds
+            : ['fb_default'];
+          const scheduledTimestamp = new Date(post.scheduledFor).getTime();
+
+          for (const accId of targetIds) {
+            const idempotencyKey = `job_${post.id}_${accId}_${scheduledTimestamp}`;
+            const { error: jobErr } = await supabase.from('scheduled_jobs').upsert(
+              {
+                post_id: post.id,
+                account_id: accId,
+                scheduled_for: post.scheduledFor,
+                status: 'pending',
+                idempotency_key: idempotencyKey,
+              },
+              { onConflict: 'idempotency_key' }
+            );
+            if (jobErr) {
+              console.error(`Failed to upsert scheduled_job (${idempotencyKey}) to Supabase:`, jobErr);
+            } else {
+              console.log('[Supabase] Scheduled destination job persisted:', idempotencyKey);
+            }
           }
         }
       } catch (err) {

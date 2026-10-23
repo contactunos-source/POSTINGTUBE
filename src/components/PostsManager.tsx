@@ -33,7 +33,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe } from '@/lib/dateUtils';
+import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds } from '@/lib/dateUtils';
 
 interface PostsManagerProps {
   posts: Post[];
@@ -521,20 +521,19 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
                           {/* Bottom Action Footer */}
                           <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-                            <div className="text-gray-500 flex items-center space-x-2">
+                            <div className="text-gray-500 flex flex-wrap items-center gap-3">
                               {post.scheduledFor && (
-                                <span className="flex items-center space-x-1">
-                                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="flex items-center space-x-1 font-medium">
+                                  <Clock className="w-3.5 h-3.5 text-sky-500" />
                                   <span>
-                                    Scheduled: {formatDateFullSafe(post.scheduledFor)} at{' '}
-                                    {formatTimeSafe(post.scheduledFor)}
+                                    Scheduled: {formatDateTimeWithSeconds(post.scheduledFor)}
                                   </span>
                                 </span>
                               )}
-                              {post.publishedAt && !post.scheduledFor && (
-                                <span className="flex items-center space-x-1">
+                              {post.publishedAt && (
+                                <span className="flex items-center space-x-1 font-medium text-emerald-700">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span>Published: {formatDateFullSafe(post.publishedAt)}</span>
+                                  <span>Published: {formatDateTimeWithSeconds(post.publishedAt)}</span>
                                 </span>
                               )}
                             </div>
@@ -551,14 +550,15 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 </button>
                               )}
 
-                              {/* Retry Failed */}
-                              {post.status === 'failed' && (
+                              {/* Retry Failed (for completely failed posts or partial failures) */}
+                              {(post.status === 'failed' || (post.status === 'published' && postAccounts.some((a) => post.results?.[a.id]?.status === 'failed'))) && (
                                 <button
                                   onClick={() => onRetryPost(post)}
                                   className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
+                                  title="Retry only the failed destinations with strict idempotency"
                                 >
                                   <RotateCcw className="w-3 h-3" />
-                                  <span>Retry</span>
+                                  <span>Retry Failed</span>
                                 </button>
                               )}
 
@@ -721,6 +721,30 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
               </div>
 
+              {/* Timing Metadata Section */}
+              {(selectedPostForDetails.scheduledFor || selectedPostForDetails.publishedAt) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+                  {selectedPostForDetails.scheduledFor && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Intended Scheduled Time</span>
+                      <span className="font-semibold text-gray-900 flex items-center space-x-1.5">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>{formatDateTimeWithSeconds(selectedPostForDetails.scheduledFor)}</span>
+                      </span>
+                    </div>
+                  )}
+                  {selectedPostForDetails.publishedAt && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Actual Publishing Time</span>
+                      <span className="font-semibold text-emerald-700 flex items-center space-x-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{formatDateTimeWithSeconds(selectedPostForDetails.publishedAt)}</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Per-Platform Results Breakdown */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -762,6 +786,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                             <div className="text-[11px] text-gray-500">
                               @{acc.username}
                             </div>
+                            {isFailed && res?.errorMessage && (
+                              <div className="text-[11px] text-rose-600 font-medium mt-0.5 max-w-sm">
+                                {res.errorMessage}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -771,6 +800,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center space-x-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Published Successfully</span>
+                              {(res as any)?.latencyMs && (
+                                <span className="text-[10px] text-emerald-600/80 font-normal">
+                                  ({(res as any).latencyMs}ms)
+                                </span>
+                              )}
                             </span>
                           )}
                           {isFailed && (

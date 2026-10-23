@@ -120,10 +120,10 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     }
   }, [scheduledDate, scheduledTime]);
 
-  // Is schedule strictly in the past? (Grace period: within 2 minutes)
+  // Is schedule strictly in the past? Leeway of 30 seconds for immediate scheduling
   const isPast = useMemo(() => {
     if (!scheduledDateTimeObj || isNaN(scheduledDateTimeObj.getTime())) return false;
-    return scheduledDateTimeObj.getTime() <= Date.now() + 60 * 1000;
+    return scheduledDateTimeObj.getTime() < Date.now() - 30 * 1000;
   }, [scheduledDateTimeObj]);
 
   useEffect(() => {

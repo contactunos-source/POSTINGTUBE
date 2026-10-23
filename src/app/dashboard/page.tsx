@@ -274,11 +274,13 @@ export default function DashboardPage() {
 
       isExecuting = true;
       try {
-        for (const duePost of duePosts) {
-          if (!publishingPostIdsRef.current.has(duePost.id)) {
-            await handlePublishNow(duePost);
-          }
-        }
+        await Promise.allSettled(
+          duePosts.map(async (duePost) => {
+            if (!publishingPostIdsRef.current.has(duePost.id)) {
+              await handlePublishNow(duePost);
+            }
+          })
+        );
       } finally {
         isExecuting = false;
       }
@@ -463,12 +465,33 @@ export default function DashboardPage() {
   };
 
   const handlePublishNow = async (post: Post) => {
-    // Idempotency lock: avoid duplicate execution if already in progress
+    // 1. Idempotency lock: avoid duplicate execution in current browser session
     if (publishingPostIdsRef.current.has(post.id)) {
       console.warn(`[Duplicate Prevention] Post ${post.id} is already publishing. Skipping duplicate call.`);
       return;
     }
     publishingPostIdsRef.current.add(post.id);
+
+    // 2. If Supabase is connected, attempt atomic database lock to prevent collision with server cron or other tabs
+    if (supabase && post.status === 'scheduled') {
+      try {
+        const { data: locked, error: lockErr } = await supabase
+          .from('posts')
+          .update({ status: 'publishing', updated_at: new Date().toISOString() })
+          .eq('id', post.id)
+          .eq('status', 'scheduled')
+          .select('id');
+
+        if (lockErr || !locked || locked.length === 0) {
+          // If the post was already claimed by server cron or another tab, skip execution
+          console.info(`[Distributed Lock] Post ${post.id} claimed by server cron or another tab. Skipping duplicate.`);
+          publishingPostIdsRef.current.delete(post.id);
+          return;
+        }
+      } catch (dbErr) {
+        console.warn('Database lock check bypassed:', dbErr);
+      }
+    }
 
     // Atomically transition status to 'publishing' immediately in React state & DB
     const inProgressPost: Post = {
