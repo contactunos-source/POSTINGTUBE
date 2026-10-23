@@ -46,6 +46,8 @@ import {
   Flame,
   CheckCheck,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { parseDateSafe } from '@/lib/dateUtils';
 
 interface CreatePostDashboardProps {
   postType: 'text' | 'image' | 'video';
@@ -106,11 +108,25 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   // Scheduling states (Mode: 'schedule' vs 'instant')
   const [scheduleMode, setScheduleMode] = useState<'schedule' | 'instant'>('schedule');
   const [scheduledDate, setScheduledDate] = useState(() => {
+    if (initialPost?.scheduledFor) {
+      const d = parseDateSafe(initialPost.scheduledFor);
+      if (d) {
+        return format(d, 'yyyy-MM-dd');
+      }
+    }
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().split('T')[0];
   });
-  const [scheduledTime, setScheduledTime] = useState('14:00'); // 2:00 PM
+  const [scheduledTime, setScheduledTime] = useState(() => {
+    if (initialPost?.scheduledFor) {
+      const d = parseDateSafe(initialPost.scheduledFor);
+      if (d) {
+        return format(d, 'HH:mm');
+      }
+    }
+    return '14:00';
+  });
 
   // Preview tab on the right
   const [activeRightTab, setActiveRightTab] = useState<'schedule' | 'preview'>('schedule');

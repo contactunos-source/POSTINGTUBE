@@ -561,9 +561,14 @@ export default function DashboardPage() {
             accounts={accounts}
             onSelectPost={handleEditExistingPost}
             onCreateAtDate={(d) => {
+              const year = d.getFullYear();
+              const month = String(d.getMonth() + 1).padStart(2, '0');
+              const day = String(d.getDate()).padStart(2, '0');
+              const localIsoDate = `${year}-${month}-${day}T14:00:00`;
+
               setEditingPost({
-                scheduledFor: d.toISOString(),
-                targetAccountIds: accounts.slice(0, 4).map((a) => a.id),
+                scheduledFor: localIsoDate,
+                targetAccountIds: accounts.map((a) => a.id),
                 content: '',
                 media: [],
                 tags: [],
