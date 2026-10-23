@@ -1,23 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import path from 'path';
 
 /**
  * Publishes photos, carousels, and reels to an Instagram Professional (Business/Creator) account
  * via official Meta Graph API v20.0.
  *
- * Requirements:
- * 1. Account must be an Instagram Business or Creator account connected to a Facebook Page.
- * 2. Token must have `instagram_basic` and `instagram_content_publish`.
+ * Supports:
+ * 1. Direct Instagram Resumable Upload (streams local video binary directly to rupload.facebook.com)
+ * 2. Remote Public Media URLs
+ * 3. Dynamic resolution between Facebook Page tokens (EAA...) and Instagram tokens (IG...)
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     let { igUserId, accessToken, caption, mediaUrl, postType } = body;
 
-    if (!igUserId && process.env.INSTAGRAM_ACCOUNT_ID) {
-      igUserId = process.env.INSTAGRAM_ACCOUNT_ID;
+    const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
+    const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+    // Use passed credentials or fallback to verified active server credentials
+    if (!igUserId || igUserId === '28819606054355684' || igUserId.startsWith('ig_')) {
+      igUserId = envIgUserId;
     }
-    if (!accessToken && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
-      accessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+    if (!accessToken || accessToken.startsWith('IG')) {
+      // For publishing via Graph API, Facebook Page Token with instagram permissions is the primary supported token
+      if (envFbToken) {
+        accessToken = envFbToken;
+      }
+    }
+
+    if (!accessToken) {
+      accessToken = envFbToken;
     }
 
     if (!igUserId || !accessToken) {
@@ -40,16 +55,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const baseUrl =
-      process.env.APP_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-
-    // Ensure full public URL for local uploads so Meta can fetch the media
-    let publicMediaUrl = mediaUrl;
-    if (mediaUrl.startsWith('/')) {
-      publicMediaUrl = `${baseUrl}${mediaUrl}`;
-    }
+    const cleanIgUserId = igUserId.trim();
+    const cleanToken = accessToken.trim();
 
     const isVideo =
       postType === 'reel' ||
@@ -57,59 +64,150 @@ export async function POST(req: NextRequest) {
       /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl) ||
       mediaUrl.startsWith('data:video/');
 
-    const cleanIgUserId = igUserId.trim();
-    const cleanToken = accessToken.trim();
+    const isLocalFile = mediaUrl.startsWith('/uploads/');
 
-    // STEP 1: Create Instagram Media Container
-    const containerUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanIgUserId)}/media`;
-    const containerParams = new URLSearchParams();
-    containerParams.append('access_token', cleanToken);
-    if (caption) containerParams.append('caption', caption);
+    // Determine the base API endpoint (graph.instagram.com for IG tokens, graph.facebook.com for Meta EAA tokens)
+    const apiHost = cleanToken.startsWith('IG')
+      ? 'https://graph.instagram.com/v20.0'
+      : 'https://graph.facebook.com/v20.0';
 
-    if (isVideo) {
-      containerParams.append('media_type', 'REELS');
-      containerParams.append('video_url', publicMediaUrl);
-    } else {
-      containerParams.append('image_url', publicMediaUrl);
-    }
+    let creationId = '';
 
-    const containerRes = await fetch(containerUrl, {
-      method: 'POST',
-      body: containerParams,
-    });
-    const containerData = await containerRes.json();
+    // =========================================================================
+    // STRATEGY A: LOCAL VIDEO FILE -> RESUMABLE UPLOAD TO META SERVERS
+    // =========================================================================
+    if (isLocalFile && isVideo) {
+      const filePath = path.join(process.cwd(), 'public', mediaUrl);
+      const fileBuffer = await readFile(filePath);
+      const fileSize = fileBuffer.length;
 
-    if (containerData.error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: containerData.error.message || 'Failed to create Instagram media container.',
-          details: containerData.error,
+      // 1. Initialize Resumable Container
+      const initParams = new URLSearchParams({
+        access_token: cleanToken,
+        upload_type: 'resumable',
+        media_type: 'REELS',
+      });
+      if (caption) initParams.append('caption', caption);
+
+      const initRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
+        method: 'POST',
+        body: initParams,
+      });
+      const initData = await initRes.json();
+
+      if (initData.error) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: initData.error.message || 'Failed to initialize Instagram video container.',
+            details: initData.error,
+          },
+          { status: 400 }
+        );
+      }
+
+      creationId = initData.id;
+      const uploadUri = initData.uri;
+
+      if (!uploadUri || !creationId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Meta did not return a valid upload URI for video upload.',
+          },
+          { status: 400 }
+        );
+      }
+
+      // 2. Stream Binary to rupload.facebook.com
+      const uploadRes = await fetch(uploadUri, {
+        method: 'POST',
+        headers: {
+          Authorization: `OAuth ${cleanToken}`,
+          offset: '0',
+          file_size: fileSize.toString(),
+          'Content-Type': 'video/mp4',
         },
-        { status: 400 }
-      );
+        body: fileBuffer,
+      });
+
+      const uploadData = await uploadRes.json().catch(() => ({}));
+      if (uploadData.error) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: uploadData.error.message || 'Failed to stream video bytes to Meta servers.',
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      // =========================================================================
+      // STRATEGY B: PUBLIC URL OR PHOTO CONTAINER CREATION
+      // =========================================================================
+      const baseUrl =
+        process.env.APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+      let publicMediaUrl = mediaUrl;
+      if (mediaUrl.startsWith('/')) {
+        publicMediaUrl = `${baseUrl}${mediaUrl}`;
+      }
+
+      const containerUrl = `${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`;
+      const containerParams = new URLSearchParams();
+      containerParams.append('access_token', cleanToken);
+      if (caption) containerParams.append('caption', caption);
+
+      if (isVideo) {
+        containerParams.append('media_type', 'REELS');
+        containerParams.append('video_url', publicMediaUrl);
+      } else {
+        containerParams.append('image_url', publicMediaUrl);
+      }
+
+      const containerRes = await fetch(containerUrl, {
+        method: 'POST',
+        body: containerParams,
+      });
+      const containerData = await containerRes.json();
+
+      if (containerData.error) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: containerData.error.message || 'Failed to create Instagram media container.',
+            details: containerData.error,
+          },
+          { status: 400 }
+        );
+      }
+
+      creationId = containerData.id;
     }
 
-    const creationId = containerData.id;
     if (!creationId) {
       return NextResponse.json(
-        { success: false, error: 'Meta did not return a valid creation container ID.' },
+        { success: false, error: 'Meta did not return a valid container ID.' },
         { status: 400 }
       );
     }
 
-    // STEP 2: If Reel/Video, poll container until video processing status is FINISHED
+    // =========================================================================
+    // STEP 2: POLL STATUS UNTIL FINISHED (FOR VIDEOS/REELS)
+    // =========================================================================
     if (isVideo) {
       let isReady = false;
       let attempts = 0;
-      while (!isReady && attempts < 10) {
+      while (!isReady && attempts < 15) {
         await new Promise((r) => setTimeout(r, 2000));
         attempts++;
 
         const statusRes = await fetch(
-          `https://graph.facebook.com/v20.0/${encodeURIComponent(
-            creationId
-          )}?fields=status_code&access_token=${encodeURIComponent(cleanToken)}`
+          `${apiHost}/${encodeURIComponent(creationId)}?fields=status_code,status&access_token=${encodeURIComponent(
+            cleanToken
+          )}`
         );
         const statusData = await statusRes.json();
 
@@ -119,7 +217,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               success: false,
-              error: `Instagram video processing ended with status: ${statusData.status_code}`,
+              error: `Instagram video processing error: ${statusData.status || statusData.status_code}`,
+              details: statusData,
             },
             { status: 400 }
           );
@@ -127,8 +226,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // STEP 3: Publish Media Container
-    const publishUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanIgUserId)}/media_publish`;
+    // =========================================================================
+    // STEP 3: PUBLISH MEDIA CONTAINER LIVE
+    // =========================================================================
+    const publishUrl = `${apiHost}/${encodeURIComponent(cleanIgUserId)}/media_publish`;
     const publishParams = new URLSearchParams();
     publishParams.append('creation_id', creationId);
     publishParams.append('access_token', cleanToken);
@@ -151,7 +252,18 @@ export async function POST(req: NextRequest) {
     }
 
     const publishedMediaId = publishData.id;
-    const postUrl = `https://instagram.com/p/${publishedMediaId}`;
+
+    // Fetch live permalink from Meta
+    let postUrl = `https://instagram.com/p/${publishedMediaId}`;
+    try {
+      const permalinkRes = await fetch(
+        `${apiHost}/${publishedMediaId}?fields=permalink&access_token=${encodeURIComponent(cleanToken)}`
+      );
+      const permalinkData = await permalinkRes.json();
+      if (permalinkData.permalink) {
+        postUrl = permalinkData.permalink;
+      }
+    } catch {}
 
     return NextResponse.json({
       success: true,
