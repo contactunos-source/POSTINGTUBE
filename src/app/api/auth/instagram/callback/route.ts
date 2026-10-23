@@ -23,11 +23,15 @@ export async function GET(req: NextRequest) {
   const errorDescription = searchParams.get('error_description');
   const stateRaw = searchParams.get('state');
 
-  const baseUrl =
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+  const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+  const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
+
+  const defaultBaseUrl =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-  const redirectUri = `${baseUrl}/api/auth/instagram/callback`;
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
+
   const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
   const fbAppSecret = process.env.FACEBOOK_APP_SECRET;
   const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
@@ -35,6 +39,8 @@ export async function GET(req: NextRequest) {
 
   let workspaceId = '';
   let authMode: 'direct' | 'facebook' = 'facebook';
+  let returnBaseUrl = defaultBaseUrl;
+  let activeRedirectUri = `${defaultBaseUrl}/api/auth/instagram/callback`;
 
   if (stateRaw) {
     try {
@@ -43,13 +49,19 @@ export async function GET(req: NextRequest) {
       if (parsed.mode === 'direct') {
         authMode = 'direct';
       }
+      if (parsed.returnUrl) {
+        returnBaseUrl = parsed.returnUrl;
+      }
+      if (parsed.usedRedirectUri) {
+        activeRedirectUri = parsed.usedRedirectUri;
+      }
     } catch {
       workspaceId = stateRaw;
     }
   }
 
   const makeRedirect = (params: Record<string, string>) => {
-    const target = new URL('/dashboard', baseUrl);
+    const target = new URL('/dashboard', returnBaseUrl);
     target.searchParams.set('tab', 'connections');
     target.searchParams.set('platform', 'instagram');
     if (workspaceId) {
@@ -86,7 +98,7 @@ export async function GET(req: NextRequest) {
       directTokenForm.append('client_id', igAppId);
       directTokenForm.append('client_secret', igAppSecret);
       directTokenForm.append('grant_type', 'authorization_code');
-      directTokenForm.append('redirect_uri', redirectUri);
+      directTokenForm.append('redirect_uri', activeRedirectUri);
       directTokenForm.append('code', cleanCode);
 
       const directRes = await fetch('https://api.instagram.com/oauth/access_token', {
@@ -200,7 +212,7 @@ export async function GET(req: NextRequest) {
       const tokenUrl = `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${encodeURIComponent(
         fbAppId
       )}&client_secret=${encodeURIComponent(fbAppSecret)}&redirect_uri=${encodeURIComponent(
-        redirectUri
+        activeRedirectUri
       )}&code=${encodeURIComponent(cleanCode)}`;
 
       const tokenRes = await fetch(tokenUrl);
