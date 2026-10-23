@@ -350,26 +350,82 @@ export const DatabaseService = {
   },
 
   /**
-   * Persist a connected account to Supabase
+   * Persist a connected account to Supabase with strict duplicate prevention
    */
-  async saveAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
-    const currentAccounts = StorageService.getAccounts(workspaceId);
-    const existingIndex = currentAccounts.findIndex((a) => a.id === account.id);
-    let updatedAccounts: SocialAccount[];
-    if (existingIndex >= 0) {
-      updatedAccounts = currentAccounts.map((a) => (a.id === account.id ? account : a));
-    } else {
-      updatedAccounts = [...currentAccounts, account];
-    }
-    StorageService.saveAccounts(updatedAccounts, workspaceId);
+  async saveAccount(
+    account: SocialAccount,
+    workspaceId: string = DEFAULT_WORKSPACE_ID
+  ): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> {
+    const targetWsId = workspaceId || DEFAULT_WORKSPACE_ID;
 
+    // 1. Backend duplicate prevention: query database for existing matching account in this workspace
     if (supabase) {
       try {
-        const dbAcc = mapAccountToDbAccount(account, workspaceId);
+        const { data: existingRows, error: checkErr } = await supabase
+          .from('connected_accounts')
+          .select('id, platform, username, page_id')
+          .eq('workspace_id', targetWsId)
+          .eq('platform', account.platform);
+
+        if (!checkErr && Array.isArray(existingRows)) {
+          const isDbDuplicate = existingRows.some((row) => {
+            const sameId = row.id === account.id;
+            const samePageId = Boolean(row.page_id && account.pageId && row.page_id === account.pageId);
+            const sameUsername = Boolean(
+              row.username &&
+              account.username &&
+              row.username.trim().toLowerCase() === account.username.trim().toLowerCase()
+            );
+            return sameId || samePageId || sameUsername;
+          });
+
+          if (isDbDuplicate) {
+            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected in workspace ${targetWsId}.`);
+            return {
+              success: false,
+              isDuplicate: true,
+              message: 'This account is already connected.',
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Database duplicate check error:', err);
+      }
+    }
+
+    // 2. Storage cache duplicate check
+    const currentAccounts = StorageService.getAccounts(targetWsId);
+    const isCacheDuplicate = currentAccounts.some((existing) => {
+      if (existing.platform !== account.platform) return false;
+      const sameId = existing.id === account.id;
+      const samePageId = Boolean(existing.pageId && account.pageId && existing.pageId === account.pageId);
+      const sameUsername = Boolean(
+        existing.username &&
+        account.username &&
+        existing.username.trim().toLowerCase() === account.username.trim().toLowerCase()
+      );
+      return sameId || samePageId || sameUsername;
+    });
+
+    if (isCacheDuplicate) {
+      return {
+        success: false,
+        isDuplicate: true,
+        message: 'This account is already connected.',
+      };
+    }
+
+    // 3. Save new account to cache
+    const updatedAccounts = [...currentAccounts, account];
+    StorageService.saveAccounts(updatedAccounts, targetWsId);
+
+    // 4. Save new account to Supabase
+    if (supabase) {
+      try {
+        const dbAcc = mapAccountToDbAccount(account, targetWsId);
         const { error: upsertErr } = await supabase.from('connected_accounts').upsert(dbAcc);
         if (upsertErr) {
           console.warn('[Supabase] Initial account upsert warning:', upsertErr.message);
-          // If error occurred (e.g. column refresh_token not created yet), strip custom columns and retry
           delete dbAcc.refresh_token;
           delete dbAcc.token_expires_at;
           const { error: retryErr } = await supabase.from('connected_accounts').upsert(dbAcc);
@@ -381,6 +437,12 @@ export const DatabaseService = {
         console.error('Failed to sync account to Supabase:', err);
       }
     }
+
+    return {
+      success: true,
+      isDuplicate: false,
+      message: 'Account connected successfully!',
+    };
   },
 
   /**

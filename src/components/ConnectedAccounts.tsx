@@ -23,7 +23,7 @@ import { DeleteChannelModal } from './DeleteChannelModal';
 interface ConnectedAccountsProps {
   accounts: SocialAccount[];
   currentWorkspaceId?: string;
-  onAddAccount: (account: SocialAccount) => void;
+  onAddAccount: (account: SocialAccount) => Promise<{ success: boolean; isDuplicate?: boolean; message?: string } | void> | void;
   onRemoveAccount: (id: string) => void;
   onRefreshAccount: (id: string) => void;
   onNavigateToTab?: (tab: any) => void;
@@ -198,10 +198,25 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       }
 
       if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess) {
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState({}, '', `${window.location.pathname}?tab=connections`);
       }
     }
   }, []);
+
+  // Duplicate Account Guard (enforced on UI before sending)
+  const isAccountDuplicate = (accountToCheck: SocialAccount): boolean => {
+    return accounts.some((a) => {
+      if (a.platform !== accountToCheck.platform) return false;
+      const sameId = a.id === accountToCheck.id;
+      const samePageId = Boolean(a.pageId && accountToCheck.pageId && a.pageId === accountToCheck.pageId);
+      const sameUsername = Boolean(
+        a.username &&
+        accountToCheck.username &&
+        a.username.trim().toLowerCase() === accountToCheck.username.trim().toLowerCase()
+      );
+      return sameId || samePageId || sameUsername;
+    });
+  };
 
   const handleStartConnect = (platform: SocialPlatform) => {
     setConnectingPlatform(platform);
@@ -271,8 +286,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     }
   };
 
-  // Finish Connection: Save selected accounts, preserve session, show dynamic toast
-  const handleFinishConnection = () => {
+  // Finish Connection: Save selected accounts with duplicate prevention, stay on Connections, show success message
+  const handleFinishConnection = async () => {
     // 1. If connecting Instagram
     if (connectingPlatform === 'instagram') {
       const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
@@ -307,7 +322,23 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         pageId: targetPage?.id || igId,
       };
 
-      onAddAccount(newAcc);
+      // Duplicate check: do not create another record if already connected
+      if (isAccountDuplicate(newAcc)) {
+        setVerifyError('This account is already connected.');
+        setToastMessage('This account is already connected.');
+        if (onShowSuccessToast) {
+          onShowSuccessToast('This account is already connected.');
+        }
+        return;
+      }
+
+      const result = await onAddAccount(newAcc);
+      if (result && result.isDuplicate) {
+        setVerifyError('This account is already connected.');
+        setToastMessage('This account is already connected.');
+        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+        return;
+      }
 
       setConnectingPlatform(null);
       setDiscoveredPages([]);
@@ -315,19 +346,20 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       setNoInstagramFound(false);
 
       if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/dashboard');
+        window.history.replaceState({}, '', '/dashboard?tab=connections');
       }
 
-      const dynamicMessage = `Your Instagram account (@${cleanHandle}) has been successfully connected!`;
-      setToastMessage(dynamicMessage);
+      const successMsg = 'Account connected successfully!';
+      setToastMessage(successMsg);
       setTimeout(() => setToastMessage(null), 5000);
 
       if (onShowSuccessToast) {
-        onShowSuccessToast(dynamicMessage);
+        onShowSuccessToast(successMsg);
       }
 
+      // Strictly stay on Connections page
       if (onNavigateToTab) {
-        onNavigateToTab('new-post');
+        onNavigateToTab('connections');
       }
       return;
     }
@@ -361,26 +393,43 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         pageId: target.id,
       };
 
-      onAddAccount(newAcc);
+      // Duplicate check
+      if (isAccountDuplicate(newAcc)) {
+        setVerifyError('This account is already connected.');
+        setToastMessage('This account is already connected.');
+        if (onShowSuccessToast) {
+          onShowSuccessToast('This account is already connected.');
+        }
+        return;
+      }
+
+      const result = await onAddAccount(newAcc);
+      if (result && result.isDuplicate) {
+        setVerifyError('This account is already connected.');
+        setToastMessage('This account is already connected.');
+        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+        return;
+      }
 
       setConnectingPlatform(null);
       setDiscoveredPages([]);
       setSelectedPageIds([]);
 
       if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/dashboard');
+        window.history.replaceState({}, '', '/dashboard?tab=connections');
       }
 
-      const dynamicMessage = `Your YouTube channel (${target.name}) has been successfully connected!`;
-      setToastMessage(dynamicMessage);
+      const successMsg = 'Account connected successfully!';
+      setToastMessage(successMsg);
       setTimeout(() => setToastMessage(null), 5000);
 
       if (onShowSuccessToast) {
-        onShowSuccessToast(dynamicMessage);
+        onShowSuccessToast(successMsg);
       }
 
+      // Strictly stay on Connections page
       if (onNavigateToTab) {
-        onNavigateToTab('new-post');
+        onNavigateToTab('connections');
       }
       return;
     }
@@ -392,7 +441,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       return;
     }
 
-    selected.forEach((page) => {
+    let addedCount = 0;
+    let duplicateCount = 0;
+
+    for (const page of selected) {
       const cleanUsername = page.name.replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
       const newAcc: SocialAccount = {
         id: `fb_${page.id}`,
@@ -409,64 +461,98 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         accessToken: page.accessToken || fbAccessToken.trim(),
         pageId: page.id,
       };
-      onAddAccount(newAcc);
-    });
+
+      if (isAccountDuplicate(newAcc)) {
+        duplicateCount++;
+      } else {
+        const res = await onAddAccount(newAcc);
+        if (res && res.isDuplicate) {
+          duplicateCount++;
+        } else {
+          addedCount++;
+        }
+      }
+    }
 
     setConnectingPlatform(null);
     setDiscoveredPages([]);
     setSelectedPageIds([]);
 
     if (typeof window !== 'undefined') {
-      window.history.replaceState({}, '', '/dashboard');
+      window.history.replaceState({}, '', '/dashboard?tab=connections');
     }
 
-    const dynamicMessage = 'Your Facebook account has been successfully connected!';
-    setToastMessage(dynamicMessage);
-    setTimeout(() => setToastMessage(null), 5000);
-
-    if (onShowSuccessToast) {
-      onShowSuccessToast(dynamicMessage);
+    if (duplicateCount > 0 && addedCount === 0) {
+      const dupMsg = 'This account is already connected.';
+      setVerifyError(dupMsg);
+      setToastMessage(dupMsg);
+      if (onShowSuccessToast) onShowSuccessToast(dupMsg);
+    } else {
+      const successMsg = 'Account connected successfully!';
+      setToastMessage(successMsg);
+      setTimeout(() => setToastMessage(null), 5000);
+      if (onShowSuccessToast) onShowSuccessToast(successMsg);
     }
 
+    // Strictly stay on Connections page
     if (onNavigateToTab) {
-      onNavigateToTab('new-post');
+      onNavigateToTab('connections');
     }
   };
 
-  const handleConnectOtherPlatform = () => {
+  const handleConnectOtherPlatform = async () => {
     if (!connectingPlatform) return;
     if (!genericHandle.trim()) {
       setVerifyError('Please enter account handle or username.');
       return;
     }
 
+    const clean = genericHandle.replace(/^@/, '').trim();
     const newAcc: SocialAccount = {
-      id: `${connectingPlatform}_${Date.now()}`,
+      id: `${connectingPlatform}_${clean.toLowerCase()}`,
       platform: connectingPlatform,
-      username: genericHandle.replace(/^@/, '').trim(),
-      displayName: genericHandle.replace(/^@/, '').trim(),
+      username: clean,
+      displayName: clean,
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
       status: 'connected',
       accessToken: genericToken.trim() || undefined,
       followersCount: 0,
     };
 
-    const platformName = PLATFORM_CONFIGS[connectingPlatform]?.name || connectingPlatform;
-    onAddAccount(newAcc);
+    if (isAccountDuplicate(newAcc)) {
+      setVerifyError('This account is already connected.');
+      setToastMessage('This account is already connected.');
+      if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+      return;
+    }
+
+    const res = await onAddAccount(newAcc);
+    if (res && res.isDuplicate) {
+      setVerifyError('This account is already connected.');
+      setToastMessage('This account is already connected.');
+      if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+      return;
+    }
+
     setConnectingPlatform(null);
     setGenericHandle('');
     setGenericToken('');
 
-    const dynamicMessage = `Your ${platformName} account has been successfully connected!`;
-    setToastMessage(dynamicMessage);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/dashboard?tab=connections');
+    }
+
+    const successMsg = 'Account connected successfully!';
+    setToastMessage(successMsg);
     setTimeout(() => setToastMessage(null), 5000);
 
     if (onShowSuccessToast) {
-      onShowSuccessToast(dynamicMessage);
+      onShowSuccessToast(successMsg);
     }
 
+    // Strictly stay on Connections page
     if (onNavigateToTab) {
-      onNavigateToTab('new-post');
+      onNavigateToTab('connections');
     }
   };
 
@@ -504,10 +590,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           <p className="text-sm text-gray-500 mt-1">
             Connect and manage your live Facebook Pages, Instagram accounts, and social channels.
           </p>
-        </div>
-        <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-100 self-start">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Meta Graph API v20.0 Ready</span>
         </div>
       </div>
 
@@ -1748,24 +1830,33 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const name = genericHandle.trim() || 'My LinkedIn Profile';
+                      const cleanUser = name.toLowerCase().replace(/[^a-z0-9]/g, '');
                       const newAcc: SocialAccount = {
-                        id: `li_${Date.now()}`,
+                        id: `li_${cleanUser || Date.now()}`,
                         platform: 'linkedin',
-                        username: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                        username: cleanUser,
                         displayName: name,
                         avatarUrl:
                           'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&auto=format&fit=crop&q=80',
                         accountType: 'business',
                         status: 'connected',
                         followersCount: 1250,
-                        externalId: `li_${Date.now()}`,
+                        externalId: `li_${cleanUser || Date.now()}`,
                       };
-                      onAddAccount(newAcc);
+
+                      if (isAccountDuplicate(newAcc)) {
+                        setToastMessage('This account is already connected.');
+                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        return;
+                      }
+
+                      await onAddAccount(newAcc);
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('LinkedIn account successfully connected!');
+                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                   >
@@ -1824,10 +1915,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const clean = genericHandle.trim().replace(/^@/, '') || 'threads_user';
                       const newAcc: SocialAccount = {
-                        id: `th_${Date.now()}`,
+                        id: `th_${clean.toLowerCase()}`,
                         platform: 'threads',
                         username: clean,
                         displayName: `@${clean}`,
@@ -1836,12 +1927,20 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         accountType: 'creator',
                         status: 'connected',
                         followersCount: 890,
-                        externalId: `th_${Date.now()}`,
+                        externalId: `th_${clean.toLowerCase()}`,
                       };
-                      onAddAccount(newAcc);
+
+                      if (isAccountDuplicate(newAcc)) {
+                        setToastMessage('This account is already connected.');
+                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        return;
+                      }
+
+                      await onAddAccount(newAcc);
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('Threads account successfully connected!');
+                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white hover:bg-gray-200 text-black transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                   >
@@ -1900,24 +1999,33 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const clean = genericHandle.trim().replace(/^@/, '') || 'pinterest_creator';
+                      const cleanUser = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
                       const newAcc: SocialAccount = {
-                        id: `pin_${Date.now()}`,
+                        id: `pin_${cleanUser || Date.now()}`,
                         platform: 'pinterest',
-                        username: clean.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                        username: cleanUser,
                         displayName: `${clean} (Pinterest)`,
                         avatarUrl:
                           'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
                         accountType: 'business',
                         status: 'connected',
                         followersCount: 4200,
-                        externalId: `pin_${Date.now()}`,
+                        externalId: `pin_${cleanUser || Date.now()}`,
                       };
-                      onAddAccount(newAcc);
+
+                      if (isAccountDuplicate(newAcc)) {
+                        setToastMessage('This account is already connected.');
+                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        return;
+                      }
+
+                      await onAddAccount(newAcc);
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('Pinterest account successfully connected!');
+                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#BD081C] hover:bg-[#a00718] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                   >

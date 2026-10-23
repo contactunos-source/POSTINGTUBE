@@ -484,9 +484,23 @@ export default function DashboardPage() {
     await handlePublishNow(post);
   };
 
-  const handleAddAccount = async (account: SocialAccount) => {
-    setAccounts([...accounts, account]);
-    await DatabaseService.saveAccount(account, currentWorkspace.id);
+  const handleAddAccount = async (account: SocialAccount): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> => {
+    // 1. Enforce backend / database duplicate protection
+    const result = await DatabaseService.saveAccount(account, currentWorkspace.id);
+
+    if (result.isDuplicate) {
+      setSuccessToast(result.message || 'This account is already connected.');
+      return result;
+    }
+
+    // 2. Immediately refresh Connected Accounts list from database and update state
+    const refreshed = await DatabaseService.getAccounts(currentWorkspace.id);
+    setAccounts(refreshed);
+
+    // 3. Keep user on Connections page & display clear success message
+    setActiveTab('connections');
+    setSuccessToast('Account connected successfully!');
+    return result;
   };
 
   const handleRemoveAccount = async (id: string) => {
