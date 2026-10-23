@@ -4,7 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
  * Dedicated Instagram OAuth Callback Route.
  * Completely separate from Facebook callback.
  * Discovers Instagram Business / Creator accounts attached to user's Meta assets.
+ * 
+ * Never fakes accounts or returns hardcoded fallback profiles.
  */
+interface DetectedChannel {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  accessToken: string;
+  platform: 'instagram';
+  instagramId: string;
+}
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const code = searchParams.get('code');
@@ -17,14 +28,21 @@ export async function GET(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const redirectUri = `${baseUrl}/api/auth/instagram/callback`;
-  const appId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+  const fbAppSecret = process.env.FACEBOOK_APP_SECRET;
+  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const igAppSecret = process.env.INSTAGRAM_APP_SECRET || fbAppSecret;
 
   let workspaceId = '';
+  let authMode: 'direct' | 'facebook' = 'facebook';
+
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      if (parsed.mode === 'direct') {
+        authMode = 'direct';
+      }
     } catch {
       workspaceId = stateRaw;
     }
@@ -43,7 +61,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(target.toString());
   };
 
-  // If user cancelled or Meta reported error
+  // If user cancelled or Meta reported an authorization error
   if (error || !code) {
     if (error === 'access_denied') {
       return makeRedirect({
@@ -56,55 +74,135 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  if (!appId || !appSecret) {
-    return makeRedirect({
-      error: 'Missing FACEBOOK_APP_ID or FACEBOOK_APP_SECRET in server environment.',
-    });
-  }
+  const detectedChannels: DetectedChannel[] = [];
+  const cleanCode = code.replace(/#_$/, '');
 
   try {
-    // 1. Exchange authorization code for User Access Token
-    const tokenUrl = `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${encodeURIComponent(
-      appId
-    )}&client_secret=${encodeURIComponent(appSecret)}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&code=${encodeURIComponent(code)}`;
+    // -------------------------------------------------------------------------
+    // FLOW A: DIRECT INSTAGRAM LOGIN (via Instagram Login for Business)
+    // -------------------------------------------------------------------------
+    if (authMode === 'direct' && igAppId && igAppSecret) {
+      const directTokenForm = new URLSearchParams();
+      directTokenForm.append('client_id', igAppId);
+      directTokenForm.append('client_secret', igAppSecret);
+      directTokenForm.append('grant_type', 'authorization_code');
+      directTokenForm.append('redirect_uri', redirectUri);
+      directTokenForm.append('code', cleanCode);
 
-    const tokenRes = await fetch(tokenUrl);
-    const tokenData = await tokenRes.json();
-
-    if (tokenData.error) {
-      return makeRedirect({
-        error: tokenData.error.message || 'Failed to exchange authorization code with Meta.',
+      const directRes = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: directTokenForm.toString(),
       });
-    }
 
-    const shortLivedToken = tokenData.access_token;
+      const directData = await directRes.json();
 
-    // 2. Exchange for 60-day Long-Lived Token
-    const longLivedUrl = `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(
-      appId
-    )}&client_secret=${encodeURIComponent(appSecret)}&fb_exchange_token=${encodeURIComponent(
-      shortLivedToken
-    )}`;
+      if (directData.error_type || directData.error_message || directData.error) {
+        return makeRedirect({
+          error:
+            directData.error_message ||
+            directData.error?.message ||
+            'Failed to exchange authorization code with Instagram.',
+        });
+      }
 
-    const longLivedRes = await fetch(longLivedUrl);
-    const longLivedData = await longLivedRes.json();
-    const userToken = longLivedData.access_token || shortLivedToken;
+      // Handle data array or flat object returned by Meta
+      const tokenItem = Array.isArray(directData.data) ? directData.data[0] : directData;
+      const shortToken = tokenItem?.access_token || directData.access_token;
+      const igUserId = tokenItem?.user_id || directData.user_id;
 
-    // 3. Discover Instagram Accounts via Meta Graph API
-    interface DetectedChannel {
-      id: string;
-      name: string;
-      avatarUrl: string;
-      accessToken: string;
-      platform: 'instagram';
-      instagramId: string;
-    }
+      if (!shortToken) {
+        return makeRedirect({
+          error: 'Did not receive valid access token from Instagram.',
+        });
+      }
 
-    let detectedChannels: DetectedChannel[] = [];
+      // Exchange for 60-day long-lived token
+      let longToken = shortToken;
+      try {
+        const longRes = await fetch(
+          `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(
+            igAppSecret
+          )}&access_token=${encodeURIComponent(shortToken)}`
+        );
+        const longData = await longRes.json();
+        if (longData.access_token) {
+          longToken = longData.access_token;
+        }
+      } catch (e) {
+        console.warn('Long-lived Instagram token exchange warning:', e);
+      }
 
-    try {
+      // Fetch user profile details
+      let igUsername = '';
+      let igAvatar = '';
+      try {
+        const profileRes = await fetch(
+          `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
+            longToken
+          )}`
+        );
+        const profileData = await profileRes.json();
+        if (profileData.username) {
+          igUsername = profileData.username;
+        }
+        if (profileData.profile_picture_url) {
+          igAvatar = profileData.profile_picture_url;
+        }
+      } catch (e) {
+        console.warn('Instagram profile fetch warning:', e);
+      }
+
+      if (igUserId || igUsername) {
+        detectedChannels.push({
+          id: String(igUserId || igUsername),
+          name: igUsername ? `@${igUsername}` : `@user_${igUserId}`,
+          avatarUrl: igAvatar,
+          accessToken: longToken,
+          platform: 'instagram',
+          instagramId: String(igUserId),
+        });
+      }
+    } else {
+      // -------------------------------------------------------------------------
+      // FLOW B: META GRAPH API via FACEBOOK LOGIN (linked Instagram accounts)
+      // -------------------------------------------------------------------------
+      if (!fbAppId || !fbAppSecret) {
+        return makeRedirect({
+          error: 'Missing FACEBOOK_APP_ID or FACEBOOK_APP_SECRET in server environment.',
+        });
+      }
+
+      // 1. Exchange authorization code for User Access Token
+      const tokenUrl = `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${encodeURIComponent(
+        fbAppId
+      )}&client_secret=${encodeURIComponent(fbAppSecret)}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&code=${encodeURIComponent(cleanCode)}`;
+
+      const tokenRes = await fetch(tokenUrl);
+      const tokenData = await tokenRes.json();
+
+      if (tokenData.error) {
+        return makeRedirect({
+          error: tokenData.error.message || 'Failed to exchange authorization code with Meta.',
+        });
+      }
+
+      const shortLivedToken = tokenData.access_token;
+
+      // 2. Exchange for 60-day Long-Lived Token
+      const longLivedUrl = `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(
+        fbAppId
+      )}&client_secret=${encodeURIComponent(fbAppSecret)}&fb_exchange_token=${encodeURIComponent(
+        shortLivedToken
+      )}`;
+
+      const longLivedRes = await fetch(longLivedUrl);
+      const longLivedData = await longLivedRes.json();
+      const userToken = longLivedData.access_token || shortLivedToken;
+
+      // 3. Discover Instagram Business/Creator Accounts linked to Facebook Pages
       const pagesUrl = `https://graph.facebook.com/v20.0/me/accounts?fields=id,name,picture.type(large),access_token,instagram_business_account{id,username,name,profile_picture_url},page_backed_instagram_accounts,connected_instagram_account&access_token=${encodeURIComponent(
         userToken
       )}`;
@@ -148,56 +246,55 @@ export async function GET(req: NextRequest) {
           }
         }
       }
-    } catch (e) {
-      console.warn('Error fetching Instagram accounts:', e);
-    }
 
-    // 4. Fallback: check target page if accounts was empty
-    const targetPageId = process.env.FACEBOOK_PAGE_ID || '868941086292404';
-    if (detectedChannels.length === 0 && targetPageId) {
-      try {
-        const pRes = await fetch(
-          `https://graph.facebook.com/v20.0/${targetPageId}?fields=id,name,picture.type(large),access_token,instagram_business_account{id,username,name,profile_picture_url},page_backed_instagram_accounts,connected_instagram_account&access_token=${encodeURIComponent(
-            userToken
-          )}`
-        );
-        const pData = await pRes.json();
-        const igId =
-          pData.instagram_business_account?.id ||
-          pData.page_backed_instagram_accounts?.data?.[0]?.id ||
-          pData.connected_instagram_account?.id;
+      // Check configured target page if accounts list was empty
+      const targetPageId = process.env.FACEBOOK_PAGE_ID;
+      if (detectedChannels.length === 0 && targetPageId) {
+        try {
+          const pRes = await fetch(
+            `https://graph.facebook.com/v20.0/${targetPageId}?fields=id,name,picture.type(large),access_token,instagram_business_account{id,username,name,profile_picture_url},page_backed_instagram_accounts,connected_instagram_account&access_token=${encodeURIComponent(
+              userToken
+            )}`
+          );
+          const pData = await pRes.json();
+          const igId =
+            pData.instagram_business_account?.id ||
+            pData.page_backed_instagram_accounts?.data?.[0]?.id ||
+            pData.connected_instagram_account?.id;
 
-        if (igId) {
-          detectedChannels.push({
-            id: igId,
-            name: pData.instagram_business_account?.username
-              ? `@${pData.instagram_business_account.username}`
-              : `@${pData.name.toLowerCase().replace(/\s+/g, '')}`,
-            avatarUrl:
-              pData.instagram_business_account?.profile_picture_url || pData.picture?.data?.url || '',
-            accessToken: pData.access_token || userToken,
-            platform: 'instagram',
-            instagramId: igId,
-          });
+          if (igId) {
+            detectedChannels.push({
+              id: igId,
+              name: pData.instagram_business_account?.username
+                ? `@${pData.instagram_business_account.username}`
+                : `@${pData.name.toLowerCase().replace(/\s+/g, '')}`,
+              avatarUrl:
+                pData.instagram_business_account?.profile_picture_url ||
+                pData.picture?.data?.url ||
+                '',
+              accessToken: pData.access_token || userToken,
+              platform: 'instagram',
+              instagramId: igId,
+            });
+          }
+        } catch (e) {
+          console.warn('Target page Instagram check error:', e);
         }
-      } catch (e) {
-        console.warn('Target page Instagram check error:', e);
       }
     }
 
-    // 5. If verified server token exists and still empty:
-    if (detectedChannels.length === 0 && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
-      detectedChannels.push({
-        id: '17841418947035373',
-        name: '@unosdigitalmarketing',
-        avatarUrl: '',
-        accessToken: process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
+    // -------------------------------------------------------------------------
+    // RESULT EVALUATION: Never fake an account!
+    // -------------------------------------------------------------------------
+    if (detectedChannels.length === 0) {
+      // Guide the user with clear next steps rather than inventing fake data
+      return makeRedirect({
+        no_instagram_found: 'true',
         platform: 'instagram',
-        instagramId: '17841418947035373',
       });
     }
 
-    // Redirect to Connections tab with discovered Instagram profiles
+    // Redirect to Connections tab with genuinely discovered Instagram profiles
     return makeRedirect({
       ig_connect_success: 'true',
       platform: 'instagram',

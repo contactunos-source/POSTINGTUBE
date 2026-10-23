@@ -73,11 +73,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   // Discovered Facebook Pages & Instagram Profiles from Meta
   const [discoveredPages, setDiscoveredPages] = useState<DetectedPage[]>([]);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [noInstagramFound, setNoInstagramFound] = useState(false);
 
   // Instagram custom handle & manual API overrides
-  const [customIgHandle, setCustomIgHandle] = useState('unosdigitalmarketing');
+  const [customIgHandle, setCustomIgHandle] = useState('');
   const [manualIgToken, setManualIgToken] = useState('');
-  const [manualIgId, setManualIgId] = useState('17841418947035373');
+  const [manualIgId, setManualIgId] = useState('');
   const [showManualIg, setShowManualIg] = useState(false);
 
   // Other platform states
@@ -116,8 +117,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const urlParams = new URLSearchParams(window.location.search);
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
+      const noIgFound = urlParams.get('no_instagram_found');
       const discoveredJson = urlParams.get('discovered_pages');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess ? 'instagram' : 'facebook');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
@@ -132,6 +134,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       } else if (authNotice) {
         setToastMessage(decodeURIComponent(authNotice));
         setTimeout(() => setToastMessage(null), 4500);
+      } else if (noIgFound) {
+        setConnectingPlatform('instagram');
+        setIgStep('confirm');
+        setNoInstagramFound(true);
+        setDiscoveredPages([]);
       } else if (isFbSuccess && discoveredJson) {
         // STRICTLY FACEBOOK: Never hijack to Instagram
         try {
@@ -156,13 +163,21 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             setSelectedPageIds(parsedPages.map((p) => p.id));
             setConnectingPlatform('instagram');
             setIgStep('confirm');
+            setNoInstagramFound(false);
+            if (parsedPages[0]?.name) {
+              setCustomIgHandle(parsedPages[0].name.replace(/^@/, ''));
+            }
+          } else {
+            setConnectingPlatform('instagram');
+            setIgStep('confirm');
+            setNoInstagramFound(true);
           }
         } catch (e) {
           console.error('Failed to parse discovered Instagram accounts', e);
         }
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -174,6 +189,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     setShowHelp(false);
     setDiscoveredPages([]);
     setSelectedPageIds([]);
+    setNoInstagramFound(false);
+    setCustomIgHandle('');
+    setManualIgId('');
+    setManualIgToken('');
     setGenericHandle('');
     setGenericToken('');
 
@@ -237,11 +256,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
       const targetPage = selected[0] || discoveredPages[0];
 
-      const cleanHandle = (customIgHandle.trim() || 'unosdigitalmarketing')
-        .replace(/^@/, '')
-        .toLowerCase()
-        .replace(/\s+/g, '');
-      const igId = manualIgId.trim() || targetPage?.id || '17841418947035373';
+      const manualId = manualIgId.trim();
+      const finalIgId = manualId || targetPage?.id;
+
+      if (!finalIgId && !customIgHandle.trim()) {
+        setVerifyError('No Instagram account detected or entered. Please connect an account or enter your username.');
+        return;
+      }
+
+      const rawHandle = customIgHandle.trim() || targetPage?.name?.replace(/^@/, '') || 'instagram_account';
+      const cleanHandle = rawHandle.replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const igId = finalIgId || cleanHandle;
       const token = manualIgToken.trim() || targetPage?.accessToken || fbAccessToken.trim();
 
       const newAcc: SocialAccount = {
@@ -257,7 +282,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         followersCount: 0,
         externalId: igId,
         accessToken: token,
-        pageId: targetPage?.id || '868941086292404',
+        pageId: targetPage?.id || igId,
       };
 
       onAddAccount(newAcc);
@@ -265,12 +290,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       setConnectingPlatform(null);
       setDiscoveredPages([]);
       setSelectedPageIds([]);
+      setNoInstagramFound(false);
 
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, '', '/dashboard');
       }
 
-      const dynamicMessage = 'Your Instagram account has been successfully connected!';
+      const dynamicMessage = `Your Instagram account (@${cleanHandle}) has been successfully connected!`;
       setToastMessage(dynamicMessage);
       setTimeout(() => setToastMessage(null), 5000);
 
@@ -944,7 +970,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </div>
                 )}
 
-                {/* STEP 4: Confirm your Account (Image 4) */}
+                {/* STEP 4: Confirm your Account */}
                 {igStep === 'confirm' && (
                   <div className="space-y-5 animate-in fade-in duration-200">
                     <div className="text-center">
@@ -956,108 +982,194 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </p>
                     </div>
 
-                    {/* Instagram Primary Connection Card */}
-                    <div className="p-4 rounded-2xl border border-emerald-500/70 bg-gradient-to-b from-[#1b221d] to-[#141815] ring-1 ring-emerald-500/50 shadow-sm space-y-3.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white shadow-md shrink-0">
-                            <PlatformLogo platform="instagram" className="w-6 h-6" />
+                    {/* Case 1: No Instagram account found linked to Meta assets */}
+                    {(noInstagramFound || discoveredPages.length === 0) ? (
+                      <div className="p-5 rounded-2xl border border-amber-500/40 bg-[#191612] space-y-4">
+                        <div className="flex items-start space-x-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                            <AlertCircle className="w-5 h-5" />
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-white flex items-center space-x-1.5">
-                              <span>@{customIgHandle || 'unosdigitalmarketing'}</span>
-                              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-semibold uppercase">
-                                Verified
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              Instagram Professional / Business Account
-                            </div>
+                            <div className="text-sm font-bold text-white">No Linked Instagram Account Found</div>
+                            <p className="text-xs text-gray-300 mt-1 leading-relaxed">
+                              Your Meta account was authenticated, but no Instagram Professional (Business or Creator) account is linked to your Facebook Page.
+                            </p>
                           </div>
                         </div>
 
-                        {/* Selected Checkmark */}
-                        <div className="w-6 h-6 rounded-md border border-[#22c55e] bg-[#22c55e] text-black font-bold flex items-center justify-center shadow-xs">
-                          <Check className="w-4 h-4 stroke-[3]" />
+                        {/* Step-by-step resolution */}
+                        <div className="p-3.5 rounded-xl bg-black/40 border border-gray-800 text-xs text-gray-300 space-y-2">
+                          <div className="font-semibold text-white flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Quick 30-Second Fix in Instagram App:</span>
+                          </div>
+                          <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-400 leading-relaxed">
+                            <li>Open the Instagram app on your phone and go to your profile.</li>
+                            <li>Tap <strong className="text-gray-200">Edit Profile</strong>.</li>
+                            <li>Under <strong className="text-gray-200">Public Business Information</strong>, tap <strong className="text-emerald-400">Page</strong>.</li>
+                            <li>Connect your Facebook Page (e.g. <em>U NOS Digital marketing</em>).</li>
+                          </ol>
+                        </div>
+
+                        <div className="space-y-2 pt-1">
+                          <button
+                            onClick={() => {
+                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(
+                                currentWorkspaceId || ''
+                              )}`;
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors cursor-pointer flex items-center justify-center space-x-2"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Retry Connecting Instagram via Facebook</span>
+                          </button>
+
+                          <button
+                            onClick={() => setIgStep('convert_guide')}
+                            className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors cursor-pointer"
+                          >
+                            Learn How to Convert Account to Professional
+                          </button>
+                        </div>
+
+                        {/* Manual entry drawer if user has an account handle / ID */}
+                        <div className="pt-2 border-t border-gray-800/80">
+                          <button
+                            type="button"
+                            onClick={() => setShowManualIg(!showManualIg)}
+                            className="text-xs text-gray-400 hover:text-white flex items-center space-x-1 cursor-pointer"
+                          >
+                            <span>Or enter your Instagram handle manually</span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showManualIg ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {showManualIg && (
+                            <div className="mt-3 p-3.5 rounded-xl bg-gray-950/80 border border-gray-800 text-xs space-y-3">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                                  Instagram Username / Handle
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-2 text-xs text-gray-500 font-bold">@</span>
+                                  <input
+                                    type="text"
+                                    value={customIgHandle}
+                                    onChange={(e) => setCustomIgHandle(e.target.value.replace(/^@/, '').trim())}
+                                    placeholder="your_handle"
+                                    className="w-full text-xs pl-7 pr-3 py-1.5 rounded-lg border border-gray-700 bg-gray-900 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                                  Instagram Business Account ID (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={manualIgId}
+                                  onChange={(e) => setManualIgId(e.target.value.trim())}
+                                  placeholder="e.g. 17841400000000000"
+                                  className="w-full text-xs font-mono px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-900 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
+                                />
+                              </div>
+
+                              <button
+                                onClick={handleFinishConnection}
+                                disabled={!customIgHandle.trim()}
+                                className="w-full py-2 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] disabled:opacity-50 text-black transition-colors cursor-pointer"
+                              >
+                                Connect Instagram Account
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
+                    ) : (
+                      /* Case 2: Genuine Discovered Instagram Account(s) */
+                      <div className="space-y-4">
+                        <div className="space-y-2.5">
+                          {discoveredPages.map((page) => {
+                            const isSelected = selectedPageIds.includes(page.id);
+                            return (
+                              <div
+                                key={page.id}
+                                onClick={() => {
+                                  setSelectedPageIds([page.id]);
+                                  if (page.name) {
+                                    setCustomIgHandle(page.name.replace(/^@/, ''));
+                                  }
+                                }}
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                  isSelected
+                                    ? 'border-emerald-500/70 bg-gradient-to-b from-[#1b221d] to-[#141815] ring-1 ring-emerald-500/50 shadow-sm'
+                                    : 'border-gray-800 bg-[#161719] hover:border-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3.5">
+                                  {page.avatarUrl ? (
+                                    <img
+                                      src={page.avatarUrl}
+                                      alt={page.name}
+                                      className="w-12 h-12 rounded-xl object-cover border border-gray-700 shadow-sm"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white shadow-md shrink-0">
+                                      <PlatformLogo platform="instagram" className="w-6 h-6" />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="text-sm font-bold text-white flex items-center space-x-2">
+                                      <span>{page.name.startsWith('@') ? page.name : `@${page.name}`}</span>
+                                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-semibold uppercase">
+                                        Verified
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-0.5">
+                                      Instagram Professional Profile (ID: {page.id})
+                                    </div>
+                                  </div>
+                                </div>
 
-                      {/* Editable Instagram Handle */}
-                      <div className="pt-2 border-t border-gray-800/80">
-                        <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                          Instagram Username / Handle
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-bold">@</span>
-                          <input
-                            type="text"
-                            value={customIgHandle}
-                            onChange={(e) => setCustomIgHandle(e.target.value.replace(/^@/, '').trim())}
-                            placeholder="your_instagram_handle"
-                            className="w-full text-xs pl-7 pr-3 py-2 rounded-xl border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
-                          />
+                                <div
+                                  className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
+                                    isSelected
+                                      ? 'bg-[#22c55e] text-black font-bold'
+                                      : 'border border-gray-700 bg-gray-900 text-transparent'
+                                  }`}
+                                >
+                                  <Check className="w-4 h-4 stroke-[3]" />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Confirm or update your Instagram handle as it appears in the Instagram app.
-                        </p>
-                      </div>
 
-                      {/* Meta Verification Details */}
-                      <div className="p-2.5 rounded-xl bg-black/40 border border-gray-800 text-[11px] text-gray-300 flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <span>
-                            Linked via Meta Page:{' '}
-                            <strong className="text-white">
-                              {discoveredPages[0]?.name || 'U NOS Digital marketing'}
-                            </strong>
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-emerald-400 font-semibold">Active Token ✓</span>
-                      </div>
-                    </div>
-
-                    {/* Manual API Token / ID Drawer */}
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowManualIg(!showManualIg)}
-                        className="text-xs text-gray-400 hover:text-white flex items-center space-x-1 cursor-pointer"
-                      >
-                        <span>Need to enter a direct Instagram API Key / Token?</span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showManualIg ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {showManualIg && (
-                        <div className="mt-2.5 p-3.5 rounded-xl bg-gray-900/90 border border-gray-800 text-xs space-y-3 animate-in fade-in">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                              Instagram User ID / Business Account ID (Optional)
-                            </label>
+                        {/* Editable Handle */}
+                        <div className="p-3.5 rounded-xl bg-gray-900/60 border border-gray-800">
+                          <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                            Instagram Username / Handle
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-xs text-gray-500 font-bold">@</span>
                             <input
                               type="text"
-                              value={manualIgId}
-                              onChange={(e) => setManualIgId(e.target.value.trim())}
-                              placeholder="e.g. 17841418947035373"
-                              className="w-full text-xs font-mono px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                              Instagram Access Token (Optional - Uses Meta Token by default)
-                            </label>
-                            <textarea
-                              rows={2}
-                              value={manualIgToken}
-                              onChange={(e) => setManualIgToken(e.target.value.trim())}
-                              placeholder="EAA... (Paste custom Instagram token if testing directly)"
-                              className="w-full text-xs font-mono px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
+                              value={customIgHandle}
+                              onChange={(e) => setCustomIgHandle(e.target.value.replace(/^@/, '').trim())}
+                              placeholder="your_handle"
+                              className="w-full text-xs pl-7 pr-3 py-1.5 rounded-lg border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
                             />
                           </div>
                         </div>
-                      )}
-                    </div>
+
+                        <button
+                          onClick={handleFinishConnection}
+                          className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors shadow-sm cursor-pointer"
+                        >
+                          Save Instagram Account
+                        </button>
+                      </div>
+                    )}
 
                     {/* Bottom Action Bar */}
                     <div className="flex items-center justify-between pt-4 border-t border-gray-800">
@@ -1069,12 +1181,21 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
                       </button>
 
-                      <button
-                        onClick={handleFinishConnection}
-                        className="px-7 py-2.5 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors shadow-sm cursor-pointer"
-                      >
-                        Save Instagram Account
-                      </button>
+                      {discoveredPages.length > 0 ? (
+                        <button
+                          onClick={handleFinishConnection}
+                          className="px-7 py-2.5 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors shadow-sm cursor-pointer"
+                        >
+                          Save Instagram Account
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setConnectingPlatform(null)}
+                          className="px-5 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
+                        >
+                          Close
+                        </button>
+                      )}
                     </div>
 
                     {showHelp && (
