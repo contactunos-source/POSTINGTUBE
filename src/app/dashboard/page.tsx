@@ -77,6 +77,9 @@ export default function DashboardPage() {
     return 'new-post';
   });
 
+  // Track previous tab to guarantee intelligent, safe Back navigation to Dashboard
+  const [previousTab, setPreviousTab] = useState<ActiveTab>('new-post');
+
   // Success Toast Notification state
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -261,6 +264,7 @@ export default function DashboardPage() {
   };
 
   const handleCreateTypeSelected = (type: 'text' | 'image' | 'video') => {
+    setPreviousTab('new-post');
     setCreateDashboardType(type);
     let pType: PostType = 'post';
     if (type === 'video') pType = 'reel';
@@ -274,6 +278,34 @@ export default function DashboardPage() {
     });
     setActiveTab('create-composer');
   };
+
+  const handleBackFromComposer = () => {
+    setEditingPost(null);
+    const target = previousTab && previousTab !== 'create-composer' ? previousTab : 'new-post';
+    setActiveTab(target);
+  };
+
+  // Prevent browser back from leaving the application when composer is active
+  useEffect(() => {
+    if (activeTab === 'create-composer') {
+      window.history.pushState({ postbridge_composer: true }, '');
+
+      const handlePopState = () => {
+        setEditingPost(null);
+        setActiveTab((curr) => {
+          if (curr === 'create-composer') {
+            return previousTab && previousTab !== 'create-composer' ? previousTab : 'new-post';
+          }
+          return curr;
+        });
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [activeTab, previousTab]);
 
   const handleSavePost = async (
     postData: Partial<Post>,
@@ -361,6 +393,7 @@ export default function DashboardPage() {
   };
 
   const handleEditExistingPost = (post: Post) => {
+    setPreviousTab(activeTab);
     setEditingPost(post);
     setCreateDashboardType(post.postType === 'reel' ? 'video' : post.media && post.media.length > 0 ? 'image' : 'text');
     setActiveTab('create-composer');
@@ -484,11 +517,15 @@ export default function DashboardPage() {
       {/* PostBridge Sidebar */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          if (activeTab !== tab) setPreviousTab(activeTab);
+          setActiveTab(tab);
+        }}
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
         onSelectWorkspace={setCurrentWorkspace}
         openCreateModal={() => {
+          setPreviousTab(activeTab);
           setEditingPost(null);
           setCreateDashboardType('image');
           setActiveTab('create-composer');
@@ -588,10 +625,7 @@ export default function DashboardPage() {
               await handleSavePost(postData, action);
               setActiveTab('posts-all');
             }}
-            onBack={() => {
-              setEditingPost(null);
-              setActiveTab('posts-all');
-            }}
+            onBack={handleBackFromComposer}
             onGoToConnections={() => setActiveTab('connections')}
             openAiModal={handleOpenAiModal}
           />
@@ -616,6 +650,7 @@ export default function DashboardPage() {
             onSelectPost={handleEditExistingPost}
             onReschedulePost={handleReschedulePost}
             onCreateAtDate={(d) => {
+              setPreviousTab('calendar');
               const year = d.getFullYear();
               const month = String(d.getMonth() + 1).padStart(2, '0');
               const day = String(d.getDate()).padStart(2, '0');
@@ -658,6 +693,7 @@ export default function DashboardPage() {
             onPublishNow={handlePublishNow}
             onRetryPost={handleRetryPost}
             openCreateModal={() => {
+              setPreviousTab(activeTab);
               setEditingPost(null);
               setCreateDashboardType('image');
               setActiveTab('create-composer');

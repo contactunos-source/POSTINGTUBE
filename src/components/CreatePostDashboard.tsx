@@ -581,8 +581,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             <div className="flex items-center space-x-2 text-xs text-gray-400 mb-1">
               <button
                 type="button"
-                onClick={onBack}
-                className="hover:text-gray-800 flex items-center space-x-1 font-semibold transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBack();
+                }}
+                className="hover:text-emerald-700 flex items-center space-x-1 font-semibold text-gray-600 hover:bg-gray-100/80 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                title="Back to Dashboard"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
