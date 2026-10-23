@@ -695,13 +695,27 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           </div>
                         </div>
 
-                        {/* Green Connect Button (Image 1) */}
+                        {/* Green Connect Button (Image 1) - Direct Instagram OAuth */}
                         <button
-                          onClick={() => setIgStep('check_account')}
+                          onClick={() => {
+                            window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
+                              currentWorkspaceId || ''
+                            )}`;
+                          }}
                           className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] active:bg-[#199f4a] text-black transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-2"
                         >
                           <span>Connect to Instagram</span>
                         </button>
+
+                        <div className="mt-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setIgStep('check_account')}
+                            className="text-[11px] text-gray-400 hover:text-white transition-colors cursor-pointer"
+                          >
+                            Pre-check account requirements →
+                          </button>
+                        </div>
 
                         {/* Helper note (Image 1) */}
                         <div className="mt-2.5 flex items-start space-x-1.5 text-[11px] text-gray-400">
@@ -713,7 +727,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <div className="mt-2.5 pt-2.5 border-t border-gray-800/80 text-center">
                           <button
                             onClick={() => {
-                              window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
+                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(
                                 currentWorkspaceId || ''
                               )}`;
                             }}

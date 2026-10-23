@@ -153,6 +153,29 @@ export async function GET(req: NextRequest) {
         console.warn('Instagram profile fetch warning:', e);
       }
 
+      if (!igUsername) {
+        try {
+          const simpleRes = await fetch(
+            `https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(longToken)}`
+          );
+          const simpleData = await simpleRes.json();
+          if (simpleData.username) igUsername = simpleData.username;
+        } catch {}
+      }
+
+      if (!igUsername && igUserId) {
+        try {
+          const fbGraphRes = await fetch(
+            `https://graph.facebook.com/v20.0/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
+              longToken
+            )}`
+          );
+          const fbGraphData = await fbGraphRes.json();
+          if (fbGraphData.username) igUsername = fbGraphData.username;
+          if (fbGraphData.profile_picture_url) igAvatar = fbGraphData.profile_picture_url;
+        } catch {}
+      }
+
       if (igUserId || igUsername) {
         detectedChannels.push({
           id: String(igUserId || igUsername),
