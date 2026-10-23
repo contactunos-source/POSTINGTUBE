@@ -61,7 +61,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   // 3: 'convert_guide' (Image 3: Change to professional account?)
   // 4: 'confirm' (Confirm your Account / Discovered Instagram Accounts)
   const [igStep, setIgStep] = useState<'select_type' | 'check_account' | 'convert_guide' | 'confirm'>('select_type');
-  const [personalModalOpen, setPersonalModalOpen] = useState(false);
+
 
   // Facebook Token and Form state
   const [fbPageId, setFbPageId] = useState('122149488525072386');
@@ -736,32 +736,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             Connect Instagram through Facebook if your Instagram account is currently linked to Facebook →
                           </button>
                         </div>
-                      </div>
-
-                      {/* Option 2: Personal (Image 1) */}
-                      <div className="p-4 rounded-2xl border border-gray-800 bg-[#161719] hover:border-gray-700 transition-colors">
-                        <div className="text-sm font-bold text-white mb-1">Personal</div>
-                        <p className="text-xs text-gray-400 mb-3 leading-relaxed">
-                          For personal profiles. Meta API limits personal accounts to notification-based reminders only.
-                        </p>
-
-                        <div className="space-y-1.5 mb-3.5 text-xs text-gray-400">
-                          <div className="flex items-center space-x-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
-                            <span>Notification-based posting only</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
-                            <span>Reminders sent to your device</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => setPersonalModalOpen(true)}
-                          className="w-full py-2 px-4 rounded-xl text-xs font-semibold border border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-gray-200 transition-colors cursor-pointer"
-                        >
-                          Setup a Personal Account
-                        </button>
                       </div>
                     </div>
 
@@ -1584,51 +1558,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         </div>
       )}
 
-      {/* Personal Account Information Modal */}
-      {personalModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-60 p-4">
-          <div className="bg-[#1c1d20] border border-gray-700 text-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-800">
-              <div className="font-bold text-white text-sm">Personal Instagram Account</div>
-              <button
-                onClick={() => setPersonalModalOpen(false)}
-                className="text-gray-400 hover:text-white p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 leading-relaxed">
-              <strong>Important Meta Limitation:</strong> Meta API does not permit third-party tools to publish directly to Personal Instagram accounts without push notification reminders.
-            </div>
-
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Switching to a <strong className="text-white">Professional (Creator or Business)</strong> account takes 30 seconds, is completely free, and preserves all your existing posts, followers, and private data while enabling automated direct publishing!
-            </p>
-
-            <div className="pt-2 space-y-2">
-              <button
-                onClick={() => {
-                  setPersonalModalOpen(false);
-                  setIgStep('check_account');
-                }}
-                className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors cursor-pointer"
-              >
-                Switch to Professional (Recommended)
-              </button>
-
-              <button
-                onClick={() => {
-                  setPersonalModalOpen(false);
-                }}
-                className="w-full py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors cursor-pointer"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
