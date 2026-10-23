@@ -11,6 +11,7 @@ import {
 } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import { ScheduleDatePicker } from './ScheduleDatePicker';
+import { ConnectedAccountSelector } from './ConnectedAccountSelector';
 import {
   Calendar,
   Clock,
@@ -596,143 +597,27 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           </div>
         </div>
 
-        {/* 1. REDESIGNED CIRCULAR SOCIAL PLATFORM SELECTOR */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
-                Select Social Platforms
-              </span>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Click any platform to toggle target publishing channels. Multiple platforms supported.
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-3 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  const allAccIds = accounts.map((a) => a.id);
-                  setSelectedAccountIds(allAccIds);
-                  if (rememberAccounts && typeof window !== 'undefined') {
-                    localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
-                  }
-                }}
-                className="text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
-              >
-                Select All
-              </button>
-              <span className="text-gray-300">•</span>
-              <label className="flex items-center space-x-1.5 text-gray-500 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberAccounts}
-                  onChange={(e) => setRememberAccounts(e.target.checked)}
-                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
-                />
-                <span className="font-medium text-xs">Remember</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Premium Circular Platform Buttons Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
-            {SUPPORTED_PLATFORMS.map((plat) => {
-              const platformAccounts = accounts.filter((a) => a.platform === plat.id);
-              const isConnected = platformAccounts.length > 0;
-              const isSelected =
-                isConnected &&
-                platformAccounts.some((a) => selectedAccountIds.includes(a.id));
-
-              return (
-                <div
-                  key={plat.id}
-                  onClick={() => handleTogglePlatform(plat.id)}
-                  role="checkbox"
-                  aria-checked={isSelected}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.key === 'Enter') {
-                      e.preventDefault();
-                      handleTogglePlatform(plat.id);
-                    }
-                  }}
-                  className={`group relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer select-none text-center ${
-                    isSelected
-                      ? 'bg-emerald-50/40 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
-                      : isConnected
-                      ? 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xs'
-                      : 'bg-gray-50/60 border-gray-200/60 opacity-60 hover:opacity-100 hover:bg-white'
-                  }`}
-                >
-                  {/* Circular Platform Icon Container */}
-                  <div className="relative mb-2.5">
-                    <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs ${
-                        isSelected
-                          ? 'bg-white border-2 border-emerald-500 ring-2 ring-offset-2 ring-emerald-500'
-                          : 'bg-gray-50 border border-gray-200 text-gray-500 group-hover:bg-white group-hover:text-gray-800'
-                      }`}
-                    >
-                      <PlatformLogo
-                        platform={plat.id}
-                        className={`w-7 h-7 transition-colors ${
-                          isSelected ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'
-                        }`}
-                      />
-                    </div>
-
-                    {/* Selected Badge Indicator */}
-                    {isSelected && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs ring-2 ring-white animate-in zoom-in-75 duration-150">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Platform Label */}
-                  <span className="text-xs font-bold text-gray-900 block leading-tight">
-                    {plat.name}
-                  </span>
-
-                  {/* Channel Status */}
-                  <span className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[120px]">
-                    {isConnected
-                      ? `@${platformAccounts[0].username || platformAccounts[0].displayName}`
-                      : 'Not Connected'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Connected Channels Pill Strip (for multi-account fine-grained selection) */}
-          {accounts.length > 0 && (
-            <div className="pt-2 border-t border-gray-100 flex items-center space-x-2 overflow-x-auto py-1">
-              <span className="text-[11px] font-semibold text-gray-400 shrink-0">
-                Active Channels:
-              </span>
-              {accounts.map((acc) => {
-                const isAccSelected = selectedAccountIds.includes(acc.id);
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => handleToggleAccount(acc.id)}
-                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all shrink-0 cursor-pointer ${
-                      isAccSelected
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs'
-                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-800 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <PlatformLogo platform={acc.platform} className="w-3 h-3" />
-                    <span className="truncate max-w-[110px]">{acc.displayName}</span>
-                    {isAccSelected && <Check className="w-3 h-3 text-emerald-600" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        {/* 1. EXACT BUFFER-STYLE CIRCULAR SOCIAL ACCOUNT SELECTOR (from User Image) */}
+        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs">
+          <ConnectedAccountSelector
+            accounts={accounts}
+            selectedAccountIds={selectedAccountIds}
+            onToggleAccount={handleToggleAccount}
+            onSelectAll={() => {
+              const allAccIds = accounts.map((a) => a.id);
+              setSelectedAccountIds(allAccIds);
+              if (rememberAccounts && typeof window !== 'undefined') {
+                localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
+              }
+            }}
+            onClearAll={() => {
+              setSelectedAccountIds([]);
+              if (rememberAccounts && typeof window !== 'undefined') {
+                localStorage.setItem('pb_remembered_accounts', JSON.stringify([]));
+              }
+            }}
+            onGoToConnections={onBack}
+          />
         </div>
 
         {/* 2-Column Main Workspace */}

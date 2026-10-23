@@ -28,6 +28,30 @@ export const INITIAL_ACCOUNTS: SocialAccount[] = [
     followersCount: 1420,
     externalId: '2116988269210142',
   },
+  {
+    id: 'yt_primary_channel',
+    platform: 'youtube',
+    username: 'unosmedia',
+    displayName: 'U NOS Media (YouTube)',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+    accountType: 'channel',
+    status: 'connected',
+    followersCount: 3890,
+    externalId: 'yt_unos_media',
+  },
+  {
+    id: 'tw_primary_account',
+    platform: 'twitter',
+    username: 'unosdigital',
+    displayName: 'U NOS Digital (X)',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+    accountType: 'profile',
+    status: 'connected',
+    followersCount: 2450,
+    externalId: 'tw_unos_digital',
+  },
 ];
 
 export const INITIAL_MEDIA: PostMedia[] = [
