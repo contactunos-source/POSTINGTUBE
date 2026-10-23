@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   if (error || !code) {
     if (error === 'access_denied') {
       return makeRedirect({
-        notice: 'YouTube Google authorization was cancelled by user.',
+        error: 'Google YouTube authorization was cancelled or denied by user.',
       });
     }
     return makeRedirect({

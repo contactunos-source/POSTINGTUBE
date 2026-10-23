@@ -466,63 +466,6 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         )
       )}
 
-      {/* 4. X (TWITTER) PREVIEW */}
-      {selectedPlatform === 'twitter' && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">
-          <div className="flex items-start space-x-3">
-            <img src={avatar} alt={username} className="w-10 h-10 rounded-full object-cover shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center space-x-1 text-xs">
-                <span className="font-bold text-gray-900 truncate">{displayName}</span>
-                <span className="text-blue-500 font-bold">✓</span>
-                <span className="text-gray-400 truncate">@{username}</span>
-                <span className="text-gray-400">·</span>
-                <span className="text-gray-400">now</span>
-              </div>
-
-              {/* Post Text */}
-              <p className="text-xs text-gray-900 mt-2 whitespace-pre-line leading-relaxed break-words">
-                {caption || "What's happening? Add your X post caption in the editor..."}
-              </p>
-
-              {/* Media Card */}
-              {media && (
-                <div className={`mt-3 rounded-2xl overflow-hidden border border-gray-200 bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center`}>
-                  {media.type === 'video' ? (
-                    <video src={media.url} className={`w-full h-full ${fitClass}`} controls />
-                  ) : (
-                    <img src={media.thumbnailUrl || media.url} alt="X media" className={`w-full h-full ${fitClass}`} />
-                  )}
-                </div>
-              )}
-
-              {/* Metrics */}
-              <div className="flex items-center justify-between text-gray-400 text-xs mt-3 pt-2 border-t border-gray-100">
-                <div className="flex items-center space-x-1 hover:text-blue-500 cursor-pointer">
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>38</span>
-                </div>
-                <div className="flex items-center space-x-1 hover:text-emerald-500 cursor-pointer">
-                  <Repeat2 className="w-3.5 h-3.5" />
-                  <span>14</span>
-                </div>
-                <div className="flex items-center space-x-1 hover:text-rose-500 cursor-pointer">
-                  <Heart className="w-3.5 h-3.5" />
-                  <span>294</span>
-                </div>
-                <div className="flex items-center space-x-1 hover:text-blue-500 cursor-pointer">
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>62</span>
-                </div>
-                <div className="flex items-center space-x-1 hover:text-blue-500 cursor-pointer">
-                  <Share2 className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 5. THREADS PREVIEW */}
       {selectedPlatform === 'threads' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">

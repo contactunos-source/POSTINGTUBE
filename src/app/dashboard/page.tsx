@@ -75,7 +75,10 @@ export default function DashboardPage() {
       const params = new URLSearchParams(window.location.search);
       if (
         params.get('fb_connect_success') === 'true' ||
-        params.get('ig_connect_success') === 'true'
+        params.get('ig_connect_success') === 'true' ||
+        params.get('youtube_connect_success') === 'true' ||
+        params.get('tab') === 'connections' ||
+        params.get('error')
       ) {
         return 'connections';
       }
@@ -234,18 +237,12 @@ export default function DashboardPage() {
       const isOauthReturn =
         params.get('fb_connect_success') === 'true' ||
         params.get('ig_connect_success') === 'true' ||
+        params.get('youtube_connect_success') === 'true' ||
+        params.get('tab') === 'connections' ||
         params.get('error');
 
       if (isOauthReturn) {
-        if (params.get('fb_connect_success') === 'true' || params.get('ig_connect_success') === 'true') {
-          setSuccessToast('Account connected successfully!');
-        }
         setActiveTab('connections');
-        // Clean URL search parameters immediately so subsequent refreshes stay on the main dashboard!
-        window.history.replaceState(null, '', window.location.pathname);
-      } else if (params.get('tab') === 'connections') {
-        // Clean URL search parameters immediately so subsequent refreshes stay on the main dashboard!
-        window.history.replaceState(null, '', window.location.pathname);
       }
     }
   }, []);

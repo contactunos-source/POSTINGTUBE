@@ -56,12 +56,12 @@ const PLATFORM_NAMES: Record<SocialPlatform, string> = {
   youtube: 'YouTube',
   instagram: 'Instagram',
   facebook: 'Facebook',
-  twitter: 'X (Twitter)',
   linkedin: 'LinkedIn',
   threads: 'Threads',
   pinterest: 'Pinterest',
   tiktok: 'TikTok',
   bluesky: 'Bluesky',
+  twitter: 'Twitter',
 };
 
 // Exactly three supported caption languages as required
@@ -215,8 +215,8 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     }
   };
 
-  // Character counter for Twitter or general
-  const charLimit = platform === 'twitter' ? 280 : 2200;
+  // Character counter
+  const charLimit = platform === 'threads' || platform === 'pinterest' ? 500 : 2200;
   const isOverLimit = editableCaption.length > charLimit;
 
   return (
@@ -299,7 +299,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-800 block">Target Platform</label>
               <div className="grid grid-cols-3 gap-1.5">
-                {(['youtube', 'instagram', 'facebook', 'twitter', 'linkedin', 'threads'] as SocialPlatform[]).map(
+                {(['youtube', 'instagram', 'facebook', 'linkedin', 'threads', 'pinterest'] as SocialPlatform[]).map(
                   (plat) => {
                     const isSelected = platform === plat;
                     return (
@@ -634,9 +634,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                       </span>
                     </div>
                     <span className="text-[11px] text-emerald-700 font-medium">
-                      {platform === 'twitter'
-                        ? `${editableCaption.length}/280 chars`
-                        : `${editableCaption.length} characters`}
+                      {`${editableCaption.length} characters`}
                     </span>
                   </div>
 
@@ -701,11 +699,11 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                       className="w-full text-xs p-3 rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 leading-relaxed font-sans resize-none"
                     />
 
-                    {isOverLimit && platform === 'twitter' && (
+                    {isOverLimit && (
                       <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                         <span>
-                          Exceeds Twitter/X 280-char limit ({editableCaption.length}/280). Use &quot;Make Shorter&quot; or trim manually.
+                          Caption exceeds platform recommended limit ({editableCaption.length}/{charLimit}).
                         </span>
                       </div>
                     )}

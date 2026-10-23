@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
   if (error || !code) {
     if (error === 'access_denied') {
       return makeRedirect({
-        notice: 'Instagram authorization was cancelled by user.',
+        error: 'Instagram authorization was cancelled or denied by user.',
       });
     }
 

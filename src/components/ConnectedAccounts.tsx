@@ -96,6 +96,59 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   const [refreshingPlatform, setRefreshingPlatform] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Redesigned Social Account Connection Result Modal State (matching reference image)
+  const [resultModal, setResultModal] = useState<{
+    isOpen: boolean;
+    status: 'success' | 'already_connected' | 'error';
+    platform: SocialPlatform;
+    accountName?: string;
+    avatarUrl?: string;
+    errorMessage?: string;
+  } | null>(null);
+
+  const renderPlatformCornerBadge = (platform: SocialPlatform) => {
+    if (platform === 'youtube') {
+      return (
+        <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+          <PlatformLogo platform="youtube" className="w-3.5 h-3.5 text-white" />
+        </div>
+      );
+    }
+    if (platform === 'instagram') {
+      return (
+        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+          <PlatformLogo platform="instagram" className="w-3.5 h-3.5 text-white" />
+        </div>
+      );
+    }
+    if (platform === 'facebook') {
+      return (
+        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+          <PlatformLogo platform="facebook" className="w-3.5 h-3.5 text-white" />
+        </div>
+      );
+    }
+    if (platform === 'linkedin') {
+      return (
+        <div className="w-6 h-6 rounded-full bg-[#0A66C2] flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+          <PlatformLogo platform="linkedin" className="w-3.5 h-3.5 text-white" />
+        </div>
+      );
+    }
+    if (platform === 'pinterest') {
+      return (
+        <div className="w-6 h-6 rounded-full bg-[#BD081C] flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+          <PlatformLogo platform="pinterest" className="w-3.5 h-3.5 text-white" />
+        </div>
+      );
+    }
+    return (
+      <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+        <PlatformLogo platform={platform} className="w-3.5 h-3.5 text-white" />
+      </div>
+    );
+  };
+
   const platforms: SocialPlatform[] = [
     'facebook',
     'instagram',
@@ -130,14 +183,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       if (authError) {
         setVerifyError(decodeURIComponent(authError));
-        setConnectingPlatform(returningPlatform);
-        if (returningPlatform === 'instagram') {
-          setIgStep('select_type');
-        } else if (returningPlatform === 'youtube') {
-          setYtStep('auth');
-        } else {
-          setFbStep('select_type');
-        }
+        setResultModal({
+          isOpen: true,
+          status: 'error',
+          platform: returningPlatform,
+          errorMessage: decodeURIComponent(authError),
+        });
+        setConnectingPlatform(null);
       } else if (authNotice) {
         setToastMessage(decodeURIComponent(authNotice));
         setTimeout(() => setToastMessage(null), 4500);
@@ -146,51 +198,118 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         try {
           const parsedChannels: DetectedPage[] = JSON.parse(discoveredJson);
           if (parsedChannels.length > 0) {
-            setDiscoveredPages(parsedChannels);
-            setSelectedPageIds(parsedChannels.map((p) => p.id));
-            setConnectingPlatform('youtube');
-            setYtStep('confirm');
+            const first = parsedChannels[0];
+            const isDup = accounts.some(
+              (a) =>
+                a.platform === 'youtube' &&
+                (a.externalId === first.id ||
+                  a.pageId === first.id ||
+                  a.id === `yt_${first.id}` ||
+                  (a.username && first.username && a.username.toLowerCase() === first.username.toLowerCase()))
+            );
+
+            if (isDup) {
+              setResultModal({
+                isOpen: true,
+                status: 'already_connected',
+                platform: 'youtube',
+                accountName: first.name,
+                avatarUrl: first.avatarUrl,
+              });
+              setConnectingPlatform(null);
+            } else {
+              setDiscoveredPages(parsedChannels);
+              setSelectedPageIds(parsedChannels.map((p) => p.id));
+              setConnectingPlatform('youtube');
+              setYtStep('confirm');
+            }
           }
         } catch (e) {
           console.error('Failed to parse discovered YouTube channels', e);
         }
       } else if (noIgFound) {
-        setConnectingPlatform('instagram');
-        setIgStep('confirm');
-        setNoInstagramFound(true);
+        setResultModal({
+          isOpen: true,
+          status: 'error',
+          platform: 'instagram',
+          errorMessage:
+            'No Instagram Business or Creator account found linked to your Facebook account. Please ensure your Instagram is converted to a Professional account and linked to a Facebook Page, then try connecting again.',
+        });
+        setConnectingPlatform(null);
         setDiscoveredPages([]);
       } else if (isFbSuccess && discoveredJson) {
-        // STRICTLY FACEBOOK: Never hijack to Instagram
+        // STRICTLY FACEBOOK
         try {
           const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
           if (parsedPages.length > 0) {
             const fbOnly = parsedPages.filter((p) => p.platform !== 'instagram');
             const targetPages = fbOnly.length > 0 ? fbOnly : parsedPages;
-            setDiscoveredPages(targetPages);
-            setSelectedPageIds(targetPages.map((p) => p.id));
-            setConnectingPlatform('facebook');
-            setFbStep('confirm');
+            const first = targetPages[0];
+            const isDup = accounts.some(
+              (a) =>
+                a.platform === 'facebook' &&
+                (a.externalId === first.id || a.pageId === first.id || a.id === `fb_${first.id}`)
+            );
+
+            if (isDup) {
+              setResultModal({
+                isOpen: true,
+                status: 'already_connected',
+                platform: 'facebook',
+                accountName: first.name,
+                avatarUrl: first.avatarUrl,
+              });
+              setConnectingPlatform(null);
+            } else {
+              setDiscoveredPages(targetPages);
+              setSelectedPageIds(targetPages.map((p) => p.id));
+              setConnectingPlatform('facebook');
+              setFbStep('confirm');
+            }
           }
         } catch (e) {
           console.error('Failed to parse discovered Facebook pages', e);
         }
       } else if (isIgSuccess && discoveredJson) {
-        // STRICTLY INSTAGRAM: Never hijack to Facebook
+        // STRICTLY INSTAGRAM
         try {
           const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
           if (parsedPages.length > 0) {
-            setDiscoveredPages(parsedPages);
-            setSelectedPageIds(parsedPages.map((p) => p.id));
-            setConnectingPlatform('instagram');
-            setIgStep('confirm');
-            setNoInstagramFound(false);
-            if (parsedPages[0]?.name) {
-              setCustomIgHandle(parsedPages[0].name.replace(/^@/, ''));
+            const first = parsedPages[0];
+            const isDup = accounts.some(
+              (a) =>
+                a.platform === 'instagram' &&
+                (a.externalId === first.id || a.pageId === first.id || a.id === `ig_${first.id}`)
+            );
+
+            if (isDup) {
+              setResultModal({
+                isOpen: true,
+                status: 'already_connected',
+                platform: 'instagram',
+                accountName: first.name,
+                avatarUrl: first.avatarUrl,
+              });
+              setConnectingPlatform(null);
+            } else {
+              setDiscoveredPages(parsedPages);
+              setSelectedPageIds(parsedPages.map((p) => p.id));
+              setConnectingPlatform('instagram');
+              setIgStep('confirm');
+              setNoInstagramFound(false);
+              if (parsedPages[0]?.name) {
+                setCustomIgHandle(parsedPages[0].name.replace(/^@/, ''));
+              }
             }
           } else {
-            setConnectingPlatform('instagram');
-            setIgStep('confirm');
-            setNoInstagramFound(true);
+            setResultModal({
+              isOpen: true,
+              status: 'error',
+              platform: 'instagram',
+              errorMessage:
+                'No Instagram Business or Creator account found. Please ensure your Instagram is connected to a Facebook Page.',
+            });
+            setConnectingPlatform(null);
           }
         } catch (e) {
           console.error('Failed to parse discovered Instagram accounts', e);
@@ -324,19 +443,27 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       // Duplicate check: do not create another record if already connected
       if (isAccountDuplicate(newAcc)) {
-        setVerifyError('This account is already connected.');
-        setToastMessage('This account is already connected.');
-        if (onShowSuccessToast) {
-          onShowSuccessToast('This account is already connected.');
-        }
+        setResultModal({
+          isOpen: true,
+          status: 'already_connected',
+          platform: 'instagram',
+          accountName: newAcc.displayName || newAcc.username,
+          avatarUrl: newAcc.avatarUrl,
+        });
+        setConnectingPlatform(null);
         return;
       }
 
       const result = await onAddAccount(newAcc);
       if (result && result.isDuplicate) {
-        setVerifyError('This account is already connected.');
-        setToastMessage('This account is already connected.');
-        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+        setResultModal({
+          isOpen: true,
+          status: 'already_connected',
+          platform: 'instagram',
+          accountName: newAcc.displayName || newAcc.username,
+          avatarUrl: newAcc.avatarUrl,
+        });
+        setConnectingPlatform(null);
         return;
       }
 
@@ -349,15 +476,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         window.history.replaceState({}, '', '/dashboard?tab=connections');
       }
 
-      const successMsg = 'Account connected successfully!';
-      setToastMessage(successMsg);
-      setTimeout(() => setToastMessage(null), 5000);
+      setResultModal({
+        isOpen: true,
+        status: 'success',
+        platform: 'instagram',
+        accountName: newAcc.displayName || newAcc.username,
+        avatarUrl: newAcc.avatarUrl,
+      });
 
-      if (onShowSuccessToast) {
-        onShowSuccessToast(successMsg);
-      }
-
-      // Strictly stay on Connections page
       if (onNavigateToTab) {
         onNavigateToTab('connections');
       }
@@ -395,19 +521,27 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       // Duplicate check
       if (isAccountDuplicate(newAcc)) {
-        setVerifyError('This account is already connected.');
-        setToastMessage('This account is already connected.');
-        if (onShowSuccessToast) {
-          onShowSuccessToast('This account is already connected.');
-        }
+        setResultModal({
+          isOpen: true,
+          status: 'already_connected',
+          platform: 'youtube',
+          accountName: target.name,
+          avatarUrl: target.avatarUrl,
+        });
+        setConnectingPlatform(null);
         return;
       }
 
       const result = await onAddAccount(newAcc);
       if (result && result.isDuplicate) {
-        setVerifyError('This account is already connected.');
-        setToastMessage('This account is already connected.');
-        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+        setResultModal({
+          isOpen: true,
+          status: 'already_connected',
+          platform: 'youtube',
+          accountName: target.name,
+          avatarUrl: target.avatarUrl,
+        });
+        setConnectingPlatform(null);
         return;
       }
 
@@ -419,13 +553,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         window.history.replaceState({}, '', '/dashboard?tab=connections');
       }
 
-      const successMsg = 'Account connected successfully!';
-      setToastMessage(successMsg);
-      setTimeout(() => setToastMessage(null), 5000);
-
-      if (onShowSuccessToast) {
-        onShowSuccessToast(successMsg);
-      }
+      setResultModal({
+        isOpen: true,
+        status: 'success',
+        platform: 'youtube',
+        accountName: target.name,
+        avatarUrl: target.avatarUrl,
+      });
 
       // Strictly stay on Connections page
       if (onNavigateToTab) {
@@ -443,6 +577,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
     let addedCount = 0;
     let duplicateCount = 0;
+    const firstSelected = selected[0];
 
     for (const page of selected) {
       const cleanUsername = page.name.replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
@@ -483,15 +618,21 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     }
 
     if (duplicateCount > 0 && addedCount === 0) {
-      const dupMsg = 'This account is already connected.';
-      setVerifyError(dupMsg);
-      setToastMessage(dupMsg);
-      if (onShowSuccessToast) onShowSuccessToast(dupMsg);
+      setResultModal({
+        isOpen: true,
+        status: 'already_connected',
+        platform: 'facebook',
+        accountName: firstSelected?.name,
+        avatarUrl: firstSelected?.avatarUrl,
+      });
     } else {
-      const successMsg = 'Account connected successfully!';
-      setToastMessage(successMsg);
-      setTimeout(() => setToastMessage(null), 5000);
-      if (onShowSuccessToast) onShowSuccessToast(successMsg);
+      setResultModal({
+        isOpen: true,
+        status: 'success',
+        platform: 'facebook',
+        accountName: firstSelected?.name,
+        avatarUrl: firstSelected?.avatarUrl,
+      });
     }
 
     // Strictly stay on Connections page
@@ -520,17 +661,27 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     };
 
     if (isAccountDuplicate(newAcc)) {
-      setVerifyError('This account is already connected.');
-      setToastMessage('This account is already connected.');
-      if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+      setResultModal({
+        isOpen: true,
+        status: 'already_connected',
+        platform: connectingPlatform,
+        accountName: newAcc.displayName,
+        avatarUrl: newAcc.avatarUrl,
+      });
+      setConnectingPlatform(null);
       return;
     }
 
     const res = await onAddAccount(newAcc);
     if (res && res.isDuplicate) {
-      setVerifyError('This account is already connected.');
-      setToastMessage('This account is already connected.');
-      if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+      setResultModal({
+        isOpen: true,
+        status: 'already_connected',
+        platform: connectingPlatform,
+        accountName: newAcc.displayName,
+        avatarUrl: newAcc.avatarUrl,
+      });
+      setConnectingPlatform(null);
       return;
     }
 
@@ -542,15 +693,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       window.history.replaceState({}, '', '/dashboard?tab=connections');
     }
 
-    const successMsg = 'Account connected successfully!';
-    setToastMessage(successMsg);
-    setTimeout(() => setToastMessage(null), 5000);
+    setResultModal({
+      isOpen: true,
+      status: 'success',
+      platform: connectingPlatform,
+      accountName: newAcc.displayName,
+      avatarUrl: newAcc.avatarUrl,
+    });
 
-    if (onShowSuccessToast) {
-      onShowSuccessToast(successMsg);
-    }
-
-    // Strictly stay on Connections page
     if (onNavigateToTab) {
       onNavigateToTab('connections');
     }
@@ -579,6 +729,150 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           <div>
             <div className="font-bold text-emerald-400">Successful!</div>
             <div className="text-gray-200 mt-0.5">{toastMessage}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Redesigned Social Account Connection Result Screen (Matching Reference Image) */}
+      {resultModal && resultModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1c1d1f] border border-zinc-800 text-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200">
+            {/* Top Close Button 'X' */}
+            <button
+              onClick={() => setResultModal(null)}
+              className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer z-10"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Body */}
+            <div className="p-8 sm:p-10 text-center">
+              {/* Centered Avatar Box with Corner Platform Badge */}
+              <div className="relative inline-block mx-auto mb-6">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-zinc-800 border-2 border-white/20 shadow-xl flex items-center justify-center">
+                  {resultModal.avatarUrl ? (
+                    <img
+                      src={resultModal.avatarUrl}
+                      alt={resultModal.accountName || 'Channel avatar'}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white font-bold text-2xl">
+                      {resultModal.accountName ? (
+                        resultModal.accountName.charAt(0).toUpperCase()
+                      ) : (
+                        <PlatformLogo platform={resultModal.platform} className="w-8 h-8 text-white" />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Platform Badge on Bottom-Right of Avatar */}
+                <div className="absolute -bottom-1.5 -right-1.5">
+                  {resultModal.status === 'error' ? (
+                    <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+                      <AlertCircle className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  ) : (
+                    renderPlatformCornerBadge(resultModal.platform)
+                  )}
+                </div>
+              </div>
+
+              {/* Title / Heading */}
+              {resultModal.status === 'already_connected' ? (
+                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-3">
+                  &apos;{resultModal.accountName || 'This channel'}&apos; is already connected
+                </h2>
+              ) : resultModal.status === 'success' ? (
+                <>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+                    Account Connected Successfully!
+                  </h2>
+                  {resultModal.accountName && (
+                    <p className="text-sm font-semibold text-emerald-400 mb-2">
+                      &apos;{resultModal.accountName}&apos;
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+                    Connection Failed
+                  </h2>
+                  {resultModal.accountName && (
+                    <p className="text-sm font-semibold text-rose-400 mb-2">
+                      &apos;{resultModal.accountName}&apos;
+                    </p>
+                  )}
+                </>
+              )}
+
+              {/* Short Description */}
+              {resultModal.status === 'already_connected' ? (
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  If you meant to connect another account, please make sure you are logged into the right account on{' '}
+                  <strong className="text-zinc-200">
+                    {PLATFORM_CONFIGS[resultModal.platform]?.name || resultModal.platform}
+                  </strong>{' '}
+                  and try connecting your channel again.
+                </p>
+              ) : resultModal.status === 'success' ? (
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  Your {PLATFORM_CONFIGS[resultModal.platform]?.name || resultModal.platform} account is now
+                  connected and ready for automated publishing and analytics.
+                </p>
+              ) : (
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  {resultModal.errorMessage ||
+                    'Unable to connect your account. Please check your account permissions and try again.'}
+                </p>
+              )}
+            </div>
+
+            {/* Bottom Footer Separator & Action Buttons */}
+            <div className="px-8 py-5 border-t border-zinc-800/80 bg-[#18191b] flex items-center justify-end">
+              {resultModal.status === 'already_connected' ? (
+                <button
+                  type="button"
+                  onClick={() => setResultModal(null)}
+                  className="px-6 py-2.5 rounded-lg bg-[#94d877] hover:bg-[#85c968] text-zinc-950 font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                >
+                  Back to Channels
+                </button>
+              ) : resultModal.status === 'success' ? (
+                <button
+                  type="button"
+                  onClick={() => setResultModal(null)}
+                  className="px-6 py-2.5 rounded-lg bg-[#94d877] hover:bg-[#85c968] text-zinc-950 font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                >
+                  Save / Continue
+                </button>
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setResultModal(null)}
+                    className="px-4 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
+                  >
+                    Back to Channels
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const plat = resultModal.platform;
+                      setResultModal(null);
+                      handleStartConnect(plat);
+                    }}
+                    className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1847,15 +2141,39 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       };
 
                       if (isAccountDuplicate(newAcc)) {
-                        setToastMessage('This account is already connected.');
-                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'linkedin',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
                         return;
                       }
 
-                      await onAddAccount(newAcc);
+                      const res = await onAddAccount(newAcc);
+                      if (res && res.isDuplicate) {
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'linkedin',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
+                        return;
+                      }
+
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      setResultModal({
+                        isOpen: true,
+                        status: 'success',
+                        platform: 'linkedin',
+                        accountName: newAcc.displayName,
+                        avatarUrl: newAcc.avatarUrl,
+                      });
                       if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
@@ -1931,15 +2249,39 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       };
 
                       if (isAccountDuplicate(newAcc)) {
-                        setToastMessage('This account is already connected.');
-                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'pinterest',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
                         return;
                       }
 
-                      await onAddAccount(newAcc);
+                      const res = await onAddAccount(newAcc);
+                      if (res && res.isDuplicate) {
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'pinterest',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
+                        return;
+                      }
+
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      setResultModal({
+                        isOpen: true,
+                        status: 'success',
+                        platform: 'pinterest',
+                        accountName: newAcc.displayName,
+                        avatarUrl: newAcc.avatarUrl,
+                      });
                       if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white hover:bg-gray-200 text-black transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
@@ -2016,15 +2358,39 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       };
 
                       if (isAccountDuplicate(newAcc)) {
-                        setToastMessage('This account is already connected.');
-                        if (onShowSuccessToast) onShowSuccessToast('This account is already connected.');
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'pinterest',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
                         return;
                       }
 
-                      await onAddAccount(newAcc);
+                      const res = await onAddAccount(newAcc);
+                      if (res && res.isDuplicate) {
+                        setResultModal({
+                          isOpen: true,
+                          status: 'already_connected',
+                          platform: 'pinterest',
+                          accountName: newAcc.displayName,
+                          avatarUrl: newAcc.avatarUrl,
+                        });
+                        setConnectingPlatform(null);
+                        return;
+                      }
+
                       setConnectingPlatform(null);
                       setGenericHandle('');
-                      if (onShowSuccessToast) onShowSuccessToast('Account connected successfully!');
+                      setResultModal({
+                        isOpen: true,
+                        status: 'success',
+                        platform: 'pinterest',
+                        accountName: newAcc.displayName,
+                        avatarUrl: newAcc.avatarUrl,
+                      });
                       if (onNavigateToTab) onNavigateToTab('connections');
                     }}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#BD081C] hover:bg-[#a00718] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"

@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   if (error || !code) {
     if (error === 'access_denied') {
       return makeRedirect({
-        notice: 'Facebook authorization was cancelled by user.',
+        error: 'Facebook authorization was cancelled or denied by user.',
       });
     }
 

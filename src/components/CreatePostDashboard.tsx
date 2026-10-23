@@ -464,7 +464,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setMainCaption(trimmed);
 
     // 2. Intelligently map across all selected platforms
-    let exceededX = false;
     setPlatformCaptions((prev) => {
       const next = { ...prev };
       for (const plat of selectedPlatforms) {
@@ -474,13 +473,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             ...next.youtube,
             caption: trimmed,
             title: optionalTitle || next.youtube?.title || '',
-          };
-        } else if (plat === 'twitter') {
-          // For X: map to caption and validate character limit
-          if (trimmed.length > 280) exceededX = true;
-          next.twitter = {
-            ...next.twitter,
-            caption: trimmed,
           };
         } else {
           // Instagram, Facebook, LinkedIn, Threads, Pinterest
@@ -493,11 +485,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return next;
     });
 
-    if (exceededX) {
-      showToast('Caption applied to all platforms. (Note: Caption exceeds X/Twitter 280-char limit)');
-    } else {
-      showToast('Caption applied to all selected platforms.');
-    }
+    showToast('Caption applied to all selected platforms.');
   };
 
   const handleAiModalResult = (result: any, targetPlatform?: SocialPlatform) => {
@@ -1575,7 +1563,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         platformCaptions[platform]?.caption || platformCaptions[platform]?.title
                       );
                       const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                      const platformName = config?.name || (platform === 'twitter' ? 'X (Twitter)' : platform);
+                      const platformName = config?.name || (platform);
 
                       return (
                         <button
