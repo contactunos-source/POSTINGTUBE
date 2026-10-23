@@ -454,7 +454,7 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
-        {/* Top Header Bar with Workspace, Scheduler status, and Supabase Google Login */}
+        {/* Top Header Bar */}
         <div className="bg-white border-b border-gray-200/80 px-6 py-2.5 flex items-center justify-between shrink-0 font-sans">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
@@ -466,24 +466,9 @@ export default function DashboardPage() {
               />
               <span className="text-xs font-bold text-gray-800">{currentWorkspace.name}</span>
             </div>
-            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold border border-emerald-100 flex items-center space-x-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Publishing Scheduler Active</span>
-            </span>
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* Link back to public landing page */}
-            <Link
-              href="/"
-              className="text-xs text-gray-500 hover:text-gray-900 flex items-center space-x-1 font-medium transition-colors"
-            >
-              <Globe className="w-3.5 h-3.5 text-gray-400" />
-              <span>Landing Page</span>
-            </Link>
-
-            <div className="h-4 w-px bg-gray-200"></div>
-
             {authUser ? (
               <div className="flex items-center space-x-2.5 text-xs bg-gray-50/70 border border-gray-200/80 rounded-xl px-2.5 py-1 shadow-2xs hover:bg-gray-100/60 transition-colors">
                 <UserAvatar

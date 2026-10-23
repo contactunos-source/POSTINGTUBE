@@ -51,20 +51,7 @@ export const BackgroundWorkerSimulator: React.FC<BackgroundWorkerSimulatorProps>
   const [logFilter, setLogFilter] = useState<'all' | 'success' | 'error' | 'info'>('all');
   const [isCopied, setIsCopied] = useState(false);
 
-  const [logs, setLogs] = useState<WorkerLog[]>([
-    {
-      id: 'log_init_1',
-      timestamp: format(new Date(), 'HH:mm:ss'),
-      type: 'info',
-      message: 'Background Publishing Engine initialized. Polling interval active (every 10s).',
-    },
-    {
-      id: 'log_init_2',
-      timestamp: format(new Date(), 'HH:mm:ss'),
-      type: 'info',
-      message: 'Meta Graph API v20.0 adapter ready (Facebook Pages & Instagram Professional).',
-    },
-  ]);
+  const [logs, setLogs] = useState<WorkerLog[]>([]);
 
   // Derived post queues
   const scheduledPosts = useMemo(
@@ -281,18 +268,6 @@ export const BackgroundWorkerSimulator: React.FC<BackgroundWorkerSimulatorProps>
           <div className="text-[10px] text-gray-400 mt-0.5">
             {failedPosts.length > 0 ? 'Eligible for manual retry' : 'Zero pipeline errors'}
           </div>
-        </div>
-      </div>
-
-      {/* Operational Status Pill */}
-      <div className="p-3.5 bg-emerald-50/70 border border-emerald-100 rounded-2xl flex items-center justify-between text-xs text-emerald-900">
-        <div className="flex items-center space-x-2.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="font-semibold">Publishing Scheduler Active:</span>
-          <span className="text-emerald-800">
-            Background worker automatically polls every 10 seconds. Cloud cron endpoint available at{' '}
-            <code className="bg-emerald-100 px-1 py-0.5 rounded text-[11px] font-mono">/api/cron/publish</code>.
-          </span>
         </div>
       </div>
 
