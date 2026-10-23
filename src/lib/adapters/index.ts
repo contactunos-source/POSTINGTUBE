@@ -177,24 +177,86 @@ export const twitterAdapter: PlatformAdapter = {
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
-    await wait(600);
     const text = override?.caption || post.content;
-    const simulatedTweetId = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const handle = account.username.replace('@', '');
+    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
 
-    return {
-      success: true,
-      externalPostId: simulatedTweetId,
-      externalPostUrl: `https://x.com/${handle}/status/${simulatedTweetId}`,
-      details: {
-        textSnippet: text.slice(0, 40),
-        mediaIds: post.media?.map((m) => `media_${m.id}`) || [],
-      },
-    };
+    if (!account.accessToken) {
+      return {
+        success: false,
+        errorMessage: 'No X (Twitter) Access Token found. Please connect your X account in Connections.',
+      };
+    }
+
+    try {
+      const response = await fetch('/api/twitter/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: account.id,
+          username: account.username,
+          accessToken: account.accessToken,
+          refreshToken: account.refreshToken,
+          text,
+          mediaUrl,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        return {
+          success: true,
+          externalPostId: data.tweetId,
+          externalPostUrl: data.tweetUrl,
+          details: data.details,
+        };
+      } else {
+        return {
+          success: false,
+          errorMessage: `X API Error: ${data.error || 'Failed to publish tweet'}`,
+        };
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : 'Network error communicating with X API';
+      return { success: false, errorMessage: err };
+    }
   },
   async refreshTokens(account) {
-    await wait(400);
-    return { success: true, newExpiry: new Date(Date.now() + 7200 * 1000).toISOString() };
+    if (!account.refreshToken) {
+      return { success: false, error: 'No refresh token available for this X account.' };
+    }
+    try {
+      const clientId = process.env.TWITTER_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID;
+      const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+      if (!clientId) {
+        return { success: false, error: 'Missing TWITTER_CLIENT_ID' };
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      if (clientSecret) {
+        headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+      }
+
+      const res = await fetch('https://api.twitter.com/2/oauth2/token', {
+        method: 'POST',
+        headers,
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: account.refreshToken,
+          client_id: clientId,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.access_token) {
+        const expiry = new Date(Date.now() + (data.expires_in || 7200) * 1000).toISOString();
+        return { success: true, newExpiry: expiry };
+      }
+      return { success: false, error: data.error || 'Failed to refresh X token' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'X token refresh failed' };
+    }
   },
 };
 

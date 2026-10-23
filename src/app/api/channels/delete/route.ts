@@ -36,6 +36,26 @@ export async function POST(req: NextRequest) {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           }).catch((revErr) => console.warn('[Channel Delete] Google token revocation warning:', revErr));
         }
+      } else if (acc && acc.platform === 'twitter') {
+        const tokenToRevoke = acc.refresh_token || acc.access_token;
+        const clientId = process.env.TWITTER_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID;
+        const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+        if (tokenToRevoke && clientId) {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          if (clientSecret) {
+            headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+          }
+          fetch('https://api.twitter.com/2/oauth2/revoke', {
+            method: 'POST',
+            headers,
+            body: new URLSearchParams({
+              token: tokenToRevoke,
+              client_id: clientId,
+            }),
+          }).catch((revErr) => console.warn('[Channel Delete] X token revocation warning:', revErr));
+        }
       }
     } catch (fetchErr) {
       console.warn('[Channel Delete] Pre-delete token lookup notice:', fetchErr);

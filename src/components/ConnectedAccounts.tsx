@@ -120,9 +120,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
       const isYtSuccess = urlParams.get('youtube_connect_success');
+      const isTwSuccess = urlParams.get('twitter_connect_success');
       const noIgFound = urlParams.get('no_instagram_found');
       const discoveredJson = urlParams.get('discovered_pages') || urlParams.get('discovered_channels');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : 'facebook');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : isTwSuccess ? 'twitter' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
@@ -139,6 +140,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       } else if (authNotice) {
         setToastMessage(decodeURIComponent(authNotice));
         setTimeout(() => setToastMessage(null), 4500);
+      } else if (isTwSuccess && discoveredJson) {
+        // STRICTLY X (TWITTER)
+        try {
+          const parsedAccounts: DetectedPage[] = JSON.parse(discoveredJson);
+          if (parsedAccounts.length > 0) {
+            setDiscoveredPages(parsedAccounts);
+            setSelectedPageIds(parsedAccounts.map((p) => p.id));
+            setConnectingPlatform('twitter');
+          }
+        } catch (e) {
+          console.error('Failed to parse discovered X accounts', e);
+        }
       } else if (isYtSuccess && discoveredJson) {
         // STRICTLY YOUTUBE
         try {
@@ -195,7 +208,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         }
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isTwSuccess) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -383,7 +396,59 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       return;
     }
 
-    // 3. Facebook Flow
+    // 3. X (Twitter) Flow
+    if (connectingPlatform === 'twitter') {
+      const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
+      const target = selected[0] || discoveredPages[0];
+
+      if (!target) {
+        setVerifyError('Please select an X account to connect.');
+        return;
+      }
+
+      const cleanHandle = (target.username || target.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const newAcc: SocialAccount = {
+        id: `tw_${target.id}`,
+        platform: 'twitter',
+        username: cleanHandle,
+        displayName: target.name,
+        avatarUrl:
+          target.avatarUrl ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+        accountType: 'profile',
+        status: 'connected',
+        followersCount: target.followersCount || 0,
+        externalId: target.id,
+        accessToken: target.accessToken,
+        refreshToken: target.refreshToken,
+        tokenExpiresAt: target.tokenExpiresAt,
+      };
+
+      onAddAccount(newAcc);
+
+      setConnectingPlatform(null);
+      setDiscoveredPages([]);
+      setSelectedPageIds([]);
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', '/dashboard');
+      }
+
+      const dynamicMessage = `Your X account (@${cleanHandle}) has been successfully connected!`;
+      setToastMessage(dynamicMessage);
+      setTimeout(() => setToastMessage(null), 5000);
+
+      if (onShowSuccessToast) {
+        onShowSuccessToast(dynamicMessage);
+      }
+
+      if (onNavigateToTab) {
+        onNavigateToTab('new-post');
+      }
+      return;
+    }
+
+    // 4. Facebook Flow
     const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
     if (selected.length === 0) {
       setVerifyError('Please select at least one Account or Page to connect.');
@@ -1715,56 +1780,145 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </div>
                 )}
               </div>
-            ) : (
-              /* Other Platforms (Twitter, LinkedIn, TikTok, etc.) */
+            ) : connectingPlatform === 'twitter' ? (
+              /* X (Twitter) Dedicated Flow */
               <div className="p-6 space-y-5">
-                <div className="text-center">
-                  <h2 className="text-xl font-bold text-white tracking-tight">
-                    Connect {PLATFORM_CONFIGS[connectingPlatform].name}
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Enter your channel username to link your account.
-                  </p>
-                </div>
+                {discoveredPages.length > 0 ? (
+                  /* X Step: Confirm Account */
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 border border-gray-700">
+                        <PlatformLogo platform="twitter" className="w-6 h-6" />
+                      </div>
+                      <h2 className="text-xl font-bold text-white tracking-tight">Confirm X (Twitter) Account</h2>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Confirm the X account you want to connect to this workspace.
+                      </p>
+                    </div>
 
-                {verifyError && (
-                  <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
-                    {verifyError}
+                    {verifyError && (
+                      <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
+                        {verifyError}
+                      </div>
+                    )}
+
+                    <div className="space-y-2.5 max-h-60 overflow-y-auto">
+                      {discoveredPages.map((acc) => {
+                        const isChecked = selectedPageIds.includes(acc.id);
+                        return (
+                          <div
+                            key={acc.id}
+                            onClick={() => setSelectedPageIds([acc.id])}
+                            className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                              isChecked
+                                ? 'bg-zinc-900 border-white/60 shadow-md ring-1 ring-white/30'
+                                : 'bg-gray-900/60 border-gray-800 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3 min-w-0">
+                              {acc.avatarUrl ? (
+                                <img
+                                  src={acc.avatarUrl}
+                                  alt={acc.name}
+                                  className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-black border border-gray-700 text-white flex items-center justify-center font-bold">
+                                  {acc.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h4 className="text-sm font-bold text-white truncate">{acc.name}</h4>
+                                <p className="text-xs text-gray-400">
+                                  @{acc.username || 'username'}
+                                  {typeof acc.followersCount === 'number' && (
+                                    <span className="ml-2 text-gray-500">• {acc.followersCount.toLocaleString()} followers</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <div
+                              className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                                isChecked ? 'bg-white border-white text-black' : 'border-gray-700'
+                              }`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-800">
+                      <button
+                        onClick={() => {
+                          setConnectingPlatform(null);
+                          setDiscoveredPages([]);
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleFinishConnection}
+                        disabled={selectedPageIds.length === 0}
+                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center space-x-1.5"
+                      >
+                        <span>Confirm & Connect X</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* X Step: OAuth Initiation */
+                  <div className="space-y-5">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 border border-gray-700">
+                        <PlatformLogo platform="twitter" className="w-6 h-6" />
+                      </div>
+                      <h2 className="text-xl font-bold text-white tracking-tight">Connect X (Twitter) Account</h2>
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                        Authorize PostBridge to publish tweets, schedule posts, and manage your timeline via the official X API v2.
+                      </p>
+                    </div>
+
+                    {verifyError && (
+                      <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
+                        {verifyError}
+                      </div>
+                    )}
+
+                    <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-3">
+                      <div className="flex items-start space-x-2.5 text-xs text-gray-300">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Official X OAuth 2.0 PKCE authentication with offline access & automatic token refresh.</span>
+                      </div>
+                      <div className="flex items-start space-x-2.5 text-xs text-gray-300">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Direct publishing of 280-character posts, media previews, and scheduled queueing.</span>
+                      </div>
+                    </div>
+
+                    <a
+                      href={`/api/auth/twitter?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}`}
+                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white hover:bg-gray-200 active:bg-gray-300 text-black transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <PlatformLogo platform="twitter" className="w-4 h-4 text-black" />
+                      <span>Sign in with X (Twitter)</span>
+                    </a>
+
+                    <div className="text-center pt-2 border-t border-gray-800">
+                      <button
+                        type="button"
+                        onClick={() => setConnectingPlatform(null)}
+                        className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">
-                      Account Handle / Username
-                    </label>
-                    <input
-                      type="text"
-                      value={genericHandle}
-                      onChange={(e) => setGenericHandle(e.target.value)}
-                      placeholder="@yourhandle"
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end space-x-2 pt-4 border-t border-gray-800">
-                  <button
-                    onClick={() => setConnectingPlatform(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleConnectOtherPlatform}
-                    disabled={!genericHandle.trim()}
-                    className="px-6 py-2.5 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
-                  >
-                    Save
-                  </button>
-                </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}

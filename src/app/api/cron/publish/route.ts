@@ -189,6 +189,44 @@ export async function GET(req: NextRequest) {
                 };
                 logs.push(`Failed post #${post.id} on YouTube: ${data.error}`);
               }
+            } else if (account.platform === 'twitter') {
+              const res = await fetch(`${appUrl}/api/twitter/publish`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  accountId: account.id,
+                  username: account.username,
+                  accessToken: account.access_token,
+                  refreshToken: account.refresh_token,
+                  text: post.platform_overrides?.twitter?.caption || post.content,
+                  mediaUrl,
+                }),
+              });
+              const data = await res.json();
+              if (data.success) {
+                postSuccessCount++;
+                publishedCount++;
+                postResults[account.id] = {
+                  status: 'success',
+                  platform: 'twitter',
+                  accountName: account.display_name || account.username,
+                  externalPostId: data.tweetId,
+                  externalPostUrl: data.tweetUrl,
+                  timestamp: new Date().toISOString(),
+                };
+                logs.push(`Published tweet #${post.id} to X (${data.tweetId})`);
+              } else {
+                postFailCount++;
+                failedCount++;
+                postResults[account.id] = {
+                  status: 'failed',
+                  platform: 'twitter',
+                  accountName: account.display_name || account.username,
+                  errorMessage: data.error || 'Failed to publish to X',
+                  timestamp: new Date().toISOString(),
+                };
+                logs.push(`Failed tweet #${post.id} on X: ${data.error}`);
+              }
             }
           } catch (channelErr: unknown) {
             postFailCount++;
