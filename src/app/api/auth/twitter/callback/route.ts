@@ -34,12 +34,14 @@ export async function GET(req: NextRequest) {
 
   let workspaceId = '';
   let returnBaseUrl = defaultBaseUrl;
+  let stateRedirectUri = '';
 
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
+      if (parsed.redirectUri) stateRedirectUri = parsed.redirectUri;
     } catch {
       workspaceId = stateRaw;
     }
@@ -78,7 +80,7 @@ export async function GET(req: NextRequest) {
 
   const clientId = process.env.TWITTER_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID;
   const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-  const redirectUri = process.env.TWITTER_REDIRECT_URI || `${defaultBaseUrl}/api/auth/twitter/callback`;
+  const redirectUri = stateRedirectUri || process.env.TWITTER_REDIRECT_URI || `${defaultBaseUrl}/api/auth/twitter/callback`;
 
   if (!clientId) {
     return makeRedirect({

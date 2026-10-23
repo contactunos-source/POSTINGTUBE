@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
     platform: 'twitter',
     csrf: Math.random().toString(36).substring(2, 15),
     returnUrl: baseUrl,
+    redirectUri,
   };
   const state = encodeURIComponent(JSON.stringify(stateObj));
 
