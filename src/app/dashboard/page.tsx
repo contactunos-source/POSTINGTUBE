@@ -616,6 +616,8 @@ export default function DashboardPage() {
           <SettingsView
             currentWorkspace={currentWorkspace}
             authUser={authUser}
+            accounts={accounts}
+            onRemoveAccount={handleRemoveAccount}
             onUpdateWorkspace={(ws) => {
               setCurrentWorkspace(ws);
               setWorkspaces(workspaces.map((w) => (w.id === ws.id ? ws : w)));

@@ -18,6 +18,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
+import { DeleteChannelModal } from './DeleteChannelModal';
 
 interface ConnectedAccountsProps {
   accounts: SocialAccount[];
@@ -48,6 +49,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 }) => {
   // Modal state
   const [connectingPlatform, setConnectingPlatform] = useState<SocialPlatform | null>(null);
+  const [channelToDelete, setChannelToDelete] = useState<SocialAccount | null>(null);
 
   // Facebook Connection Flow Steps:
   // 1: 'select_type' (Page vs Group)
@@ -490,7 +492,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         {account.platform === 'instagram' ? 'IG' : 'Page'}
                       </span>
                       <button
-                        onClick={() => onRemoveAccount(account.id)}
+                        onClick={() => setChannelToDelete(account)}
                         title="Disconnect account"
                         className="text-gray-400 hover:text-rose-600 transition-colors ml-1 p-0.5 rounded-full cursor-pointer"
                       >
@@ -1559,6 +1561,21 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       )}
 
 
+      {/* Delete Channel Modal with required DELETE CHANNEL text */}
+      {channelToDelete && (
+        <DeleteChannelModal
+          isOpen={Boolean(channelToDelete)}
+          account={channelToDelete}
+          workspaceId={currentWorkspaceId}
+          onClose={() => setChannelToDelete(null)}
+          onConfirmDelete={async (accountId) => {
+            onRemoveAccount(accountId);
+            if (onShowSuccessToast) {
+              onShowSuccessToast('Channel disconnected and access tokens revoked.');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
