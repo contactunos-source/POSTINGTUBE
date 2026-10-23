@@ -115,8 +115,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const isFbSuccess = urlParams.get('fb_connect_success');
+      const isIgSuccess = urlParams.get('ig_connect_success');
       const discoveredJson = urlParams.get('discovered_pages');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || 'facebook';
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess ? 'instagram' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
@@ -132,29 +133,36 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         setToastMessage(decodeURIComponent(authNotice));
         setTimeout(() => setToastMessage(null), 4500);
       } else if (isFbSuccess && discoveredJson) {
+        // STRICTLY FACEBOOK: Never hijack to Instagram
+        try {
+          const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
+          if (parsedPages.length > 0) {
+            const fbOnly = parsedPages.filter((p) => p.platform !== 'instagram');
+            const targetPages = fbOnly.length > 0 ? fbOnly : parsedPages;
+            setDiscoveredPages(targetPages);
+            setSelectedPageIds(targetPages.map((p) => p.id));
+            setConnectingPlatform('facebook');
+            setFbStep('confirm');
+          }
+        } catch (e) {
+          console.error('Failed to parse discovered Facebook pages', e);
+        }
+      } else if (isIgSuccess && discoveredJson) {
+        // STRICTLY INSTAGRAM: Never hijack to Facebook
         try {
           const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
           if (parsedPages.length > 0) {
             setDiscoveredPages(parsedPages);
             setSelectedPageIds(parsedPages.map((p) => p.id));
-
-            // Set the appropriate platform mode and step
-            const hasInstagram = parsedPages.some((p) => p.platform === 'instagram');
-            const targetPlatform = returningPlatform === 'instagram' || hasInstagram ? 'instagram' : 'facebook';
-            setConnectingPlatform(targetPlatform);
-
-            if (targetPlatform === 'instagram') {
-              setIgStep('confirm');
-            } else {
-              setFbStep('confirm');
-            }
+            setConnectingPlatform('instagram');
+            setIgStep('confirm');
           }
         } catch (e) {
-          console.error('Failed to parse discovered pages', e);
+          console.error('Failed to parse discovered Instagram accounts', e);
         }
       }
 
-      if (authError || authNotice || (isFbSuccess && discoveredJson)) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -500,9 +508,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   igStep === 'confirm' ? (
                     <button
                       onClick={() => {
-                        window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
+                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
                           currentWorkspaceId || ''
-                        )}&platform=instagram`;
+                        )}`;
                       }}
                       className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer font-medium"
                     >
@@ -679,9 +687,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <div className="mt-2.5 pt-2.5 border-t border-gray-800/80 text-center">
                           <button
                             onClick={() => {
-                              window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
+                              window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
                                 currentWorkspaceId || ''
-                              )}&platform=instagram`;
+                              )}`;
                             }}
                             className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-medium cursor-pointer"
                           >
@@ -807,9 +815,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
+                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
                             currentWorkspaceId || ''
-                          )}&platform=instagram`;
+                          )}`;
                         }}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-800/90 hover:bg-gray-700 border border-gray-700 text-white transition-colors cursor-pointer"
                       >
@@ -909,9 +917,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     <div className="space-y-2">
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
+                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
                             currentWorkspaceId || ''
-                          )}&platform=instagram`;
+                          )}`;
                         }}
                         className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black flex items-center justify-center space-x-2 shadow-sm transition-colors cursor-pointer"
                       >
@@ -1343,10 +1351,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                               <div>
                                 <div className="text-sm font-bold text-white leading-tight flex items-center space-x-1.5">
                                   <span>{page.name}</span>
-                                  <PlatformLogo platform={page.platform || 'facebook'} className="w-3.5 h-3.5 text-gray-300" />
+                                  <PlatformLogo platform="facebook" className="w-3.5 h-3.5 text-gray-300" />
                                 </div>
-                                <div className="text-xs text-gray-400 mt-0.5 capitalize">
-                                  {page.platform === 'instagram' ? 'Instagram Business Account' : 'Facebook Page'}
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                  Facebook Page
                                 </div>
                               </div>
                             </div>
@@ -1379,9 +1387,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       <button
                         onClick={handleFinishConnection}
                         disabled={selectedPageIds.length === 0}
-                        className="px-7 py-2.5 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                        className="px-7 py-2.5 rounded-xl text-xs font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                       >
-                        Save
+                        Save Facebook Page
                       </button>
                     </div>
                   </div>

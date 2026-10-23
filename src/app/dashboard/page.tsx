@@ -67,6 +67,7 @@ export default function DashboardPage() {
       if (
         params.get('tab') === 'connections' ||
         params.get('fb_connect_success') === 'true' ||
+        params.get('ig_connect_success') === 'true' ||
         params.get('error')
       ) {
         return 'connections';
@@ -93,6 +94,7 @@ export default function DashboardPage() {
     async function checkAuth() {
       const isOAuthReturn = typeof window !== 'undefined' && (
         new URLSearchParams(window.location.search).get('fb_connect_success') === 'true' ||
+        new URLSearchParams(window.location.search).get('ig_connect_success') === 'true' ||
         new URLSearchParams(window.location.search).get('tab') === 'connections'
       );
       const hasAuthCookie = typeof document !== 'undefined' && document.cookie.includes('pb_auth_session=1');
@@ -202,6 +204,7 @@ export default function DashboardPage() {
       if (
         params.get('tab') === 'connections' ||
         params.get('fb_connect_success') === 'true' ||
+        params.get('ig_connect_success') === 'true' ||
         params.get('error')
       ) {
         setActiveTab('connections');
