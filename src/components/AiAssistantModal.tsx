@@ -18,9 +18,6 @@ import {
   ChevronUp,
   AlertCircle,
   HelpCircle,
-  Wand2,
-  Film,
-  Image as ImageIcon,
   Share2,
   AlertTriangle,
 } from 'lucide-react';
@@ -33,7 +30,7 @@ import {
   AiGeneratedResult,
   CaptionLanguage,
 } from '@/lib/ai';
-import { SocialPlatform, PostMedia } from '@/types/social';
+import { SocialPlatform } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 
 export interface AiApplyPayload {
@@ -50,8 +47,6 @@ interface AiAssistantModalProps {
   initialPrompt?: string;
   initialTitle?: string;
   initialPlatform?: SocialPlatform;
-  media?: PostMedia;
-  initialMode?: 'prompt' | 'media-analysis';
   existingCaption?: string;
   onInsert: (result: AiApplyPayload | string) => void;
   onClose: () => void;
@@ -80,17 +75,10 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   initialPrompt = '',
   initialTitle = '',
   initialPlatform = 'instagram',
-  media,
-  initialMode = 'prompt',
   existingCaption = '',
   onInsert,
   onClose,
 }) => {
-  // Mode: manual prompt vs media analysis
-  const [activeMode, setActiveMode] = useState<'prompt' | 'media-analysis'>(
-    initialMode === 'media-analysis' && media ? 'media-analysis' : 'prompt'
-  );
-
   // Input Controls
   const [prompt, setPrompt] = useState(
     initialPrompt || 'Announce the launch of our new social media scheduling feature that saves creators hours every week'
@@ -110,9 +98,6 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState<string | null>(null);
-  const [providerWarning, setProviderWarning] = useState<string | null>(null);
-  const [visualSummary, setVisualSummary] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Overwrite Confirmation State
@@ -130,81 +115,13 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
   const [variations, setVariations] = useState<string[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Media Analysis Execution
-  const handleAnalyzeMedia = async () => {
-    if (!media) return;
-    setIsGenerating(true);
-    setProviderWarning(null);
-    setVisualSummary(null);
-
-    // Progressive loading state indications
-    setAnalysisStep(
-      media.type === 'video'
-        ? 'Sampling video frames & analyzing motion context...'
-        : 'Scanning image composition, objects & mood...'
-    );
-
-    try {
-      setTimeout(() => {
-        setAnalysisStep(`Crafting platform-tailored copy in ${LANGUAGES.find((l) => l.code === language)?.name}...`);
-      }, 700);
-
-      const res = await fetch('/api/ai/analyze-media', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mediaUrl: media.url,
-          mediaType: media.type,
-          mediaName: media.name,
-          platform,
-          objective,
-          audience,
-          tone,
-          language,
-          customCta,
-          keywords,
-        }),
-      });
-
-      const json = await res.json();
-      if (json.success && json.data) {
-        if (json.warning) {
-          setProviderWarning(json.warning);
-        }
-        if (json.visualSummary) {
-          setVisualSummary(json.visualSummary);
-        }
-        const result: AiGeneratedResult = json.data;
-        if (result.title) setEditableTitle(result.title);
-        setEditableHook(result.hook || '');
-        setEditableCaption(result.caption || '');
-        setEditableCta(result.cta || '');
-        setActiveHashtags(result.hashtags || []);
-        setActiveKeywords(result.keywords || []);
-        setThreadSuggestions(result.threadSuggestions || []);
-        setVariations(result.variations || []);
-        setHasGenerated(true);
-      }
-    } catch (err) {
-      console.error('Failed to analyze media:', err);
-    } finally {
-      setIsGenerating(false);
-      setAnalysisStep(null);
-    }
-  };
-
-  // Standard Text-Prompt Generation
+  // Execute AI generation
   const handleGenerate = async (
     action: 'generate' | 'shorter' | 'longer' | 'tone' | 'regenerate' = 'generate',
     overrideTone?: AiTone
   ) => {
-    if (activeMode === 'media-analysis' && media && action === 'generate') {
-      return handleAnalyzeMedia();
-    }
-
     if (!prompt.trim()) return;
     setIsGenerating(true);
-    setProviderWarning(null);
 
     try {
       const activeTone = overrideTone || tone;
@@ -238,11 +155,9 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     }
   };
 
-  // Initial trigger if modal opened in media-analysis mode
+  // Initial trigger if prompt was passed
   useEffect(() => {
-    if (initialMode === 'media-analysis' && media && !hasGenerated) {
-      handleAnalyzeMedia();
-    } else if (initialPrompt && !hasGenerated) {
+    if (initialPrompt && !hasGenerated) {
       handleGenerate('generate');
     }
   }, []);
@@ -315,7 +230,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-gray-900">AI Social Assistant & Media Vision</h2>
+                <h2 className="text-base font-bold text-gray-900">AI Social Assistant</h2>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center space-x-1">
                   <PlatformLogo platform={platform} className="w-3 h-3" />
                   <span>{PLATFORM_NAMES[platform]}</span>
@@ -325,7 +240,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-gray-500">
-                Analyze uploaded media or prompt AI to craft platform-ready captions in English, Telugu & Hindi
+                Generate platform-tailored hooks, captions, SEO tags, and CTAs in English, Telugu &amp; Hindi
               </p>
             </div>
           </div>
@@ -338,131 +253,47 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
           </button>
         </div>
 
-        {/* Mode Selector Tabs (Prompt vs Media Analysis) */}
-        {media && (
-          <div className="px-6 py-2 bg-gray-50 border-b border-gray-200/80 flex items-center justify-between text-xs shrink-0">
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={() => setActiveMode('media-analysis')}
-                className={`px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                  activeMode === 'media-analysis'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <Wand2 className="w-3.5 h-3.5" />
-                <span>Analyze Uploaded Media</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveMode('prompt')}
-                className={`px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                  activeMode === 'prompt'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Describe Post Topic</span>
-              </button>
-            </div>
-
-            {/* Media Attachment Pill */}
-            <div className="flex items-center space-x-2 text-xs text-gray-600 bg-white px-3 py-1 rounded-xl border border-gray-200">
-              {media.type === 'video' ? (
-                <Film className="w-3.5 h-3.5 text-blue-600" />
-              ) : (
-                <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
-              )}
-              <span className="font-medium truncate max-w-[200px]">{media.name}</span>
-              <span className="text-[10px] uppercase font-bold text-gray-400">
-                ({media.type})
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* 2-Column Responsive Body */}
         <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 overflow-hidden">
           {/* LEFT COLUMN: Input Controls */}
           <div className="lg:col-span-5 border-r border-gray-100 p-5 overflow-y-auto space-y-4 bg-gray-50/40">
-            {/* Media Analysis Highlight Card (if media mode) */}
-            {activeMode === 'media-analysis' && media ? (
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/90 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-950 flex items-center space-x-1.5">
-                    <Wand2 className="w-4 h-4 text-emerald-600" />
-                    <span>Visual Media Vision Analysis</span>
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                    {media.type}
-                  </span>
-                </div>
+            {/* Primary Prompt Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-800 flex items-center justify-between">
+                <span>What do you want to post about?</span>
+                <span className="text-[11px] text-gray-400 font-normal">Primary Prompt</span>
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={3}
+                placeholder="E.g., Announce our new product launch with early access discount..."
+                className="w-full text-xs p-3 rounded-xl border border-gray-200/90 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white placeholder:text-gray-400 leading-relaxed resize-none shadow-2xs"
+              />
 
-                <p className="text-xs text-emerald-800 leading-relaxed">
-                  AI will analyze visual subjects, composition, activity, and setting in{' '}
-                  <span className="font-semibold">{media.name}</span> to generate captions automatically.
-                </p>
-
+              {/* Sample Prompt Starters */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-[11px]">
+                <span className="text-gray-400 shrink-0">Try:</span>
                 <button
                   type="button"
-                  onClick={handleAnalyzeMedia}
-                  disabled={isGenerating}
-                  className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  onClick={() =>
+                    setPrompt('Top 3 mistakes creators make when scheduling content across multiple channels')
+                  }
+                  className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 text-gray-600 hover:text-emerald-700 truncate cursor-pointer transition-colors"
                 >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>{analysisStep || 'Analyzing visual context...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-3.5 h-3.5" />
-                      <span>Analyze Media &amp; Generate Caption</span>
-                    </>
-                  )}
+                  💡 3 Mistakes
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPrompt('Announcing our brand new 2.0 release with real-time multi-platform publishing')
+                  }
+                  className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 text-gray-600 hover:text-emerald-700 truncate cursor-pointer transition-colors"
+                >
+                  🚀 Product Launch
                 </button>
               </div>
-            ) : (
-              /* Primary Prompt Input (if prompt mode) */
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-800 flex items-center justify-between">
-                  <span>What do you want to post about?</span>
-                  <span className="text-[11px] text-gray-400 font-normal">Primary Prompt</span>
-                </label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={3}
-                  placeholder="E.g., Announce our new product launch with early access discount..."
-                  className="w-full text-xs p-3 rounded-xl border border-gray-200/90 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white placeholder:text-gray-400 leading-relaxed resize-none shadow-2xs"
-                />
-
-                {/* Sample Prompt Starters */}
-                <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-[11px]">
-                  <span className="text-gray-400 shrink-0">Try:</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPrompt('Top 3 mistakes creators make when scheduling content across multiple channels')
-                    }
-                    className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 text-gray-600 hover:text-emerald-700 truncate cursor-pointer transition-colors"
-                  >
-                    💡 3 Mistakes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPrompt('Announcing our brand new 2.0 release with real-time multi-platform publishing')
-                    }
-                    className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 text-gray-600 hover:text-emerald-700 truncate cursor-pointer transition-colors"
-                  >
-                    🚀 Product Launch
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Target Platform Selector */}
             <div className="space-y-1.5">
@@ -552,28 +383,28 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                   onChange={(e) => setAudience(e.target.value as AiAudience)}
                   className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="creators">Creators & Marketers</option>
-                  <option value="founders">Founders & Startups</option>
-                  <option value="developers">Developers & Tech</option>
-                  <option value="consumers">Consumers & Buyers</option>
+                  <option value="creators">Creators &amp; Marketers</option>
+                  <option value="founders">Founders &amp; Startups</option>
+                  <option value="developers">Developers &amp; Tech</option>
+                  <option value="consumers">Consumers &amp; Buyers</option>
                   <option value="general">General Audience</option>
                 </select>
               </div>
 
               {/* Voice and Tone */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-gray-700 block">Voice & Tone</label>
+                <label className="text-[11px] font-bold text-gray-700 block">Voice &amp; Tone</label>
                 <select
                   value={tone}
                   onChange={(e) => setTone(e.target.value as AiTone)}
                   className="w-full text-xs p-2 rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
                 >
-                  <option value="engaging">✨ Engaging & Friendly</option>
-                  <option value="bold">⚡ Bold & Disruptive</option>
-                  <option value="professional">👔 Professional & Authoritative</option>
-                  <option value="humorous">😄 Humorous & Playful</option>
-                  <option value="informative">📚 Informative & Educational</option>
-                  <option value="concise">🎯 Concise & Direct</option>
+                  <option value="engaging">✨ Engaging &amp; Friendly</option>
+                  <option value="bold">⚡ Bold &amp; Disruptive</option>
+                  <option value="professional">👔 Professional &amp; Authoritative</option>
+                  <option value="humorous">😄 Humorous &amp; Playful</option>
+                  <option value="informative">📚 Informative &amp; Educational</option>
+                  <option value="concise">🎯 Concise &amp; Direct</option>
                 </select>
               </div>
 
@@ -660,26 +491,20 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() =>
-                  activeMode === 'media-analysis' && media
-                    ? handleAnalyzeMedia()
-                    : handleGenerate('generate')
-                }
-                disabled={isGenerating || (activeMode === 'prompt' && !prompt.trim())}
+                onClick={() => handleGenerate('generate')}
+                disabled={isGenerating || !prompt.trim()}
                 className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-emerald-600/15 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isGenerating ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-emerald-100" />
-                    <span>{analysisStep || 'Crafting High-Converting Copy...'}</span>
+                    <span>Crafting High-Converting Copy...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-emerald-200" />
                     <span>
-                      {activeMode === 'media-analysis' && media
-                        ? 'Analyze Media & Generate Caption'
-                        : `Generate Content (${LANGUAGES.find((l) => l.code === language)?.name})`}
+                      Generate Content ({LANGUAGES.find((l) => l.code === language)?.name})
                     </span>
                   </>
                 )}
@@ -689,19 +514,6 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
 
           {/* RIGHT COLUMN: Interactive Structured Workspace */}
           <div className="lg:col-span-7 flex flex-col min-h-0 bg-white">
-            {/* Provider Warning / Notice Banner if in testing mode */}
-            {providerWarning && (
-              <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200/80 text-amber-900 text-xs flex items-center justify-between shrink-0">
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="font-medium">{providerWarning}</span>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-md">
-                  Testing Mode
-                </span>
-              </div>
-            )}
-
             {/* Top Toolbar: Iterative Refinements */}
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2 bg-gray-50/50 shrink-0">
               <div className="flex items-center space-x-1.5 flex-wrap">
@@ -710,11 +522,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    activeMode === 'media-analysis' && media
-                      ? handleAnalyzeMedia()
-                      : handleGenerate('regenerate')
-                  }
+                  onClick={() => handleGenerate('regenerate')}
                   disabled={isGenerating || !hasGenerated}
                   className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-gray-300 text-gray-700 font-semibold text-xs flex items-center space-x-1 transition-colors disabled:opacity-40 cursor-pointer shadow-2xs"
                   title="Generate another variation"
@@ -800,17 +608,13 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
               {!hasGenerated ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-400">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-                    {media ? <Wand2 className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
+                    <Sparkles className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-gray-700 mb-1">
-                    {media
-                      ? `Ready to Analyze ${media.name}`
-                      : `Ready to Generate for ${PLATFORM_NAMES[platform]}`}
+                    Ready to Generate for {PLATFORM_NAMES[platform]}
                   </h4>
                   <p className="text-xs text-gray-400 max-w-sm mb-4">
-                    {media
-                      ? 'Click "Analyze Media & Generate Caption" to inspect visual content and generate copy.'
-                      : 'Choose your language (English, Telugu, Hindi) and click Generate Platform Content.'}
+                    Choose your language (English, Telugu, Hindi) and click Generate Platform Content.
                   </p>
                   <div className="text-[11px] bg-gray-50 rounded-xl p-3 border border-gray-100 max-w-md text-left text-gray-500 space-y-1">
                     <div className="font-bold text-gray-700">Supported Languages:</div>
@@ -835,14 +639,6 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                         : `${editableCaption.length} characters`}
                     </span>
                   </div>
-
-                  {/* Visual Summary if analyzed */}
-                  {visualSummary && (
-                    <div className="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 flex items-center space-x-2">
-                      <Wand2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span><strong>Visual Context:</strong> {visualSummary}</span>
-                    </div>
-                  )}
 
                   {/* 1. Title / Hook Section (Always for YouTube or if title present) */}
                   {(platform === 'youtube' || editableTitle) && (

@@ -24,8 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
-  Wand2,
-  Check,
+Check,
   Send,
   Save,
   ArrowLeft,
@@ -71,8 +70,6 @@ interface CreatePostDashboardProps {
     options?: {
       platform?: SocialPlatform;
       initialTitle?: string;
-      media?: PostMedia;
-      mode?: 'prompt' | 'media-analysis';
       existingCaption?: string;
     }
   ) => void;
@@ -1083,7 +1080,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               )}
 
-              {/* Footer Toolbar: Emoji Picker, Analyze Media & Unified AI Assistant */}
+              {/* Footer Toolbar: Emoji Picker & Unified AI Social Assistant */}
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div className="flex items-center space-x-2">
                   <button
@@ -1097,35 +1094,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
-                  {/* Prominent Analyze Media & Generate Caption Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (mediaList.length === 0) {
-                        showToast('Please upload an image or video first to analyze.');
-                        return;
-                      }
-                      const singlePlat = selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined;
-                      openAiModal(
-                        mainCaption,
-                        (result: any) => handleAiModalResult(result, singlePlat),
-                        {
-                          platform: singlePlat,
-                          initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
-                          media: mediaList[0],
-                          mode: 'media-analysis',
-                          existingCaption: mainCaption,
-                        }
-                      );
-                    }}
-                    className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.99] text-white shadow-xs flex items-center space-x-1.5 transition-all cursor-pointer"
-                    title="Automatically analyze uploaded image or video and craft matching copy"
-                  >
-                    <Wand2 className="w-3.5 h-3.5 text-purple-200" />
-                    <span>Analyze Media &amp; Generate Caption</span>
-                  </button>
-
+                <div className="flex items-center space-x-2">
                   {/* Unified AI Social Assistant Button */}
                   <button
                     type="button"
@@ -1137,8 +1106,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         {
                           platform: singlePlat,
                           initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
-                          media: mediaList.length > 0 ? mediaList[0] : undefined,
-                          mode: 'prompt',
                           existingCaption: mainCaption,
                         }
                       );
@@ -1329,7 +1296,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                     {
                                       platform: platId,
                                       initialTitle: platData.title,
-                                      media: mediaList.length > 0 ? mediaList[0] : undefined,
                                       existingCaption: platData.caption,
                                     }
                                   )
