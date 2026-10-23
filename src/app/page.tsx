@@ -40,11 +40,10 @@ const SUPPORTED_NETWORKS = [
   { id: 'instagram', name: 'Instagram', badge: 'Business & Creator', color: '#E4405F', capabilities: 'Feed • Reels • Stories' },
   { id: 'youtube', name: 'YouTube', badge: 'Shorts API', color: '#FF0000', capabilities: 'Shorts • Long-Form • Thumbnails' },
   { id: 'linkedin', name: 'LinkedIn', badge: 'Company & Profile', color: '#0A66C2', capabilities: 'Articles • Documents • Polls' },
-  { id: 'twitter', name: 'X (Twitter)', badge: 'v2 Endpoints', color: '#000000', capabilities: 'Posts • Media • Threads' },
-  { id: 'tiktok', name: 'TikTok', badge: 'Official API', color: '#000000', capabilities: 'Reels • Sounds • Direct Share' },
   { id: 'threads', name: 'Threads', badge: 'Official API', color: '#000000', capabilities: 'Carousels • Text • Media' },
-  { id: 'bluesky', name: 'Bluesky', badge: 'AT Protocol', color: '#0285FF', capabilities: 'Decentralized Feed' },
   { id: 'pinterest', name: 'Pinterest', badge: 'Pins API', color: '#E60023', capabilities: 'Idea Pins • Rich Pins' },
+  { id: 'tiktok', name: 'TikTok', badge: 'Official API', color: '#000000', capabilities: 'Reels • Sounds • Direct Share' },
+  { id: 'bluesky', name: 'Bluesky', badge: 'AT Protocol', color: '#0285FF', capabilities: 'Decentralized Feed' },
 ];
 
 // Mock scheduled calendar items for the interactive showcase
@@ -53,7 +52,7 @@ const CALENDAR_EVENTS = [
   { day: 'Mon', time: '02:30 PM', platform: 'linkedin', title: 'Deep dive: How we scaled to 10k users', status: 'Published' },
   { day: 'Tue', time: '11:15 AM', platform: 'youtube', title: 'YouTube Short: 3 workflow shortcuts', status: 'Scheduled' },
   { day: 'Wed', time: '10:00 AM', platform: 'facebook', title: 'Community update & customer spotlight', status: 'Scheduled' },
-  { day: 'Thu', time: '04:00 PM', platform: 'twitter', title: 'Weekly feature breakdown thread (1/6)', status: 'Queued' },
+  { day: 'Thu', time: '04:00 PM', platform: 'threads', title: 'Weekly feature breakdown thread (1/6)', status: 'Queued' },
   { day: 'Fri', time: '01:00 PM', platform: 'tiktok', title: 'Behind the scenes: Studio setup tour', status: 'Queued' },
 ];
 
@@ -64,7 +63,7 @@ export default function LandingPage() {
   const [activeShowcaseTab, setActiveShowcaseTab] = useState<'composer' | 'calendar' | 'channels'>('composer');
 
   // Interactive Live Composer Simulator State
-  const [simPlatform, setSimPlatform] = useState<'facebook' | 'instagram' | 'youtube' | 'linkedin' | 'twitter'>('facebook');
+  const [simPlatform, setSimPlatform] = useState<'facebook' | 'instagram' | 'youtube' | 'linkedin' | 'threads'>('facebook');
   const [simCaption, setSimCaption] = useState(
     '🚀 Announcing our breakthrough background publishing worker for multi-channel creators. Write once, adapt automatically, and dispatch with sub-second accuracy.'
   );
@@ -343,7 +342,7 @@ export default function LandingPage() {
                       Select Target Preview Network:
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {(['facebook', 'instagram', 'youtube', 'linkedin', 'twitter'] as const).map((plat) => (
+                      {(['facebook', 'instagram', 'youtube', 'linkedin', 'threads'] as const).map((plat) => (
                         <button
                           key={plat}
                           onClick={() => setSimPlatform(plat)}

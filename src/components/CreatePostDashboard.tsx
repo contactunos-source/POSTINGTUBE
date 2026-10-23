@@ -120,14 +120,6 @@ const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     limit: 500,
     placeholder: 'Describe your pin with descriptive keywords, tags, and link in bio...',
   },
-  {
-    id: 'twitter',
-    name: 'X (Twitter)',
-    brandColor: '#000000',
-    badgeBg: 'bg-black',
-    limit: 280,
-    placeholder: "What's happening? Keep it under 280 characters...",
-  },
 ];
 
 export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
@@ -178,10 +170,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         caption: initialPost?.platformOverrides?.youtube?.caption || '',
         title: initialPost?.platformOverrides?.youtube?.title || '',
       },
-      twitter: {
-        caption: initialPost?.platformOverrides?.twitter?.caption || '',
-      },
       linkedin: { caption: '' },
+      twitter: { caption: '' },
       tiktok: { caption: '' },
       pinterest: { caption: '' },
       threads: { caption: '' },
@@ -442,21 +432,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         'YouTube requires a video upload (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.'
       );
       return;
-    }
-
-    // X (Twitter) 280-character limit validation
-    const hasTwitterTarget = selectedAccountIds.some(
-      (id) => accounts.find((a) => a.id === id)?.platform === 'twitter'
-    );
-    if (action !== 'draft' && hasTwitterTarget) {
-      const twitterText =
-        platformCaptions.twitter?.caption?.trim() || mainCaption.trim();
-      if (twitterText.length > 280) {
-        alert(
-          `X (Twitter) posts cannot exceed 280 characters (Current length: ${twitterText.length}). Please shorten your tweet or edit the X caption.`
-        );
-        return;
-      }
     }
 
     // Schedule validation
@@ -804,8 +779,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         ? 'Main Caption (Master / Default)'
                         : selectedPlatforms[0] === 'youtube'
                         ? 'YouTube Video Description'
-                        : selectedPlatforms[0] === 'twitter'
-                        ? 'X (Twitter) Tweet Content'
                         : selectedPlatforms[0] === 'instagram'
                         ? 'Instagram Caption'
                         : 'Post Caption'}
@@ -828,11 +801,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <span>•</span>
                   <span
                     className={`font-mono ${
-                      selectedPlatforms.includes('twitter') && mainCaption.length > 280
-                        ? 'text-rose-600 font-bold'
-                        : mainCharsRemaining < 50
-                        ? 'text-amber-600 font-bold'
-                        : ''
+                      mainCharsRemaining < 50 ? 'text-amber-600 font-bold' : ''
                     }`}
                   >
                     {mainCaption.length} chars

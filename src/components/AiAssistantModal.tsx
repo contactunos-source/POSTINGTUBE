@@ -88,12 +88,11 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
                 className="w-full text-xs p-2 rounded-lg border border-gray-200 focus:outline-hidden focus:border-purple-500 bg-white"
               >
                 <option value="instagram">Instagram (Storytelling & Tags)</option>
-                <option value="twitter">X / Twitter (Punchy & 280 chars)</option>
                 <option value="linkedin">LinkedIn (Thought Leadership)</option>
                 <option value="facebook">Facebook (Conversational)</option>
-                <option value="tiktok">TikTok / Shorts (Script Hook)</option>
                 <option value="threads">Threads (Micro-blogging)</option>
-                <option value="bluesky">Bluesky (Open Web)</option>
+                <option value="pinterest">Pinterest (Inspirational & SEO)</option>
+                <option value="youtube">YouTube (Descriptions & Hooks)</option>
               </select>
             </div>
 

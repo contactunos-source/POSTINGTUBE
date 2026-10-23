@@ -161,106 +161,21 @@ export const instagramAdapter: PlatformAdapter = {
 };
 
 /**
- * X / TWITTER ADAPTER
- * Official API: X API v2 (POST https://api.x.com/2/tweets)
+ * X / TWITTER ADAPTER (Disabled)
  */
 export const twitterAdapter: PlatformAdapter = {
-  validatePost(post, override) {
-    const text = override?.caption || post.content;
-    const errors: string[] = [];
-    if (!text && (!post.media || post.media.length === 0)) {
-      errors.push('Tweet must contain text or attached media.');
-    }
-    if (text.length > 280) {
-      errors.push(`Tweet exceeds 280 character limit (Current: ${text.length}). Trim or upgrade to X Premium.`);
-    }
-    return { valid: errors.length === 0, errors };
+  validatePost() {
+    return { valid: false, errors: ['Twitter / X integration has been disabled.'] };
   },
-  async publish(account, post, override) {
-    const text = override?.caption || post.content;
-    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
-
-    if (!account.accessToken) {
-      return {
-        success: false,
-        errorMessage: 'No X (Twitter) Access Token found. Please connect your X account in Connections.',
-      };
-    }
-
-    try {
-      const response = await fetch('/api/twitter/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: account.id,
-          username: account.username,
-          accessToken: account.accessToken,
-          refreshToken: account.refreshToken,
-          text,
-          mediaUrl,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        return {
-          success: true,
-          externalPostId: data.tweetId,
-          externalPostUrl: data.tweetUrl,
-          details: data.details,
-        };
-      } else {
-        const errorText = data.error || 'Failed to publish tweet';
-        const formattedError = errorText.startsWith('X API Error:')
-          ? errorText
-          : `X API Error: ${errorText}`;
-        return {
-          success: false,
-          errorMessage: formattedError,
-        };
-      }
-    } catch (e: unknown) {
-      const err = e instanceof Error ? e.message : 'Network error communicating with X API';
-      return { success: false, errorMessage: err };
-    }
+  async publish() {
+    return {
+      success: false,
+      errorMessage: 'Twitter (X) integration has been disabled.',
+    };
   },
-  async refreshTokens(account) {
-    if (!account.refreshToken) {
-      return { success: false, error: 'No refresh token available for this X account.' };
-    }
-    try {
-      const clientId = process.env.TWITTER_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID;
-      const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-      if (!clientId) {
-        return { success: false, error: 'Missing TWITTER_CLIENT_ID' };
-      }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      };
-      if (clientSecret) {
-        headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
-      }
-
-      const res = await fetch('https://api.twitter.com/2/oauth2/token', {
-        method: 'POST',
-        headers,
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: account.refreshToken,
-          client_id: clientId,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.access_token) {
-        const expiry = new Date(Date.now() + (data.expires_in || 7200) * 1000).toISOString();
-        return { success: true, newExpiry: expiry };
-      }
-      return { success: false, error: data.error || 'Failed to refresh X token' };
-    } catch (err: any) {
-      return { success: false, error: err?.message || 'X token refresh failed' };
-    }
+  async refreshTokens() {
+    // Disabled: Do not make any network calls or token refresh attempts for Twitter
+    return { success: false, error: 'Twitter token refresh has been shut down and disabled.' };
   },
 };
 

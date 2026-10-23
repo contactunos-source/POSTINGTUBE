@@ -41,18 +41,6 @@ export const INITIAL_ACCOUNTS: SocialAccount[] = [
     externalId: 'yt_unos_media',
   },
   {
-    id: 'tw_primary_account',
-    platform: 'twitter',
-    username: 'unosdigital',
-    displayName: 'U NOS Digital (X)',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    accountType: 'profile',
-    status: 'connected',
-    followersCount: 2450,
-    externalId: 'tw_unos_digital',
-  },
-  {
     id: 'li_primary_account',
     platform: 'linkedin',
     username: 'unosagency',
@@ -313,7 +301,16 @@ export const StorageService = {
       const stored = localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Permanently filter out any Twitter accounts
+          const filtered = parsed.filter(
+            (a) => a.platform !== 'twitter' && a.id !== 'tw_primary_account'
+          );
+          if (filtered.length !== parsed.length) {
+            localStorage.setItem(key, JSON.stringify(filtered));
+          }
+          return filtered;
+        }
       }
       return isDefault ? INITIAL_ACCOUNTS : [];
     } catch {

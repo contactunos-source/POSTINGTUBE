@@ -16,9 +16,9 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
   onGoToConnections,
   connectedCount,
 }) => {
-  const textPlatforms: SocialPlatform[] = ['facebook', 'twitter'];
-  const imagePlatforms: SocialPlatform[] = ['facebook', 'instagram', 'twitter'];
-  const videoPlatforms: SocialPlatform[] = ['facebook', 'instagram', 'youtube', 'twitter'];
+  const textPlatforms: SocialPlatform[] = ['facebook', 'linkedin', 'threads'];
+  const imagePlatforms: SocialPlatform[] = ['facebook', 'instagram', 'linkedin', 'threads', 'pinterest'];
+  const videoPlatforms: SocialPlatform[] = ['facebook', 'instagram', 'youtube', 'threads', 'pinterest'];
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
