@@ -742,11 +742,21 @@ export default function DashboardPage() {
           <CalendarView
             posts={posts}
             accounts={accounts}
+            workspaceName={currentWorkspace?.name || 'U NOS Digital marketing'}
             onSelectPost={handleEditExistingPost}
             onReschedulePost={handleReschedulePost}
+            onNavigateToTab={(tab) => setActiveTab(tab as any)}
+            openCreateModal={() => {
+              setPreviousTab('calendar');
+              setEditingPost(null);
+              setCreateDashboardType('image');
+              setActiveTab('create-composer');
+            }}
             onCreateAtDate={(d) => {
               setPreviousTab('calendar');
-              const localTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 14, 0, 0);
+              const targetHour = d.getHours() || 14;
+              const targetMinute = d.getMinutes() || 0;
+              const localTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate(), targetHour, targetMinute, 0);
               const localIsoDate = localTarget.toISOString();
 
               setEditingPost({
