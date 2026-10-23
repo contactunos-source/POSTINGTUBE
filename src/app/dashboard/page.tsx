@@ -295,6 +295,9 @@ export default function DashboardPage() {
   const [aiInitialPrompt, setAiInitialPrompt] = useState('');
   const [aiInitialPlatform, setAiInitialPlatform] = useState<SocialPlatform | undefined>(undefined);
   const [aiInitialTitle, setAiInitialTitle] = useState('');
+  const [aiMedia, setAiMedia] = useState<PostMedia | undefined>(undefined);
+  const [aiInitialMode, setAiInitialMode] = useState<'prompt' | 'media-analysis'>('prompt');
+  const [aiExistingCaption, setAiExistingCaption] = useState('');
   const [onAiInsertCallback, setOnAiInsertCallback] = useState<((result: any) => void) | null>(null);
 
   // Counts
@@ -305,11 +308,20 @@ export default function DashboardPage() {
   const handleOpenAiModal = (
     prompt: string,
     onGenerated: (result: any) => void,
-    options?: { platform?: SocialPlatform; initialTitle?: string }
+    options?: {
+      platform?: SocialPlatform;
+      initialTitle?: string;
+      media?: PostMedia;
+      mode?: 'prompt' | 'media-analysis';
+      existingCaption?: string;
+    }
   ) => {
     setAiInitialPrompt(prompt);
     setAiInitialPlatform(options?.platform);
     setAiInitialTitle(options?.initialTitle || '');
+    setAiMedia(options?.media);
+    setAiInitialMode(options?.mode || 'prompt');
+    setAiExistingCaption(options?.existingCaption || '');
     setOnAiInsertCallback(() => onGenerated);
     setIsAiModalOpen(true);
   };
@@ -797,6 +809,9 @@ export default function DashboardPage() {
           initialPrompt={aiInitialPrompt}
           initialPlatform={aiInitialPlatform}
           initialTitle={aiInitialTitle}
+          media={aiMedia}
+          initialMode={aiInitialMode}
+          existingCaption={aiExistingCaption}
           onInsert={(result) => {
             if (onAiInsertCallback) {
               onAiInsertCallback(result);

@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Wand2,
   Check,
   Send,
   Save,
@@ -67,7 +68,13 @@ interface CreatePostDashboardProps {
   openAiModal: (
     initialPrompt: string,
     onGenerated: (result: any) => void,
-    options?: { platform?: SocialPlatform; initialTitle?: string }
+    options?: {
+      platform?: SocialPlatform;
+      initialTitle?: string;
+      media?: PostMedia;
+      mode?: 'prompt' | 'media-analysis';
+      existingCaption?: string;
+    }
   ) => void;
 }
 
@@ -448,6 +455,73 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     } else {
       setMainCaption(enhanced);
       showToast('Main caption enhanced!');
+    }
+  };
+
+    // Apply Approved Caption to All Selected Platforms with Intelligent Field Mapping
+  const applyCaptionToAllPlatforms = (captionToApply: string, optionalTitle?: string) => {
+    const trimmed = captionToApply.trim();
+    if (!trimmed) return;
+
+    // 1. Update Master Caption
+    setMainCaption(trimmed);
+
+    // 2. Intelligently map across all selected platforms
+    let exceededX = false;
+    setPlatformCaptions((prev) => {
+      const next = { ...prev };
+      for (const plat of selectedPlatforms) {
+        if (plat === 'youtube') {
+          // For YouTube: map to description, preserve existing title unless provided
+          next.youtube = {
+            ...next.youtube,
+            caption: trimmed,
+            title: optionalTitle || next.youtube?.title || '',
+          };
+        } else if (plat === 'twitter') {
+          // For X: map to caption and validate character limit
+          if (trimmed.length > 280) exceededX = true;
+          next.twitter = {
+            ...next.twitter,
+            caption: trimmed,
+          };
+        } else {
+          // Instagram, Facebook, LinkedIn, Threads, Pinterest
+          next[plat] = {
+            ...next[plat],
+            caption: trimmed,
+          };
+        }
+      }
+      return next;
+    });
+
+    if (exceededX) {
+      showToast('Caption applied to all platforms. (Note: Caption exceeds X/Twitter 280-char limit)');
+    } else {
+      showToast('Caption applied to all selected platforms.');
+    }
+  };
+
+  const handleAiModalResult = (result: any, targetPlatform?: SocialPlatform) => {
+    if (!result) return;
+    const captionText = typeof result === 'string' ? result : result.caption || '';
+    const titleText = typeof result === 'string' ? undefined : result.title;
+    const applyToAll = typeof result === 'object' && result.applyToAll;
+
+    if (applyToAll || !targetPlatform) {
+      applyCaptionToAllPlatforms(captionText, titleText);
+    } else {
+      setPlatformCaptions((prev) => ({
+        ...prev,
+        [targetPlatform]: {
+          ...prev[targetPlatform],
+          caption: captionText,
+          ...(titleText !== undefined ? { title: titleText } : {}),
+        },
+      }));
+      setMainCaption(captionText);
+      showToast(`Caption inserted for ${SUPPORTED_PLATFORMS.find((p) => p.id === targetPlatform)?.name || targetPlatform}!`);
     }
   };
 
@@ -1009,7 +1083,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               )}
 
-              {/* Footer Toolbar: Emoji Picker & Unified AI Social Assistant */}
+              {/* Footer Toolbar: Emoji Picker, Analyze Media & Unified AI Assistant */}
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div className="flex items-center space-x-2">
                   <button
@@ -1023,33 +1097,53 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                  {/* Prominent Analyze Media & Generate Caption Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (mediaList.length === 0) {
+                        showToast('Please upload an image or video first to analyze.');
+                        return;
+                      }
+                      const singlePlat = selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined;
+                      openAiModal(
+                        mainCaption,
+                        (result: any) => handleAiModalResult(result, singlePlat),
+                        {
+                          platform: singlePlat,
+                          initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
+                          media: mediaList[0],
+                          mode: 'media-analysis',
+                          existingCaption: mainCaption,
+                        }
+                      );
+                    }}
+                    className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.99] text-white shadow-xs flex items-center space-x-1.5 transition-all cursor-pointer"
+                    title="Automatically analyze uploaded image or video and craft matching copy"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-purple-200" />
+                    <span>Analyze Media &amp; Generate Caption</span>
+                  </button>
+
+                  {/* Unified AI Social Assistant Button */}
                   <button
                     type="button"
                     onClick={() => {
                       const singlePlat = selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined;
                       openAiModal(
                         mainCaption,
-                        (result: any) => {
-                          if (typeof result === 'string') {
-                            setMainCaption(result);
-                          } else if (result && typeof result === 'object') {
-                            if (result.title && singlePlat === 'youtube') {
-                              setPlatformCaptions((prev) => ({
-                                ...prev,
-                                youtube: { ...prev.youtube, title: result.title },
-                              }));
-                            }
-                            setMainCaption(result.caption || '');
-                          }
-                        },
+                        (result: any) => handleAiModalResult(result, singlePlat),
                         {
                           platform: singlePlat,
                           initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
+                          media: mediaList.length > 0 ? mediaList[0] : undefined,
+                          mode: 'prompt',
+                          existingCaption: mainCaption,
                         }
                       );
                     }}
-                    className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xs flex items-center space-x-2 transition-all cursor-pointer"
+                    className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white shadow-xs flex items-center space-x-2 transition-all cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
                     <span>
@@ -1231,25 +1325,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                 onClick={() =>
                                   openAiModal(
                                     platData.caption || mainCaption,
-                                    (result: any) => {
-                                      const captionText =
-                                        typeof result === 'string'
-                                          ? result
-                                          : result?.caption || '';
-                                      const titleText =
-                                        typeof result === 'string' ? undefined : result?.title;
-                                      setPlatformCaptions((prev) => ({
-                                        ...prev,
-                                        [platId]: {
-                                          ...prev[platId],
-                                          caption: captionText,
-                                          ...(titleText !== undefined ? { title: titleText } : {}),
-                                        },
-                                      }));
-                                    },
+                                    (result: any) => handleAiModalResult(result, platId),
                                     {
                                       platform: platId,
                                       initialTitle: platData.title,
+                                      media: mediaList.length > 0 ? mediaList[0] : undefined,
+                                      existingCaption: platData.caption,
                                     }
                                   )
                                 }
