@@ -23,13 +23,44 @@ export function parseDateSafe(dateInput: string | Date | undefined | null): Date
       return new Date(year, month, day, 12, 0, 0); // midday avoids boundary issues
     }
 
-    // Try standard Date constructor
+    // Standard ISO 8601 or Date string
     const parsed = new Date(trimmed);
     if (!isNaN(parsed.getTime())) {
       return parsed;
     }
   }
   return null;
+}
+
+/**
+ * Converts a local date string (YYYY-MM-DD) and time string (HH:mm) in user's browser
+ * into an unambiguous UTC ISO 8601 string (e.g. 2026-10-24T09:00:00.000Z).
+ */
+export function formatLocalToUtcIso(dateStr: string, timeStr: string): string {
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const [hrs, mins] = timeStr.split(':').map(Number);
+    const localDate = new Date(y, (m || 1) - 1, d || 1, hrs || 0, mins || 0, 0);
+    return localDate.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+/**
+ * Accurately extracts local YYYY-MM-DD and HH:mm from an ISO UTC string.
+ */
+export function extractLocalDateAndTime(isoDateString: string | undefined | null): { date: string; time: string } {
+  const d = parseDateSafe(isoDateString) || new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`,
+  };
 }
 
 /**

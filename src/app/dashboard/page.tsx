@@ -19,7 +19,7 @@ import {
   StorageService,
 } from '@/lib/storage';
 import { DatabaseService } from '@/lib/db';
-import { Post, SocialAccount, Workspace, PostMedia, PostType } from '@/types/social';
+import { Post, SocialAccount, Workspace, PostMedia, PostType, SocialPlatform } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
 import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
 import { Globe, ArrowLeft, LogOut, ShieldCheck, Sparkles, Loader2, Layers, CheckCircle2, X } from 'lucide-react';
@@ -230,26 +230,35 @@ export default function DashboardPage() {
   // Track in-flight post IDs to prevent concurrent executions
   const publishingPostIdsRef = React.useRef<Set<string>>(new Set());
 
-  // Automatically monitors and publishes due posts every 10 seconds with duplicate prevention
+  // Automatically monitors and publishes due posts every second with exact time adherence and duplicate prevention
   useEffect(() => {
     if (!isLoaded || accounts.length === 0) return;
 
-    const schedulerTimer = setInterval(async () => {
-      const now = new Date();
-      const duePosts = posts.filter(
-        (p) =>
-          p.status === 'scheduled' &&
-          p.scheduledFor &&
-          new Date(p.scheduledFor) <= now &&
-          !publishingPostIdsRef.current.has(p.id)
-      );
+    let isExecuting = false;
 
-      for (const duePost of duePosts) {
-        if (!publishingPostIdsRef.current.has(duePost.id)) {
-          await handlePublishNow(duePost);
+    const schedulerTimer = setInterval(async () => {
+      if (isExecuting) return;
+      const now = new Date();
+      const duePosts = posts.filter((p) => {
+        if (p.status !== 'scheduled' || !p.scheduledFor) return false;
+        const targetDate = new Date(p.scheduledFor);
+        // Strictly avoid early publishing: must be <= current exact epoch timestamp
+        return targetDate.getTime() <= now.getTime() && !publishingPostIdsRef.current.has(p.id);
+      });
+
+      if (duePosts.length === 0) return;
+
+      isExecuting = true;
+      try {
+        for (const duePost of duePosts) {
+          if (!publishingPostIdsRef.current.has(duePost.id)) {
+            await handlePublishNow(duePost);
+          }
         }
+      } finally {
+        isExecuting = false;
       }
-    }, 10000);
+    }, 1000);
 
     return () => clearInterval(schedulerTimer);
   }, [isLoaded, posts, accounts]);
@@ -260,15 +269,23 @@ export default function DashboardPage() {
   // AI Assistant modal state
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiInitialPrompt, setAiInitialPrompt] = useState('');
-  const [onAiInsertCallback, setOnAiInsertCallback] = useState<((text: string) => void) | null>(null);
+  const [aiInitialPlatform, setAiInitialPlatform] = useState<SocialPlatform | undefined>(undefined);
+  const [aiInitialTitle, setAiInitialTitle] = useState('');
+  const [onAiInsertCallback, setOnAiInsertCallback] = useState<((result: any) => void) | null>(null);
 
   // Counts
   const scheduledCount = posts.filter((p) => p.status === 'scheduled').length;
   const draftCount = posts.filter((p) => p.status === 'draft').length;
   const failedCount = posts.filter((p) => p.status === 'failed').length;
 
-  const handleOpenAiModal = (prompt: string, onGenerated: (caption: string) => void) => {
+  const handleOpenAiModal = (
+    prompt: string,
+    onGenerated: (result: any) => void,
+    options?: { platform?: SocialPlatform; initialTitle?: string }
+  ) => {
     setAiInitialPrompt(prompt);
+    setAiInitialPlatform(options?.platform);
+    setAiInitialTitle(options?.initialTitle || '');
     setOnAiInsertCallback(() => onGenerated);
     setIsAiModalOpen(true);
   };
@@ -675,10 +692,8 @@ export default function DashboardPage() {
             onReschedulePost={handleReschedulePost}
             onCreateAtDate={(d) => {
               setPreviousTab('calendar');
-              const year = d.getFullYear();
-              const month = String(d.getMonth() + 1).padStart(2, '0');
-              const day = String(d.getDate()).padStart(2, '0');
-              const localIsoDate = `${year}-${month}-${day}T14:00:00`;
+              const localTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 14, 0, 0);
+              const localIsoDate = localTarget.toISOString();
 
               setEditingPost({
                 scheduledFor: localIsoDate,
@@ -756,9 +771,11 @@ export default function DashboardPage() {
       {isAiModalOpen && (
         <AiAssistantModal
           initialPrompt={aiInitialPrompt}
-          onInsert={(caption) => {
+          initialPlatform={aiInitialPlatform}
+          initialTitle={aiInitialTitle}
+          onInsert={(result) => {
             if (onAiInsertCallback) {
-              onAiInsertCallback(caption);
+              onAiInsertCallback(result);
             }
             setIsAiModalOpen(false);
           }}

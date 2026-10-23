@@ -189,13 +189,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     const newTarget = new Date(targetDay);
     newTarget.setHours(hours, minutes, 0, 0);
-
-    const year = newTarget.getFullYear();
-    const month = String(newTarget.getMonth() + 1).padStart(2, '0');
-    const day = String(newTarget.getDate()).padStart(2, '0');
-    const h = String(hours).padStart(2, '0');
-    const m = String(minutes).padStart(2, '0');
-    const newScheduledIso = `${year}-${month}-${day}T${h}:${m}:00`;
+    const newScheduledIso = newTarget.toISOString();
 
     setIsRescheduling(true);
     try {
@@ -917,7 +911,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     type="button"
                     onClick={async () => {
                       if (!rescheduleDateInput) return;
-                      await onReschedulePost(inspectedPost.id, `${rescheduleDateInput}:00`);
+                      const validDate = new Date(rescheduleDateInput);
+                      const validIso = isNaN(validDate.getTime())
+                        ? new Date().toISOString()
+                        : validDate.toISOString();
+                      await onReschedulePost(inspectedPost.id, validIso);
                       setRescheduleSuccessMsg('Post schedule updated!');
                       setTimeout(() => setRescheduleSuccessMsg(null), 3000);
                     }}

@@ -55,7 +55,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseDateSafe } from '@/lib/dateUtils';
+import { parseDateSafe, formatLocalToUtcIso } from '@/lib/dateUtils';
 
 interface CreatePostDashboardProps {
   postType: 'text' | 'image' | 'video';
@@ -64,7 +64,11 @@ interface CreatePostDashboardProps {
   onSave: (postData: Partial<Post>, action: 'schedule' | 'publish-now' | 'draft') => Promise<void>;
   onBack: () => void;
   onGoToConnections?: () => void;
-  openAiModal: (initialPrompt: string, onGenerated: (caption: string) => void) => void;
+  openAiModal: (
+    initialPrompt: string,
+    onGenerated: (result: any) => void,
+    options?: { platform?: SocialPlatform; initialTitle?: string }
+  ) => void;
 }
 
 // 4 Primary Supported Social Platforms with Brand Specifications
@@ -495,7 +499,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     try {
       const scheduledIso =
         action === 'schedule'
-          ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString()
+          ? formatLocalToUtcIso(scheduledDate, scheduledTime)
           : undefined;
 
       // Build platformOverrides for each selected platform
@@ -1005,58 +1009,57 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               )}
 
-              {/* Quick AI Writing Pills */}
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                  <span className="text-[11px] font-semibold text-gray-400 mr-1">AI Enhancers:</span>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('improve')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
-                    <span>Engage</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('punchy')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <Flame className="w-3 h-3 text-amber-500" />
-                    <span>Punchy Hook</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('cta')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <span>+ CTA</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyAiEnhancement('hashtags')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  >
-                    <span># Viral Tags</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center space-x-1">
+              {/* Footer Toolbar: Emoji Picker & Unified AI Social Assistant */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                    className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5 border border-gray-200/80 bg-gray-50/50"
                     title="Insert Emoji"
                   >
-                    <Smile className="w-4 h-4" />
+                    <Smile className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-medium text-gray-600">Emoji</span>
                   </button>
+                </div>
+
+                <div className="flex items-center space-x-2">
                   <button
                     type="button"
-                    onClick={() => openAiModal(mainCaption, (gen) => setMainCaption(gen))}
-                    className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
+                    onClick={() => {
+                      const singlePlat = selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined;
+                      openAiModal(
+                        mainCaption,
+                        (result: any) => {
+                          if (typeof result === 'string') {
+                            setMainCaption(result);
+                          } else if (result && typeof result === 'object') {
+                            if (result.title && singlePlat === 'youtube') {
+                              setPlatformCaptions((prev) => ({
+                                ...prev,
+                                youtube: { ...prev.youtube, title: result.title },
+                              }));
+                            }
+                            setMainCaption(result.caption || '');
+                          }
+                        },
+                        {
+                          platform: singlePlat,
+                          initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
+                        }
+                      );
+                    }}
+                    className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xs flex items-center space-x-2 transition-all cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Full AI Generator</span>
+                    <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
+                    <span>
+                      {selectedPlatforms.length === 1
+                        ? `AI Assistant for ${
+                            SUPPORTED_PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name ||
+                            'Post'
+                          }`
+                        : 'AI Social Assistant'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1221,39 +1224,39 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               </div>
                             )}
 
-                            {/* Platform AI Quick Actions */}
-                            <div className="flex items-center justify-between text-xs pt-1">
-                              <div className="flex items-center space-x-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => applyAiEnhancement('punchy', platId)}
-                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
-                                >
-                                  ⚡ Punchy
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => applyAiEnhancement('hashtags', platId)}
-                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
-                                >
-                                  # Tags
-                                </button>
-                              </div>
-
+                            {/* Platform AI Social Assistant Entry Point */}
+                            <div className="flex items-center justify-end text-xs pt-1">
                               <button
                                 type="button"
                                 onClick={() =>
-                                  openAiModal(platData.caption || mainCaption, (gen) => {
-                                    setPlatformCaptions((prev) => ({
-                                      ...prev,
-                                      [platId]: { ...prev[platId], caption: gen },
-                                    }));
-                                  })
+                                  openAiModal(
+                                    platData.caption || mainCaption,
+                                    (result: any) => {
+                                      const captionText =
+                                        typeof result === 'string'
+                                          ? result
+                                          : result?.caption || '';
+                                      const titleText =
+                                        typeof result === 'string' ? undefined : result?.title;
+                                      setPlatformCaptions((prev) => ({
+                                        ...prev,
+                                        [platId]: {
+                                          ...prev[platId],
+                                          caption: captionText,
+                                          ...(titleText !== undefined ? { title: titleText } : {}),
+                                        },
+                                      }));
+                                    },
+                                    {
+                                      platform: platId,
+                                      initialTitle: platData.title,
+                                    }
+                                  )
                                 }
-                                className="text-emerald-700 hover:text-emerald-800 font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
+                                className="text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 transition-all cursor-pointer shadow-2xs"
                               >
-                                <Sparkles className="w-3 h-3 text-emerald-600" />
-                                <span>AI Generator for {platConfig.name}</span>
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>AI Assistant for {platConfig.name}</span>
                               </button>
                             </div>
                           </div>
