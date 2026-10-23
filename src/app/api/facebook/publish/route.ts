@@ -9,6 +9,9 @@ import path from 'path';
  * - Binary & URL Photo Posts (POST /{page-id}/photos)
  * - Binary & URL Video / Reel Posts (POST /{page-id}/videos)
  */
+// In-memory idempotency cache for Facebook publishing requests (prevents duplicate API dispatches within 30s)
+const recentFacebookPublishes = new Map<string, { timestamp: number; result: any }>();
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -44,6 +47,14 @@ export async function POST(req: NextRequest) {
 
     const cleanPageId = pageId.trim();
     let currentToken = accessToken.trim();
+
+    // Idempotency: prevent duplicate API requests for the same content within 30 seconds
+    const idempotencyKey = `${cleanPageId}:${(message || '').trim()}:${mediaUrl || ''}`;
+    const cachedPublish = recentFacebookPublishes.get(idempotencyKey);
+    if (cachedPublish && Date.now() - cachedPublish.timestamp < 30000) {
+      console.warn(`[Facebook Idempotency] Duplicate request prevented for key: ${idempotencyKey}`);
+      return NextResponse.json(cachedPublish.result);
+    }
 
     // Helper to execute publishing with a given token
     async function executePublish(token: string) {
@@ -190,12 +201,20 @@ export async function POST(req: NextRequest) {
     const postId = data.id || data.post_id;
     const postUrl = `https://www.facebook.com/${postId}`;
 
-    return NextResponse.json({
+    const successPayload = {
       success: true,
       postId,
       postUrl,
       details: data,
+    };
+
+    // Store in idempotency cache
+    recentFacebookPublishes.set(idempotencyKey, {
+      timestamp: Date.now(),
+      result: successPayload,
     });
+
+    return NextResponse.json(successPayload);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Publish request failed';
     return NextResponse.json({ success: false, error: msg }, { status: 500 });

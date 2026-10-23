@@ -11,6 +11,9 @@ import path from 'path';
  * 2. Remote Public Media URLs
  * 3. Dynamic resolution between Facebook Page tokens (EAA...) and Instagram tokens (IG...)
  */
+// In-memory idempotency cache for Instagram publishing requests (prevents duplicate API dispatches within 45s)
+const recentInstagramPublishes = new Map<string, { timestamp: number; result: any }>();
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -57,6 +60,14 @@ export async function POST(req: NextRequest) {
 
     const cleanIgUserId = igUserId.trim();
     const cleanToken = accessToken.trim();
+
+    // Idempotency: prevent duplicate API requests for the same media & caption within 45 seconds
+    const idempotencyKey = `${cleanIgUserId}:${(caption || '').trim()}:${mediaUrl || ''}`;
+    const cachedPublish = recentInstagramPublishes.get(idempotencyKey);
+    if (cachedPublish && Date.now() - cachedPublish.timestamp < 45000) {
+      console.warn(`[Instagram Idempotency] Duplicate request prevented for key: ${idempotencyKey}`);
+      return NextResponse.json(cachedPublish.result);
+    }
 
     const isVideo =
       postType === 'reel' ||
@@ -291,7 +302,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    return NextResponse.json({
+    const successPayload = {
       success: true,
       postId: publishedMediaId,
       postUrl,
@@ -300,7 +311,15 @@ export async function POST(req: NextRequest) {
         publishedMediaId,
         mediaType: isVideo ? 'REELS' : 'IMAGE',
       },
+    };
+
+    // Store in idempotency cache
+    recentInstagramPublishes.set(idempotencyKey, {
+      timestamp: Date.now(),
+      result: successPayload,
     });
+
+    return NextResponse.json(successPayload);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Internal error publishing to Instagram';
     return NextResponse.json({ success: false, error: msg }, { status: 500 });

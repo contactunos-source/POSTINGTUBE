@@ -805,19 +805,6 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
               </div>
 
-              {/* Raw Execution Results / Meta Logs */}
-              {selectedPostForDetails.results &&
-                Object.keys(selectedPostForDetails.results).length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Meta API Dispatch Logs
-                    </label>
-                    <pre className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-[11px] font-mono overflow-x-auto">
-                      {JSON.stringify(selectedPostForDetails.results, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
               {/* Modal Footer */}
               <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
                 <button

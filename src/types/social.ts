@@ -78,10 +78,13 @@ export interface Post {
     string,
     {
       status: 'success' | 'failed' | 'pending';
+      platform?: string;
+      accountName?: string;
       externalPostId?: string;
       externalPostUrl?: string;
       errorMessage?: string;
       publishedAt?: string;
+      timestamp?: string;
     }
   >;
 }

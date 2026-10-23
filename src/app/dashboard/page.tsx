@@ -214,18 +214,27 @@ export default function DashboardPage() {
   }, []);
 
   // Active Publishing Daemon for Scheduled Posts
-  // Automatically monitors and publishes due posts every 10 seconds
+  // Track in-flight post IDs to prevent concurrent executions
+  const publishingPostIdsRef = React.useRef<Set<string>>(new Set());
+
+  // Automatically monitors and publishes due posts every 10 seconds with duplicate prevention
   useEffect(() => {
     if (!isLoaded || accounts.length === 0) return;
 
     const schedulerTimer = setInterval(async () => {
       const now = new Date();
       const duePosts = posts.filter(
-        (p) => p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor) <= now
+        (p) =>
+          p.status === 'scheduled' &&
+          p.scheduledFor &&
+          new Date(p.scheduledFor) <= now &&
+          !publishingPostIdsRef.current.has(p.id)
       );
 
       for (const duePost of duePosts) {
-        await handlePublishNow(duePost);
+        if (!publishingPostIdsRef.current.has(duePost.id)) {
+          await handlePublishNow(duePost);
+        }
       }
     }, 10000);
 
@@ -363,15 +372,69 @@ export default function DashboardPage() {
   };
 
   const handlePublishNow = async (post: Post) => {
-    const summary = await executePostPublish(post, accounts);
-    const updated: Post = {
+    // Idempotency lock: avoid duplicate execution if already in progress
+    if (publishingPostIdsRef.current.has(post.id)) {
+      console.warn(`[Duplicate Prevention] Post ${post.id} is already publishing. Skipping duplicate call.`);
+      return;
+    }
+    publishingPostIdsRef.current.add(post.id);
+
+    // Atomically transition status to 'publishing' immediately in React state & DB
+    const inProgressPost: Post = {
       ...post,
-      status: summary.overallStatus,
-      publishedAt: summary.overallStatus === 'published' ? new Date().toISOString() : undefined,
-      results: summary.results,
+      status: 'publishing',
+      updatedAt: new Date().toISOString(),
     };
-    setPosts((prev) => prev.map((p) => (p.id === post.id ? updated : p)));
-    await DatabaseService.savePost(updated);
+    setPosts((prev) => prev.map((p) => (p.id === post.id ? inProgressPost : p)));
+    await DatabaseService.savePost(inProgressPost);
+
+    try {
+      const summary = await executePostPublish(post, accounts);
+      const updated: Post = {
+        ...post,
+        status: summary.overallStatus,
+        publishedAt: summary.overallStatus === 'published' ? new Date().toISOString() : undefined,
+        results: summary.results,
+        updatedAt: new Date().toISOString(),
+      };
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? updated : p)));
+      await DatabaseService.savePost(updated);
+    } catch (err) {
+      console.error('[Publish Error]', err);
+      const failedPost: Post = {
+        ...post,
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      };
+      setPosts((prev) => prev.map((p) => (p.id === post.id ? failedPost : p)));
+      await DatabaseService.savePost(failedPost);
+    } finally {
+      publishingPostIdsRef.current.delete(post.id);
+    }
+  };
+
+  const handleReschedulePost = async (postId: string, newScheduledFor: string): Promise<boolean> => {
+    try {
+      const target = posts.find((p) => p.id === postId);
+      if (!target) return false;
+      // Do not allow published posts to be moved as if scheduled
+      if (target.status === 'published') return false;
+
+      const updated: Post = {
+        ...target,
+        scheduledFor: newScheduledFor,
+        status: 'scheduled',
+        updatedAt: new Date().toISOString(),
+      };
+
+      setPosts((prev) => prev.map((p) => (p.id === postId ? updated : p)));
+      await DatabaseService.savePost(updated);
+      setSuccessToast(`Post successfully rescheduled to ${new Date(newScheduledFor).toLocaleDateString()}`);
+      return true;
+    } catch (err) {
+      console.error('Failed to reschedule post:', err);
+      return false;
+    }
   };
 
   const handleRetryPost = async (post: Post) => {
@@ -529,6 +592,7 @@ export default function DashboardPage() {
               setEditingPost(null);
               setActiveTab('posts-all');
             }}
+            onGoToConnections={() => setActiveTab('connections')}
             openAiModal={handleOpenAiModal}
           />
         )}
@@ -550,6 +614,7 @@ export default function DashboardPage() {
             posts={posts}
             accounts={accounts}
             onSelectPost={handleEditExistingPost}
+            onReschedulePost={handleReschedulePost}
             onCreateAtDate={(d) => {
               const year = d.getFullYear();
               const month = String(d.getMonth() + 1).padStart(2, '0');

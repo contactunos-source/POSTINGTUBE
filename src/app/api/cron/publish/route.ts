@@ -35,11 +35,18 @@ export async function GET(req: NextRequest) {
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
       for (const post of duePosts || []) {
-        // Lock post immediately to prevent duplicate runs
-        await supabase
+        // Atomic lock to guarantee single worker execution across concurrent invocations
+        const { data: lockedRows, error: lockErr } = await supabase
           .from('posts')
-          .update({ status: 'publishing' })
-          .eq('id', post.id);
+          .update({ status: 'publishing', updated_at: new Date().toISOString() })
+          .eq('id', post.id)
+          .eq('status', 'scheduled')
+          .select('id');
+
+        if (lockErr || !lockedRows || lockedRows.length === 0) {
+          // Another worker or active browser tab has already claimed this post
+          continue;
+        }
 
         let accounts: any[] = [];
 
@@ -66,12 +73,27 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        // Deduplicate accounts by unique platform destination
+        const seenDestinations = new Set<string>();
+        const uniqueAccounts: any[] = [];
+        for (const acc of accounts) {
+          const destKey = `${acc.platform}_${acc.external_id || acc.page_id || acc.id}`;
+          if (seenDestinations.has(destKey)) continue;
+          seenDestinations.add(destKey);
+          uniqueAccounts.push(acc);
+        }
+
         const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
         const postResults: Record<string, any> = { ...(post.results || {}) };
         let postSuccessCount = 0;
         let postFailCount = 0;
 
-        for (const account of accounts) {
+        for (const account of uniqueAccounts) {
+          // Idempotency: skip destinations that have already succeeded
+          if (postResults[account.id]?.status === 'success') {
+            postSuccessCount++;
+            continue;
+          }
           try {
             if (account.platform === 'facebook') {
               const res = await fetch(`${appUrl}/api/facebook/publish`, {

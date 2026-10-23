@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Post, SocialAccount, SocialPlatform } from '@/types/social';
+import { Post, SocialAccount, SocialPlatform, PostStatus } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
   ChevronLeft,
@@ -15,11 +15,12 @@ import {
   Play,
   FileEdit,
   ExternalLink,
-  Send,
-  MoreVertical,
   ImageIcon,
   Eye,
-  Info,
+  GripVertical,
+  Filter,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 import {
   format,
@@ -36,6 +37,7 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isToday,
+  isPast,
 } from 'date-fns';
 import {
   parseDateSafe,
@@ -50,6 +52,7 @@ interface CalendarViewProps {
   accounts: SocialAccount[];
   onSelectPost: (post: Post) => void;
   onCreateAtDate: (date: Date) => void;
+  onReschedulePost?: (postId: string, newScheduledFor: string) => Promise<boolean>;
 }
 
 type CalendarViewMode = 'month' | 'week' | 'day';
@@ -59,11 +62,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   accounts,
   onSelectPost,
   onCreateAtDate,
+  onReschedulePost,
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'published' | 'draft' | 'failed'>('all');
   const [selectedDayForModal, setSelectedDayForModal] = useState<Date | null>(null);
   const [inspectedPost, setInspectedPost] = useState<Post | null>(null);
+
+  // Drag and drop state
+  const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
+  const [dragOverDayIso, setDragOverDayIso] = useState<string | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+
+  // Quick Reschedule state inside post details modal
+  const [rescheduleDateInput, setRescheduleDateInput] = useState<string>('');
+  const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
 
   // Navigation handlers
   const handleNext = () => {
@@ -114,15 +128,81 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   }, [currentDate, viewMode, weekDays]);
 
-  // Retrieve posts for a specific day using robust timezone-resilient matching
+  // Filtered posts based on status filter
+  const filteredPosts = useMemo(() => {
+    if (statusFilter === 'all') return posts;
+    return posts.filter((p) => p.status === statusFilter);
+  }, [posts, statusFilter]);
+
+  // Retrieve posts for a specific day using timezone-safe matching
   const getPostsForDay = (day: Date) => {
-    return posts.filter((p) => postMatchesDay(p, day));
+    return filteredPosts.filter((p) => postMatchesDay(p, day));
   };
 
   // Helper to get accounts for a post
   const getAccountsForPost = (post: Post): SocialAccount[] => {
     const matched = accounts.filter((a) => post.targetAccountIds.includes(a.id));
     return matched.length > 0 ? matched : accounts.slice(0, 1);
+  };
+
+  // HTML5 Drag and Drop handlers for Rescheduling
+  const handleDragStart = (e: React.DragEvent, post: Post) => {
+    if (post.status === 'published') {
+      e.preventDefault();
+      return;
+    }
+    setDraggedPostId(post.id);
+    e.dataTransfer.setData('text/plain', post.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOverDay = (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const dayIso = day.toISOString();
+    if (dragOverDayIso !== dayIso) {
+      setDragOverDayIso(dayIso);
+    }
+  };
+
+  const handleDragLeaveDay = (day: Date) => {
+    if (dragOverDayIso === day.toISOString()) {
+      setDragOverDayIso(null);
+    }
+  };
+
+  const handleDropOnDay = async (e: React.DragEvent, targetDay: Date) => {
+    e.preventDefault();
+    setDragOverDayIso(null);
+    const postId = e.dataTransfer.getData('text/plain') || draggedPostId;
+    setDraggedPostId(null);
+
+    if (!postId || !onReschedulePost) return;
+
+    const post = posts.find((p) => p.id === postId);
+    if (!post || post.status === 'published') return;
+
+    // Calculate new scheduled timestamp preserving original hour and minute
+    const originalDate = post.scheduledFor ? new Date(post.scheduledFor) : new Date();
+    const hours = originalDate.getHours();
+    const minutes = originalDate.getMinutes();
+
+    const newTarget = new Date(targetDay);
+    newTarget.setHours(hours, minutes, 0, 0);
+
+    const year = newTarget.getFullYear();
+    const month = String(newTarget.getMonth() + 1).padStart(2, '0');
+    const day = String(newTarget.getDate()).padStart(2, '0');
+    const h = String(hours).padStart(2, '0');
+    const m = String(minutes).padStart(2, '0');
+    const newScheduledIso = `${year}-${month}-${day}T${h}:${m}:00`;
+
+    setIsRescheduling(true);
+    try {
+      await onReschedulePost(post.id, newScheduledIso);
+    } finally {
+      setIsRescheduling(false);
+    }
   };
 
   return (
@@ -135,14 +215,39 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <span>Content Calendar</span>
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Visual planning, multi-platform publishing schedule, and timeline pipeline.
+            Visual multi-platform scheduling workspace with drag-and-drop rescheduling.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* View Mode Switcher: Month | Week | Day */}
+          {/* Status Filter Pills */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+            {[
+              { id: 'all', label: 'All', count: posts.length },
+              { id: 'scheduled', label: 'Scheduled', count: posts.filter((p) => p.status === 'scheduled').length },
+              { id: 'published', label: 'Published', count: posts.filter((p) => p.status === 'published').length },
+              { id: 'draft', label: 'Drafts', count: posts.filter((p) => p.status === 'draft').length },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id as any)}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  statusFilter === tab.id
+                    ? 'bg-white shadow-xs text-gray-900 font-bold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-gray-200/80 text-gray-700">
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* View Mode Switcher: Month | Week */}
           <div className="flex items-center bg-gray-100 p-1 rounded-xl shadow-2xs">
-            {(['month', 'week', 'day'] as const).map((mode) => (
+            {(['month', 'week'] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
@@ -182,9 +287,41 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
 
           {/* Current Date Display */}
-          <span className="text-sm md:text-base font-bold text-gray-900 min-w-[150px] text-right">
+          <span className="text-sm md:text-base font-bold text-gray-900 min-w-[140px] text-right">
             {headerTitle}
           </span>
+        </div>
+      </div>
+
+      {/* Visual Status Legend & Drag Hint */}
+      <div className="flex flex-wrap items-center justify-between text-xs text-gray-500 bg-gray-50/70 border border-gray-200/80 rounded-xl px-4 py-2 gap-3">
+        <div className="flex items-center space-x-4">
+          <span className="font-semibold text-gray-700">Status Legend:</span>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span>Published</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+            <span>Scheduled</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+            <span>Publishing / Processing</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+            <span>Failed</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+            <span>Draft</span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-1.5 text-gray-400 text-[11px]">
+          <GripVertical className="w-3.5 h-3.5 text-gray-400" />
+          <span>Drag scheduled cards to any day to reschedule</span>
         </div>
       </div>
 
@@ -192,39 +329,47 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'month' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           {/* Days of week header */}
-          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/80 text-center py-2.5 text-xs font-bold text-gray-600">
-            <div>SUN</div>
-            <div>MON</div>
-            <div>TUE</div>
-            <div>WED</div>
-            <div>THU</div>
-            <div>FRI</div>
-            <div>SAT</div>
+          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90 text-center py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
+            <div>Sunday</div>
+            <div>Monday</div>
+            <div>Tuesday</div>
+            <div>Wednesday</div>
+            <div>Thursday</div>
+            <div>Friday</div>
+            <div>Saturday</div>
           </div>
 
           {/* Days matrix */}
-          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[640px]">
+          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[720px]">
             {monthDays.map((day) => {
               const dayPosts = getPostsForDay(day);
               const isCurrMonth = isSameMonth(day, currentDate);
               const isCurrentDay = isToday(day);
+              const isDropTarget = dragOverDayIso === day.toISOString();
 
               return (
                 <div
                   key={day.toISOString()}
+                  onDragOver={(e) => handleDragOverDay(e, day)}
+                  onDragLeave={() => handleDragLeaveDay(day)}
+                  onDrop={(e) => handleDropOnDay(e, day)}
                   onClick={() => setSelectedDayForModal(day)}
-                  className={`group relative p-2 flex flex-col justify-between transition-colors min-h-[115px] cursor-pointer ${
-                    isCurrMonth ? 'bg-white hover:bg-emerald-50/15' : 'bg-gray-50/50 text-gray-400'
+                  className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[135px] cursor-pointer ${
+                    isDropTarget
+                      ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
+                      : isCurrMonth
+                      ? 'bg-white hover:bg-emerald-50/15'
+                      : 'bg-gray-50/40 text-gray-400'
                   }`}
                 >
-                  {/* Day Number and Quick Add */}
-                  <div className="flex items-center justify-between mb-1.5">
+                  {/* Day Header Row */}
+                  <div className="flex items-center justify-between mb-2">
                     <span
                       className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
                         isCurrentDay
                           ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
                           : isCurrMonth
-                          ? 'text-gray-800'
+                          ? 'text-gray-900'
                           : 'text-gray-400'
                       }`}
                     >
@@ -244,66 +389,117 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
 
                   {/* Day's scheduled posts */}
-                  <div className="flex-1 space-y-1.5 overflow-y-auto max-h-24 scrollbar-none">
+                  <div className="flex-1 space-y-2 overflow-y-auto max-h-36 scrollbar-none">
                     {dayPosts.slice(0, 3).map((post) => {
                       const postAccounts = getAccountsForPost(post);
                       const platforms = Array.from(new Set(postAccounts.map((a) => a.platform)));
                       const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt);
+                      const media = post.media && post.media.length > 0 ? post.media[0] : null;
+                      const isDraggable = post.status !== 'published';
 
                       return (
                         <div
                           key={post.id}
+                          draggable={isDraggable}
+                          onDragStart={(e) => handleDragStart(e, post)}
                           onClick={(e) => {
                             e.stopPropagation();
                             setInspectedPost(post);
                           }}
-                          className={`p-1.5 rounded-lg border text-[11px] leading-tight transition-all shadow-2xs cursor-pointer hover:shadow-xs ${
+                          className={`group/card p-2 rounded-xl border text-[11px] leading-tight transition-all shadow-2xs hover:shadow-xs relative select-none ${
+                            isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                          } ${
                             post.status === 'published'
-                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 hover:border-emerald-300'
+                              ? 'bg-emerald-50/60 border-emerald-200/90 text-emerald-950 hover:border-emerald-300'
                               : post.status === 'scheduled'
-                              ? 'bg-sky-50/80 border-sky-200 text-sky-950 hover:border-sky-300'
+                              ? 'bg-sky-50/70 border-sky-200/90 text-sky-950 hover:border-sky-300'
+                              : post.status === 'publishing'
+                              ? 'bg-amber-50/70 border-amber-200/90 text-amber-950 hover:border-amber-300'
                               : post.status === 'failed'
                               ? 'bg-rose-50 border-rose-200 text-rose-950 hover:border-rose-300'
                               : 'bg-gray-50 border-gray-200 text-gray-800'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            {/* Platform logos */}
-                            <div className="flex items-center -space-x-1">
+                          {/* Top Row: Platforms + Time + Status */}
+                          <div className="flex items-center justify-between gap-1 mb-1.5">
+                            <div className="flex items-center -space-x-1 shrink-0">
                               {platforms.map((pl) => (
                                 <div
                                   key={pl}
-                                  className="w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-100"
+                                  className="w-4.5 h-4.5 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-200 z-10"
                                 >
                                   <PlatformLogo platform={pl} className="w-2.5 h-2.5" />
                                 </div>
                               ))}
+                              {postAccounts.length > platforms.length && (
+                                <span className="text-[9px] font-bold text-gray-500 pl-1.5">
+                                  +{postAccounts.length - platforms.length}
+                                </span>
+                              )}
                             </div>
 
-                            {/* Time */}
                             {timeStr && (
-                              <span className="text-[9px] font-semibold text-gray-500 flex items-center space-x-0.5">
-                                <Clock className="w-2.5 h-2.5" />
+                              <span className="text-[10px] font-semibold text-gray-600 flex items-center space-x-0.5">
+                                <Clock className="w-2.5 h-2.5 text-gray-400" />
                                 <span>{timeStr}</span>
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-center space-x-1">
-                            {post.media && post.media.length > 0 && (
-                              <ImageIcon className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                          {/* Middle: Media Thumbnail + Caption */}
+                          <div className="flex items-start space-x-2">
+                            {media && (
+                              <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0 relative">
+                                {media.type === 'video' ? (
+                                  <div className="w-full h-full bg-black flex items-center justify-center">
+                                    <Play className="w-3 h-3 text-white fill-white" />
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={media.thumbnailUrl || media.url}
+                                    alt="Asset thumbnail"
+                                    className="w-full h-full object-cover"
+                                  />
+                                )}
+                              </div>
                             )}
-                            <p className="line-clamp-1 font-medium text-gray-800 text-[10px]">
-                              {post.content}
+                            <p className="line-clamp-2 font-medium text-gray-800 text-[10px] leading-snug">
+                              {post.content || '(Media post)'}
                             </p>
+                          </div>
+
+                          {/* Status Pill Indicator */}
+                          <div className="mt-1.5 pt-1 border-t border-gray-100/80 flex items-center justify-between">
+                            <span
+                              className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-md ${
+                                post.status === 'published'
+                                  ? 'bg-emerald-100/80 text-emerald-800'
+                                  : post.status === 'scheduled'
+                                  ? 'bg-sky-100/80 text-sky-800'
+                                  : post.status === 'publishing'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : post.status === 'failed'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-gray-200/80 text-gray-700'
+                              }`}
+                            >
+                              {post.status}
+                            </span>
+
+                            {isDraggable && (
+                              <span className="opacity-0 group-hover/card:opacity-100 text-[9px] text-gray-400 flex items-center space-x-0.5">
+                                <GripVertical className="w-2.5 h-2.5" />
+                                <span>drag</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
                     })}
 
                     {dayPosts.length > 3 && (
-                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50/80 rounded px-1.5 py-0.5 text-center">
-                        +{dayPosts.length - 3} more
+                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50/90 rounded-md py-1 text-center border border-emerald-200">
+                        +{dayPosts.length - 3} more posts
                       </div>
                     )}
                   </div>
@@ -317,20 +513,29 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* VIEW 2: WEEK VIEW */}
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-          <div className="grid grid-cols-7 divide-x divide-gray-100 min-h-[580px]">
+          <div className="grid grid-cols-7 divide-x divide-gray-100 min-h-[620px]">
             {weekDays.map((day) => {
               const dayPosts = getPostsForDay(day);
               const isCurrentDay = isToday(day);
+              const isDropTarget = dragOverDayIso === day.toISOString();
 
               return (
-                <div key={day.toISOString()} className="flex flex-col bg-white">
+                <div
+                  key={day.toISOString()}
+                  onDragOver={(e) => handleDragOverDay(e, day)}
+                  onDragLeave={() => handleDragLeaveDay(day)}
+                  onDrop={(e) => handleDropOnDay(e, day)}
+                  className={`flex flex-col ${
+                    isDropTarget ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset' : 'bg-white'
+                  }`}
+                >
                   {/* Column Header */}
                   <div
-                    className={`p-3 border-b text-center border-gray-200 ${
-                      isCurrentDay ? 'bg-emerald-50/50' : 'bg-gray-50/60'
+                    className={`p-3.5 border-b text-center border-gray-200 ${
+                      isCurrentDay ? 'bg-emerald-50/60' : 'bg-gray-50/70'
                     }`}
                   >
-                    <div className="text-[11px] font-bold text-gray-500 uppercase">
+                    <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                       {format(day, 'EEE')}
                     </div>
                     <div
@@ -346,15 +551,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
 
                   {/* Column Post Items */}
-                  <div className="flex-1 p-2 space-y-2.5 overflow-y-auto">
+                  <div className="flex-1 p-2.5 space-y-3 overflow-y-auto">
                     {dayPosts.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center p-3 text-center text-gray-400">
+                      <div className="h-full flex flex-col items-center justify-center p-3 text-center text-gray-400 min-h-[140px]">
                         <button
                           onClick={() => onCreateAtDate(day)}
-                          className="p-2 rounded-xl border border-dashed border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/30 text-gray-400 hover:text-emerald-700 transition-colors w-full flex flex-col items-center justify-center gap-1 group cursor-pointer"
+                          className="p-3 rounded-xl border border-dashed border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/30 text-gray-400 hover:text-emerald-700 transition-colors w-full flex flex-col items-center justify-center gap-1 group cursor-pointer"
                         >
                           <Plus className="w-4 h-4 text-gray-400 group-hover:text-emerald-600" />
-                          <span className="text-[10px] font-medium">Add Post</span>
+                          <span className="text-[11px] font-medium">Add Post</span>
                         </button>
                       </div>
                     ) : (
@@ -363,27 +568,32 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         const platforms = Array.from(new Set(postAccounts.map((a) => a.platform)));
                         const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt);
                         const media = post.media && post.media.length > 0 ? post.media[0] : null;
+                        const isDraggable = post.status !== 'published';
 
                         return (
                           <div
                             key={post.id}
+                            draggable={isDraggable}
+                            onDragStart={(e) => handleDragStart(e, post)}
                             onClick={() => setInspectedPost(post)}
-                            className="bg-white border border-gray-200/90 rounded-xl p-2.5 shadow-2xs hover:shadow-xs hover:border-emerald-400 transition-all cursor-pointer space-y-2"
+                            className={`bg-white border border-gray-200/90 rounded-xl p-3 shadow-2xs hover:shadow-xs hover:border-emerald-400 transition-all space-y-2.5 ${
+                              isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                            }`}
                           >
-                            {/* Media thumbnail if exists */}
+                            {/* Media thumbnail */}
                             {media && (
-                              <div className="w-full h-24 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 relative">
+                              <div className="w-full h-28 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 relative">
                                 {media.type === 'video' ? (
-                                  <div className="w-full h-full relative">
-                                    <video src={media.url} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-white">
-                                      <Play className="w-5 h-5 fill-white" />
+                                  <div className="w-full h-full relative bg-black flex items-center justify-center">
+                                    <video src={media.url} className="w-full h-full object-cover opacity-80" />
+                                    <div className="absolute inset-0 flex items-center justify-center text-white">
+                                      <Play className="w-6 h-6 fill-white" />
                                     </div>
                                   </div>
                                 ) : (
                                   <img
                                     src={media.thumbnailUrl || media.url}
-                                    alt="Preview"
+                                    alt="Post thumbnail"
                                     className="w-full h-full object-cover"
                                   />
                                 )}
@@ -396,40 +606,50 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {platforms.map((pl) => (
                                   <div
                                     key={pl}
-                                    className="w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-100"
+                                    className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-2xs border border-gray-200"
                                   >
-                                    <PlatformLogo platform={pl} className="w-2.5 h-2.5" />
+                                    <PlatformLogo platform={pl} className="w-3 h-3" />
                                   </div>
                                 ))}
                               </div>
 
                               {timeStr && (
-                                <span className="text-[10px] font-semibold text-gray-500">
-                                  {timeStr}
+                                <span className="text-[11px] font-semibold text-gray-500 flex items-center space-x-1">
+                                  <Clock className="w-3 h-3 text-gray-400" />
+                                  <span>{timeStr}</span>
                                 </span>
                               )}
                             </div>
 
                             {/* Caption */}
-                            <p className="text-xs text-gray-800 line-clamp-2 font-normal leading-relaxed">
-                              {post.content}
+                            <p className="text-xs text-gray-800 line-clamp-2 leading-relaxed">
+                              {post.content || '(Media Post)'}
                             </p>
 
                             {/* Status Pill */}
-                            <div className="pt-1 border-t border-gray-100 flex items-center justify-between text-[10px]">
+                            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[10px]">
                               <span
-                                className={`px-2 py-0.5 rounded-md font-bold ${
+                                className={`px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
                                   post.status === 'published'
                                     ? 'bg-emerald-50 text-emerald-700'
                                     : post.status === 'scheduled'
                                     ? 'bg-sky-50 text-sky-700'
+                                    : post.status === 'publishing'
+                                    ? 'bg-amber-50 text-amber-700'
                                     : post.status === 'failed'
                                     ? 'bg-rose-50 text-rose-700'
                                     : 'bg-gray-100 text-gray-600'
                                 }`}
                               >
-                                {post.status.toUpperCase()}
+                                {post.status}
                               </span>
+
+                              {isDraggable && (
+                                <span className="text-[10px] text-gray-400 flex items-center space-x-0.5">
+                                  <GripVertical className="w-3 h-3" />
+                                  <span>drag to move</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -443,138 +663,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       )}
 
-      {/* VIEW 3: DAY VIEW */}
-      {viewMode === 'day' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 space-y-6">
-          {/* Day summary row */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 tracking-tight">
-                {format(currentDate, 'EEEE, MMMM d, yyyy')}
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {getPostsForDay(currentDate).length} posts planned or published on this date
-              </p>
-            </div>
-
-            <button
-              onClick={() => onCreateAtDate(currentDate)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-1.5 self-start sm:self-auto cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Schedule Post for Today</span>
-            </button>
-          </div>
-
-          {/* Posts for the day */}
-          <div className="space-y-4">
-            {getPostsForDay(currentDate).length === 0 ? (
-              <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl p-6">
-                <CalendarIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <h3 className="text-sm font-bold text-gray-800">No posts on this date</h3>
-                <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                  There are no scheduled or published posts for this date.
-                </p>
-                <button
-                  onClick={() => onCreateAtDate(currentDate)}
-                  className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                >
-                  Schedule a post now
-                </button>
-              </div>
-            ) : (
-              getPostsForDay(currentDate).map((post) => {
-                const postAccounts = getAccountsForPost(post);
-                const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt, '12:00 PM');
-                const hasMedia = post.media && post.media.length > 0;
-                const media = hasMedia ? post.media[0] : null;
-
-                return (
-                  <div
-                    key={post.id}
-                    onClick={() => setInspectedPost(post)}
-                    className="p-5 rounded-2xl border border-gray-200/90 bg-white hover:border-emerald-400 transition-all shadow-2xs hover:shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 cursor-pointer"
-                  >
-                    <div className="flex items-start space-x-4 flex-1">
-                      {/* Media preview */}
-                      {media && (
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 shrink-0">
-                          {media.type === 'video' ? (
-                            <video src={media.url} className="w-full h-full object-cover" />
-                          ) : (
-                            <img
-                              src={media.thumbnailUrl || media.url}
-                              alt="Media"
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      <div className="space-y-2 flex-1">
-                        {/* Target Accounts with icons */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {postAccounts.map((acc) => (
-                            <div
-                              key={acc.id}
-                              className="flex items-center space-x-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-xs text-gray-700 font-medium"
-                            >
-                              <PlatformLogo platform={acc.platform} className="w-3 h-3" />
-                              <span>{acc.displayName || acc.username}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <p className="text-xs md:text-sm text-gray-800 line-clamp-2 leading-relaxed">
-                          {post.content}
-                        </p>
-
-                        <div className="flex items-center space-x-3 text-[11px] text-gray-500">
-                          <span className="flex items-center space-x-1 font-semibold text-gray-700">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            <span>{timeStr}</span>
-                          </span>
-                          <span>•</span>
-                          <span
-                            className={`font-bold px-2 py-0.5 rounded ${
-                              post.status === 'published'
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : post.status === 'scheduled'
-                                ? 'bg-sky-50 text-sky-700'
-                                : post.status === 'failed'
-                                ? 'bg-rose-50 text-rose-700'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {post.status.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 self-end md:self-auto">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectPost(post);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 transition-colors flex items-center space-x-1"
-                      >
-                        <FileEdit className="w-3.5 h-3.5" />
-                        <span>Edit</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Date Inspection Drawer / Modal (when clicking a day in Month view) */}
+      {/* Date Inspection Modal (when clicking on a day cell) */}
       {selectedDayForModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
@@ -582,7 +673,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {format(selectedDayForModal, 'EEEE, MMMM d, yyyy')}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {getPostsForDay(selectedDayForModal).length} posts on this day
+                  {getPostsForDay(selectedDayForModal).length} posts scheduled / published on this date
                 </p>
               </div>
               <button
@@ -624,7 +715,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </span>
                       </div>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
                           post.status === 'published'
                             ? 'bg-emerald-50 text-emerald-700'
                             : post.status === 'scheduled'
@@ -634,10 +725,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {post.status.toUpperCase()}
+                        {post.status}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed font-normal">
+                    <p className="text-xs text-gray-700 line-clamp-2 leading-relaxed">
                       {post.content}
                     </p>
                   </div>
@@ -653,10 +744,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   setSelectedDayForModal(null);
                   onCreateAtDate(d);
                 }}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Post for this Day</span>
+                <span>Create Post for this Day</span>
               </button>
 
               <button
@@ -670,95 +761,176 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       )}
 
-      {/* Single Post Inspection Modal */}
+      {/* Comprehensive Post Details Modal */}
       {inspectedPost && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 text-gray-900 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-gray-900">Post Details</span>
+                <span className="text-base font-bold text-gray-900">Post Details</span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                     inspectedPost.status === 'published'
-                      ? 'bg-emerald-50 text-emerald-700'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : inspectedPost.status === 'scheduled'
-                      ? 'bg-sky-50 text-sky-700'
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200'
                       : inspectedPost.status === 'failed'
-                      ? 'bg-rose-50 text-rose-700'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
                       : 'bg-gray-100 text-gray-700'
                   }`}
                 >
-                  {inspectedPost.status.toUpperCase()}
+                  {inspectedPost.status}
                 </span>
               </div>
               <button
-                onClick={() => setInspectedPost(null)}
+                onClick={() => {
+                  setInspectedPost(null);
+                  setRescheduleSuccessMsg(null);
+                }}
                 className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Media thumbnail */}
+            {/* Media asset preview */}
             {inspectedPost.media && inspectedPost.media.length > 0 && (
-              <div className="rounded-xl overflow-hidden border border-gray-200 max-h-52 bg-gray-50 flex items-center justify-center">
+              <div className="rounded-xl overflow-hidden border border-gray-200 max-h-64 bg-black flex items-center justify-center">
                 {inspectedPost.media[0].type === 'video' ? (
-                  <video src={inspectedPost.media[0].url} controls className="w-full h-full object-cover" />
+                  <video src={inspectedPost.media[0].url} controls className="w-full max-h-64 object-contain" />
                 ) : (
                   <img
                     src={inspectedPost.media[0].thumbnailUrl || inspectedPost.media[0].url}
                     alt="Media preview"
-                    className="w-full h-full object-cover"
+                    className="w-full max-h-64 object-contain bg-gray-50"
                   />
                 )}
               </div>
             )}
 
-            {/* Target Accounts */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                Target Accounts
+            {/* Target Accounts with Per-Platform Status */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                Destination Accounts ({getAccountsForPost(inspectedPost).length})
               </label>
-              <div className="flex flex-wrap gap-2">
-                {getAccountsForPost(inspectedPost).map((acc) => (
-                  <div
-                    key={acc.id}
-                    className="flex items-center space-x-2 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 text-xs"
-                  >
-                    <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
-                    <span className="font-semibold text-gray-800">{acc.displayName}</span>
-                  </div>
-                ))}
+              <div className="space-y-1.5">
+                {getAccountsForPost(inspectedPost).map((acc) => {
+                  const res = inspectedPost.results?.[acc.id];
+                  return (
+                    <div
+                      key={acc.id}
+                      className="flex items-center justify-between p-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-xs"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-white border border-gray-200 flex items-center justify-center shadow-2xs shrink-0">
+                          <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-gray-900 block truncate">{acc.displayName}</span>
+                          <span className="text-[10px] text-gray-500 capitalize">{acc.platform}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        {res ? (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              res.status === 'success'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {res.status === 'success' ? 'Published' : 'Failed'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                            {inspectedPost.status === 'scheduled' ? 'Scheduled' : 'Draft'}
+                          </span>
+                        )}
+
+                        {res?.externalPostUrl && (
+                          <a
+                            href={res.externalPostUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-900 transition-colors"
+                            title="Open live post"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Caption */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            {/* Post Caption */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
                 Caption
               </label>
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-800 whitespace-pre-line leading-relaxed">
-                {inspectedPost.content}
+              <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-800 whitespace-pre-line leading-relaxed max-h-36 overflow-y-auto">
+                {inspectedPost.content || '(No text content)'}
               </div>
             </div>
 
             {/* Timing details */}
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-gray-500 space-y-1 bg-gray-50/60 p-3 rounded-xl border border-gray-200/80">
               {inspectedPost.scheduledFor && (
-                <div>
-                  <span className="font-semibold text-gray-700">Scheduled:</span>{' '}
-                  {formatDateFullSafe(inspectedPost.scheduledFor)} at{' '}
-                  {formatTimeSafe(inspectedPost.scheduledFor)}
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-600">Scheduled Publishing Time:</span>
+                  <span className="font-bold text-gray-900">
+                    {formatDateFullSafe(inspectedPost.scheduledFor)} at {formatTimeSafe(inspectedPost.scheduledFor)}
+                  </span>
                 </div>
               )}
               {inspectedPost.publishedAt && (
-                <div>
-                  <span className="font-semibold text-gray-700">Published:</span>{' '}
-                  {formatDateFullSafe(inspectedPost.publishedAt)} at{' '}
-                  {formatTimeSafe(inspectedPost.publishedAt)}
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-600">Published Live:</span>
+                  <span className="font-bold text-emerald-700">
+                    {formatDateFullSafe(inspectedPost.publishedAt)} at {formatTimeSafe(inspectedPost.publishedAt)}
+                  </span>
                 </div>
               )}
             </div>
+
+            {/* Accessible Quick Reschedule (Alternative to Drag & Drop) */}
+            {inspectedPost.status !== 'published' && onReschedulePost && (
+              <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-200/80 space-y-2">
+                <label className="text-xs font-bold text-emerald-950 flex items-center space-x-1.5">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Reschedule this Post</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="datetime-local"
+                    value={
+                      rescheduleDateInput ||
+                      (inspectedPost.scheduledFor ? inspectedPost.scheduledFor.slice(0, 16) : '')
+                    }
+                    onChange={(e) => setRescheduleDateInput(e.target.value)}
+                    className="text-xs bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 flex-1 text-gray-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!rescheduleDateInput) return;
+                      await onReschedulePost(inspectedPost.id, `${rescheduleDateInput}:00`);
+                      setRescheduleSuccessMsg('Post schedule updated!');
+                      setTimeout(() => setRescheduleSuccessMsg(null), 3000);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </div>
+                {rescheduleSuccessMsg && (
+                  <p className="text-[11px] text-emerald-700 font-semibold">{rescheduleSuccessMsg}</p>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -768,15 +940,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   setInspectedPost(null);
                   onSelectPost(p);
                 }}
-                className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer"
               >
                 <FileEdit className="w-3.5 h-3.5" />
-                <span>Edit Post</span>
+                <span>Edit in Composer</span>
               </button>
 
               <button
-                onClick={() => setInspectedPost(null)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition-colors cursor-pointer"
+                onClick={() => {
+                  setInspectedPost(null);
+                  setRescheduleSuccessMsg(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition-colors cursor-pointer shadow-xs"
               >
                 Done
               </button>

@@ -58,6 +58,7 @@ interface CreatePostDashboardProps {
   initialPost?: Partial<Post>;
   onSave: (postData: Partial<Post>, action: 'schedule' | 'publish-now' | 'draft') => Promise<void>;
   onBack: () => void;
+  onGoToConnections?: () => void;
   openAiModal: (initialPrompt: string, onGenerated: (caption: string) => void) => void;
 }
 
@@ -128,6 +129,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   initialPost,
   onSave,
   onBack,
+  onGoToConnections,
   openAiModal,
 }) => {
   // Format Switcher (text / image / video)
@@ -417,6 +419,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // Handle Save / Publish execution
   const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
+    // Idempotency: prevent double-clicks or repeated submissions while in progress
+    if (isSubmitting) return;
+
     if (action !== 'draft' && selectedAccountIds.length === 0) {
       alert('Please select at least one social platform to publish to.');
       return;
@@ -615,7 +620,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 localStorage.setItem('pb_remembered_accounts', JSON.stringify([]));
               }
             }}
-            onGoToConnections={onBack}
+            onGoToConnections={onGoToConnections || onBack}
           />
         </div>
 
