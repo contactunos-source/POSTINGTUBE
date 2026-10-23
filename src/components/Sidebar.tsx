@@ -18,6 +18,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { Workspace } from '@/types/social';
+import { UserAvatar } from './UserAvatar';
 
 export type ActiveTab =
   | 'new-post'
@@ -100,7 +101,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full mt-1 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors border border-gray-200/60"
         >
           <div className="flex items-center space-x-2 truncate">
-            <Building2 className="w-4 h-4 text-gray-500" />
+            <UserAvatar
+              name={currentWorkspace.name}
+              avatarUrl={currentWorkspace.avatar}
+              size="xs"
+              className="rounded-md! ring-1 ring-black/5"
+            />
             <span className="truncate">{currentWorkspace.name}</span>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -248,17 +254,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3 border-t border-gray-100">
         <div className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
           <div className="flex items-center space-x-2.5 overflow-hidden">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-emerald-500/30"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0">
-                {initials}
-              </div>
-            )}
+            <UserAvatar
+              name={displayName}
+              avatarUrl={avatarUrl}
+              size="md"
+              className="ring-1 ring-emerald-500/20"
+            />
             <div className="min-w-0">
               <div className="text-xs font-semibold text-gray-800 leading-tight truncate">
                 {displayName}
