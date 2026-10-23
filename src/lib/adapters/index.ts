@@ -242,33 +242,90 @@ export const youtubeAdapter: PlatformAdapter = {
     const errors: string[] = [];
     const hasVideo = post.media?.some((m) => m.type === 'video');
     if (!hasVideo) {
-      errors.push('YouTube requires an uploaded video file (MP4/MOV).');
+      errors.push('YouTube only supports video uploads (MP4, MOV, WEBM). Text-only or photo posts cannot be published to YouTube.');
     }
     const title = override?.title || post.content.split('\n')[0];
     if (!title || title.trim().length === 0) {
       errors.push('YouTube requires a video title.');
     }
+    if (title && title.length > 100) {
+      errors.push(`YouTube video title exceeds 100 characters limit (Current: ${title.length}).`);
+    }
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
-    await wait(900);
-    const videoId = `yt_${Math.random().toString(36).substring(2, 11)}`;
-    return {
-      success: true,
-      externalPostId: videoId,
-      externalPostUrl: `https://youtu.be/${videoId}`,
-      details: {
-        kind: 'youtube#video',
-        snippet: {
-          title: override?.title || post.content.split('\n')[0] || 'Scheduled Video',
-          categoryId: '22',
-        },
-      },
-    };
+    const title = override?.title || post.content.split('\n')[0] || 'Scheduled Video';
+    const description = override?.caption || post.content;
+    const videoMedia = post.media?.find((m) => m.type === 'video') || post.media?.[0];
+
+    if (!videoMedia) {
+      return {
+        success: false,
+        errorMessage: 'YouTube requires an attached video asset (MP4, MOV, WEBM).',
+      };
+    }
+
+    try {
+      const response = await fetch('/api/youtube/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: account.externalId || account.pageId || account.id,
+          accessToken: account.accessToken,
+          refreshToken: account.refreshToken,
+          title,
+          description,
+          tags: post.tags,
+          mediaUrl: videoMedia.url,
+          thumbnailUrl: videoMedia.thumbnailUrl,
+          scheduledTimestamp: post.scheduledFor,
+          postType: post.postType,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        return {
+          success: true,
+          externalPostId: data.videoId,
+          externalPostUrl: data.videoUrl,
+          details: data.details,
+        };
+      } else {
+        return {
+          success: false,
+          errorMessage: `YouTube API Error: ${data.error || 'Failed to publish video'}`,
+        };
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : 'Network error communicating with YouTube API';
+      return { success: false, errorMessage: err };
+    }
   },
-  async refreshTokens() {
-    await wait(450);
-    return { success: true, newExpiry: new Date(Date.now() + 3600 * 1000).toISOString() };
+  async refreshTokens(account) {
+    if (!account.refreshToken) {
+      return { success: false, error: 'No refresh token available for this account.' };
+    }
+    try {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID || '',
+          client_secret: process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '',
+          refresh_token: account.refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        const expiry = new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString();
+        return { success: true, newExpiry: expiry };
+      }
+      return { success: false, error: data.error || 'Failed to refresh token' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Token refresh failed' };
+    }
   },
 };
 

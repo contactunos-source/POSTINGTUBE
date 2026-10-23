@@ -25,6 +25,7 @@ export interface SocialAccount {
   followersCount?: number;
   externalId?: string;
   accessToken?: string;
+  refreshToken?: string;
   pageId?: string;
 }
 

@@ -20,14 +20,35 @@ export async function POST(req: NextRequest) {
       ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
       : createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
 
-    // 1. Remove pending scheduled jobs for this account
+    // 1. Fetch account to check if token needs remote revocation (e.g. Google OAuth)
+    try {
+      const { data: acc } = await client
+        .from('connected_accounts')
+        .select('platform, access_token, refresh_token')
+        .eq('id', accountId)
+        .maybeSingle();
+
+      if (acc && acc.platform === 'youtube') {
+        const tokenToRevoke = acc.refresh_token || acc.access_token;
+        if (tokenToRevoke) {
+          fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          }).catch((revErr) => console.warn('[Channel Delete] Google token revocation warning:', revErr));
+        }
+      }
+    } catch (fetchErr) {
+      console.warn('[Channel Delete] Pre-delete token lookup notice:', fetchErr);
+    }
+
+    // 2. Remove pending scheduled jobs for this account
     try {
       await client.from('scheduled_jobs').delete().eq('account_id', accountId).eq('status', 'pending');
     } catch (jobErr) {
       console.warn('[Channel Delete] Job cleanup notice:', jobErr);
     }
 
-    // 2. Delete from connected_accounts
+    // 3. Delete from connected_accounts
     let query = client.from('connected_accounts').delete().eq('id', accountId);
     if (workspaceId) {
       query = query.eq('workspace_id', workspaceId);

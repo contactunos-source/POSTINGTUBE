@@ -267,6 +267,8 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 <option value="all">All Platforms</option>
                 <option value="facebook">Facebook</option>
                 <option value="instagram">Instagram</option>
+                <option value="youtube">YouTube</option>
+                <option value="twitter">X (Twitter)</option>
               </select>
             </div>
 

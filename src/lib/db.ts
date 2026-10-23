@@ -85,14 +85,34 @@ export function mapPostToDbPost(post: Post): any {
  * Maps Supabase account row to SocialAccount model
  */
 export function mapDbAccountToAccount(row: any): SocialAccount {
+  let accessToken = row.access_token;
+  let refreshToken = row.refresh_token;
+  let tokenExpiresAt = row.token_expires_at;
+
+  // Support packed JSON token bundles
+  if (accessToken && accessToken.startsWith('{') && accessToken.includes('access_token')) {
+    try {
+      const parsed = JSON.parse(accessToken);
+      accessToken = parsed.access_token || accessToken;
+      if (!refreshToken && parsed.refresh_token) {
+        refreshToken = parsed.refresh_token;
+      }
+      if (!tokenExpiresAt && parsed.expires_at) {
+        tokenExpiresAt = parsed.expires_at;
+      }
+    } catch {}
+  }
+
   return {
     id: row.id,
     platform: row.platform,
     username: row.username,
     displayName: row.display_name,
     avatarUrl: row.avatar_url || '',
-    accountType: row.account_type || 'page',
-    accessToken: row.access_token,
+    accountType: row.account_type || (row.platform === 'youtube' ? 'channel' : 'page'),
+    accessToken,
+    refreshToken,
+    tokenExpiresAt,
     pageId: row.page_id || undefined,
     status: row.status || 'connected',
     followersCount: row.followers_count || 0,
@@ -104,20 +124,39 @@ export function mapDbAccountToAccount(row: any): SocialAccount {
  * Maps SocialAccount to Supabase row
  */
 export function mapAccountToDbAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID): any {
-  return {
+  // If we have a refresh token or expiry, bundle them securely into access_token string as fallback
+  let tokenPayload = account.accessToken || '';
+  if (account.refreshToken || account.tokenExpiresAt) {
+    tokenPayload = JSON.stringify({
+      access_token: account.accessToken,
+      refresh_token: account.refreshToken,
+      expires_at: account.tokenExpiresAt,
+    });
+  }
+
+  const row: any = {
     id: account.id,
     workspace_id: workspaceId || DEFAULT_WORKSPACE_ID,
     platform: account.platform,
     username: account.username,
     display_name: account.displayName,
     avatar_url: account.avatarUrl || null,
-    account_type: account.accountType || 'page',
-    access_token: account.accessToken,
+    account_type: account.accountType || (account.platform === 'youtube' ? 'channel' : 'page'),
+    access_token: tokenPayload,
     page_id: account.pageId || account.id,
     status: account.status || 'connected',
     followers_count: account.followersCount || 0,
     updated_at: new Date().toISOString(),
   };
+
+  if (account.refreshToken) {
+    row.refresh_token = account.refreshToken;
+  }
+  if (account.tokenExpiresAt) {
+    row.token_expires_at = account.tokenExpiresAt;
+  }
+
+  return row;
 }
 
 export const DatabaseService = {
@@ -327,7 +366,17 @@ export const DatabaseService = {
     if (supabase) {
       try {
         const dbAcc = mapAccountToDbAccount(account, workspaceId);
-        await supabase.from('connected_accounts').upsert(dbAcc);
+        const { error: upsertErr } = await supabase.from('connected_accounts').upsert(dbAcc);
+        if (upsertErr) {
+          console.warn('[Supabase] Initial account upsert warning:', upsertErr.message);
+          // If error occurred (e.g. column refresh_token not created yet), strip custom columns and retry
+          delete dbAcc.refresh_token;
+          delete dbAcc.token_expires_at;
+          const { error: retryErr } = await supabase.from('connected_accounts').upsert(dbAcc);
+          if (retryErr) {
+            console.error('[Supabase] Fallback account upsert error:', retryErr);
+          }
+        }
       } catch (err) {
         console.error('Failed to sync account to Supabase:', err);
       }

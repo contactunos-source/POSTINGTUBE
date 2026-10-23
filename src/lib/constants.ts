@@ -1,5 +1,12 @@
 import { SocialPlatform, PlatformConfig } from '@/types/social';
 
+export const INITIAL_SUPPORTED_PLATFORMS: SocialPlatform[] = [
+  'facebook',
+  'instagram',
+  'youtube',
+  'twitter',
+];
+
 export const PLATFORM_CONFIGS: Record<SocialPlatform, PlatformConfig> = {
   facebook: {
     name: 'Facebook',

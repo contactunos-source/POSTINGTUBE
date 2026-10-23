@@ -339,6 +339,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
+    // Platform validation: YouTube requires video media
+    const hasYouTubeTarget = selectedAccountIds.some(
+      (id) => accounts.find((a) => a.id === id)?.platform === 'youtube'
+    );
+    const hasVideo = mediaList.some((m) => m.type === 'video');
+    if (action !== 'draft' && hasYouTubeTarget && !hasVideo) {
+      alert('YouTube only supports video uploads (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const scheduledIso =
@@ -501,7 +511,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                 {showPlatformFilterMenu && (
                   <div className="absolute left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-xl p-1 z-50 text-xs">
-                    {['all', 'facebook', 'instagram', 'twitter', 'linkedin'].map((plat) => (
+                    {['all', 'facebook', 'instagram', 'youtube', 'twitter'].map((plat) => (
                       <button
                         key={plat}
                         type="button"

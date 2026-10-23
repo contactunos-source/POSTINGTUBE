@@ -35,6 +35,12 @@ export async function GET(req: NextRequest) {
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
       for (const post of duePosts || []) {
+        // Lock post immediately to prevent duplicate runs
+        await supabase
+          .from('posts')
+          .update({ status: 'publishing' })
+          .eq('id', post.id);
+
         let accounts: any[] = [];
 
         if (post.target_account_ids && post.target_account_ids.length > 0) {
@@ -141,6 +147,48 @@ export async function GET(req: NextRequest) {
                 };
                 logs.push(`Failed post #${post.id} on Instagram: ${data.error}`);
               }
+            } else if (account.platform === 'youtube') {
+              const res = await fetch(`${appUrl}/api/youtube/publish`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channelId: account.external_id || account.page_id || account.id,
+                  accessToken: account.access_token,
+                  refreshToken: account.refresh_token,
+                  title: post.platform_overrides?.youtube?.title || post.content.split('\n')[0] || 'Scheduled Video',
+                  description: post.platform_overrides?.youtube?.caption || post.content,
+                  tags: post.tags || [],
+                  mediaUrl,
+                  thumbnailUrl: post.media?.[0]?.thumbnailUrl,
+                  scheduledTimestamp: post.scheduled_for,
+                  postType: post.post_type,
+                }),
+              });
+              const data = await res.json();
+              if (data.success) {
+                postSuccessCount++;
+                publishedCount++;
+                postResults[account.id] = {
+                  status: 'success',
+                  platform: 'youtube',
+                  accountName: account.display_name || account.username,
+                  externalPostId: data.videoId,
+                  externalPostUrl: data.videoUrl,
+                  timestamp: new Date().toISOString(),
+                };
+                logs.push(`Published post #${post.id} to YouTube (${data.videoId})`);
+              } else {
+                postFailCount++;
+                failedCount++;
+                postResults[account.id] = {
+                  status: 'failed',
+                  platform: 'youtube',
+                  accountName: account.display_name || account.username,
+                  errorMessage: data.error || 'Failed to publish to YouTube',
+                  timestamp: new Date().toISOString(),
+                };
+                logs.push(`Failed post #${post.id} on YouTube: ${data.error}`);
+              }
             }
           } catch (channelErr: unknown) {
             postFailCount++;
@@ -160,6 +208,15 @@ export async function GET(req: NextRequest) {
             results: postResults,
           })
           .eq('id', post.id);
+
+        await supabase
+          .from('scheduled_jobs')
+          .update({
+            status: postSuccessCount > 0 ? 'completed' : 'failed',
+            last_error: postFailCount > 0 ? 'Publishing failure recorded in post results' : null,
+            updated_at: now,
+          })
+          .eq('post_id', post.id);
       }
     }
 
