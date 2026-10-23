@@ -92,6 +92,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   // Other platform states
   const [genericHandle, setGenericHandle] = useState('');
   const [genericToken, setGenericToken] = useState('');
+  const [includeLinkedInOrg, setIncludeLinkedInOrg] = useState(false);
 
   // UI Feedback
   const [refreshingPlatform, setRefreshingPlatform] = useState<string | null>(null);
@@ -189,13 +190,35 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
       const isYtSuccess = urlParams.get('youtube_connect_success');
+      const isLiSuccess = urlParams.get('li_connect_success');
+      const isAlreadyConnected = urlParams.get('already_connected');
+      const connectedName = urlParams.get('connected_account_name') || 'LinkedIn Account';
+      const connectedAvatar = urlParams.get('connected_account_avatar') || '';
       const noIgFound = urlParams.get('no_instagram_found');
       const discoveredJson = urlParams.get('discovered_pages') || urlParams.get('discovered_channels');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : 'facebook');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : isLiSuccess || isAlreadyConnected ? 'linkedin' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
-      if (authError) {
+      if (isAlreadyConnected) {
+        setResultModal({
+          isOpen: true,
+          status: 'already_connected',
+          platform: 'linkedin',
+          accountName: connectedName,
+          avatarUrl: connectedAvatar,
+        });
+        setConnectingPlatform(null);
+      } else if (isLiSuccess) {
+        setResultModal({
+          isOpen: true,
+          status: 'success',
+          platform: 'linkedin',
+          accountName: connectedName,
+          avatarUrl: connectedAvatar,
+        });
+        setConnectingPlatform(null);
+      } else if (authError) {
         setVerifyError(decodeURIComponent(authError));
         setResultModal({
           isOpen: true,
@@ -330,7 +353,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         }
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected) {
         window.history.replaceState({}, '', `${window.location.pathname}?tab=connections`);
       }
     }
@@ -2138,79 +2161,30 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                      LinkedIn Page / Profile Name
-                    </label>
+                <div className="space-y-4 pt-1">
+                  <div className="p-3 bg-gray-900/60 border border-gray-800 rounded-xl flex items-start space-x-3">
                     <input
-                      type="text"
-                      placeholder="e.g. Acme Agency or Jane Doe"
-                      value={genericHandle}
-                      onChange={(e) => setGenericHandle(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-[#0A66C2]"
+                      type="checkbox"
+                      id="include_li_org"
+                      checked={includeLinkedInOrg}
+                      onChange={(e) => setIncludeLinkedInOrg(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-700 bg-gray-800 text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
                     />
+                    <label htmlFor="include_li_org" className="text-xs text-gray-300 cursor-pointer select-none">
+                      <span className="font-semibold text-white block">Include LinkedIn Company Pages</span>
+                      <span className="text-[11px] text-gray-400 block mt-0.5">
+                        Requests permissions to also connect Company Pages you administer. Requires Community Management API approval in your LinkedIn Developer Portal.
+                      </span>
+                    </label>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const name = genericHandle.trim() || 'My LinkedIn Profile';
-                      const cleanUser = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                      const newAcc: SocialAccount = {
-                        id: `li_${cleanUser || Date.now()}`,
-                        platform: 'linkedin',
-                        username: cleanUser,
-                        displayName: name,
-                        avatarUrl:
-                          'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&auto=format&fit=crop&q=80',
-                        accountType: 'business',
-                        status: 'connected',
-                        followersCount: 1250,
-                        externalId: `li_${cleanUser || Date.now()}`,
-                      };
-
-                      if (isAccountDuplicate(newAcc)) {
-                        setResultModal({
-                          isOpen: true,
-                          status: 'already_connected',
-                          platform: 'linkedin',
-                          accountName: newAcc.displayName,
-                          avatarUrl: newAcc.avatarUrl,
-                        });
-                        setConnectingPlatform(null);
-                        return;
-                      }
-
-                      const res = await onAddAccount(newAcc);
-                      if (res && res.isDuplicate) {
-                        setResultModal({
-                          isOpen: true,
-                          status: 'already_connected',
-                          platform: 'linkedin',
-                          accountName: newAcc.displayName,
-                          avatarUrl: newAcc.avatarUrl,
-                        });
-                        setConnectingPlatform(null);
-                        return;
-                      }
-
-                      setConnectingPlatform(null);
-                      setGenericHandle('');
-                      setResultModal({
-                        isOpen: true,
-                        status: 'success',
-                        platform: 'linkedin',
-                        accountName: newAcc.displayName,
-                        avatarUrl: newAcc.avatarUrl,
-                      });
-                      if (onNavigateToTab) onNavigateToTab('connections');
-                    }}
+                  <a
+                    href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}${includeLinkedInOrg ? '&include_org=true' : ''}`}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
-                    <span>Authorize LinkedIn Account</span>
-                  </button>
+                    <span>Authorize with Official LinkedIn OAuth</span>
+                  </a>
                 </div>
 
                 <div className="text-center pt-2 border-t border-gray-800">

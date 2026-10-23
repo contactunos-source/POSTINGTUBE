@@ -181,7 +181,8 @@ export const twitterAdapter: PlatformAdapter = {
 
 /**
  * LINKEDIN ADAPTER
- * Official API: LinkedIn Community Management API / Restli v2 posts
+ * Official API: LinkedIn REST Posts API (POST https://api.linkedin.com/rest/posts)
+ * Version: 202401
  */
 export const linkedinAdapter: PlatformAdapter = {
   validatePost(post, override) {
@@ -196,21 +197,94 @@ export const linkedinAdapter: PlatformAdapter = {
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
-    await wait(700);
-    const simulatedUrn = `urn:li:share:${Date.now()}`;
-    return {
-      success: true,
-      externalPostId: simulatedUrn,
-      externalPostUrl: `https://www.linkedin.com/feed/update/${simulatedUrn}`,
-      details: {
-        authorUrn: `urn:li:person:${account.id}`,
-        distributionTarget: 'PUBLIC',
-      },
-    };
+    const text = override?.caption || post.content;
+    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+
+    if (!account.accessToken) {
+      return {
+        success: false,
+        errorMessage: 'LinkedIn account is not authorized or access token is missing. Please reconnect LinkedIn in Configuration -> Connections.',
+      };
+    }
+
+    try {
+      const authorUrn =
+        account.pageId ||
+        account.externalId ||
+        (account.accountType === 'profile' ? `urn:li:person:${account.id.replace(/^li_/, '')}` : `urn:li:organization:${account.id.replace(/^li_org_/, '')}`);
+
+      const response = await fetch('/api/linkedin/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorUrn,
+          accessToken: account.accessToken,
+          message: text,
+          mediaUrl,
+          postType: post.postType,
+          title: override?.title || post.content.split('\n')[0]?.substring(0, 80),
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        return {
+          success: true,
+          externalPostId: data.postId,
+          externalPostUrl: data.postUrl,
+          details: data.details,
+        };
+      } else {
+        return {
+          success: false,
+          errorMessage: `LinkedIn API Error: ${data.error || 'Failed to publish post'}`,
+          details: data.details,
+        };
+      }
+    } catch (e) {
+      const err = e instanceof Error ? e.message : 'Network error communicating with LinkedIn API';
+      return { success: false, errorMessage: err };
+    }
   },
-  async refreshTokens() {
-    await wait(400);
-    return { success: true, newExpiry: new Date(Date.now() + 60 * 86400 * 1000).toISOString() };
+  async refreshTokens(account) {
+    if (!account.refreshToken) {
+      if (account.tokenExpiresAt && new Date(account.tokenExpiresAt).getTime() > Date.now()) {
+        return { success: true, newExpiry: account.tokenExpiresAt };
+      }
+      return { success: false, error: 'No refresh token available. User must re-authenticate with LinkedIn.' };
+    }
+
+    try {
+      const clientId = process.env.LINKEDIN_CLIENT_ID;
+      const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+
+      if (!clientId || !clientSecret) {
+        return { success: false, error: 'LinkedIn Client ID / Secret not configured for token refresh.' };
+      }
+
+      const res = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: account.refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.access_token) {
+        const expiresIn = data.expires_in || 5184000;
+        const expiry = new Date(Date.now() + expiresIn * 1000).toISOString();
+        return { success: true, newExpiry: expiry };
+      }
+
+      return { success: false, error: data.error_description || data.error || 'Failed to refresh LinkedIn token' };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Token refresh network failure';
+      return { success: false, error: msg };
+    }
   },
 };
 

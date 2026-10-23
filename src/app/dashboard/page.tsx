@@ -108,6 +108,8 @@ export default function DashboardPage() {
       const isOAuthReturn = typeof window !== 'undefined' && (
         new URLSearchParams(window.location.search).get('fb_connect_success') === 'true' ||
         new URLSearchParams(window.location.search).get('ig_connect_success') === 'true' ||
+        new URLSearchParams(window.location.search).get('youtube_connect_success') === 'true' ||
+        new URLSearchParams(window.location.search).get('li_connect_success') === 'true' ||
         new URLSearchParams(window.location.search).get('tab') === 'connections'
       );
       const hasAuthCookie = typeof document !== 'undefined' && document.cookie.includes('pb_auth_session=1');
@@ -238,6 +240,7 @@ export default function DashboardPage() {
         params.get('fb_connect_success') === 'true' ||
         params.get('ig_connect_success') === 'true' ||
         params.get('youtube_connect_success') === 'true' ||
+        params.get('li_connect_success') === 'true' ||
         params.get('tab') === 'connections' ||
         params.get('error');
 
