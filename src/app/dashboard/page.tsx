@@ -7,6 +7,7 @@ import { ConnectedAccounts } from '@/components/ConnectedAccounts';
 import { CalendarView } from '@/components/CalendarView';
 import { PostsManager } from '@/components/PostsManager';
 import { AnalyticsView } from '@/components/AnalyticsView';
+import { InsightsView } from '@/components/InsightsView';
 import { SettingsView } from '@/components/SettingsView';
 import { CreatePostDashboard } from '@/components/CreatePostDashboard';
 import { BackgroundWorkerSimulator } from '@/components/BackgroundWorkerSimulator';
@@ -88,6 +89,7 @@ export default function DashboardPage() {
 
   // Track previous tab to guarantee intelligent, safe Back navigation to Dashboard
   const [previousTab, setPreviousTab] = useState<ActiveTab>('new-post');
+  const [selectedInsightsAccountId, setSelectedInsightsAccountId] = useState<string>('all');
 
   // Success Toast Notification state
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -630,6 +632,9 @@ export default function DashboardPage() {
         failedCount={failedCount}
         totalPostsCount={posts.length}
         authUser={authUser}
+        accounts={accounts}
+        selectedInsightsAccountId={selectedInsightsAccountId}
+        onSelectInsightsAccount={(accId) => setSelectedInsightsAccountId(accId)}
       />
 
       {/* Main View Area */}
@@ -807,6 +812,17 @@ export default function DashboardPage() {
         )}
 
         {activeTab === 'analytics' && <AnalyticsView accounts={accounts} posts={posts} />}
+
+        {activeTab === 'insights' && (
+          <InsightsView
+            posts={posts}
+            accounts={accounts}
+            workspaceId={currentWorkspace.id}
+            initialSelectedAccountId={selectedInsightsAccountId}
+            onPostsUpdated={(updated) => setPosts(updated)}
+            onSelectPost={handleEditExistingPost}
+          />
+        )}
 
         {activeTab === 'worker-console' && (
           <BackgroundWorkerSimulator

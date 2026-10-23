@@ -63,6 +63,23 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
+export function formatCreationRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'Created recently';
+  const createdDate = new Date(dateStr);
+  const diffSec = Math.max(0, Math.floor((Date.now() - createdDate.getTime()) / 1000));
+
+  if (diffSec < 45) return 'Created just now';
+  if (diffSec < 90) return 'Created 1 minute ago';
+  if (diffSec < 3600) return `Created ${Math.floor(diffSec / 60)} minutes ago`;
+  const diffHours = Math.floor(diffSec / 3600);
+  if (diffHours === 1) return 'Created 1 hour ago';
+  if (diffHours < 24) return `Created ${diffHours} hours ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Created 1 day ago';
+  if (diffDays < 30) return `Created ${diffDays} days ago`;
+  return `Created on ${format(createdDate, 'MMM d, yyyy')}`;
+}
+
 function getAggregatedMetrics(post: Post) {
   const analyticsMap: Record<string, PlatformPostMetrics> = {
     ...(post.analytics || {}),
@@ -174,6 +191,13 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   useEffect(() => {
     setLocalPosts(posts);
   }, [posts]);
+
+  // Auto-tick every 30 seconds to dynamically update relative creation timestamps
+  const [, setCreationTimestampTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setCreationTimestampTick((t) => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const activeMenuRef = useRef<HTMLDivElement>(null);
   const detailsModalRef = useRef<HTMLDivElement>(null);
@@ -592,7 +616,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                     return (
                       <div key={post.id} className="flex items-start gap-4 md:gap-6">
                         {/* Left Time Column */}
-                        <div className="w-20 md:w-24 shrink-0 pt-2 text-right">
+                        <div className="w-24 md:w-28 shrink-0 pt-2 text-right space-y-1">
                           <div className="text-xs md:text-sm font-bold text-gray-900 tracking-tight">
                             {timeStr}
                           </div>
@@ -615,6 +639,15 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                             ) : (
                               <span className="text-gray-500 font-semibold">Draft</span>
                             )}
+                          </div>
+
+                          {/* Dynamic Relative Creation Timestamp */}
+                          <div
+                            className="text-[10px] text-gray-500 font-medium hover:text-gray-900 transition-colors cursor-help pt-1 flex items-center justify-end space-x-1"
+                            title={`Database Creation Time: ${formatDateTimeWithSeconds(post.createdAt)}`}
+                          >
+                            <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                            <span className="truncate">{formatCreationRelativeTime(post.createdAt)}</span>
                           </div>
                         </div>
 
@@ -1142,29 +1175,61 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
               </div>
 
-              {/* Timing Metadata Section */}
-              {(selectedPostForDetails.scheduledFor || selectedPostForDetails.publishedAt) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
-                  {selectedPostForDetails.scheduledFor && (
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Intended Scheduled Time</span>
-                      <span className="font-semibold text-gray-900 flex items-center space-x-1.5">
-                        <Clock className="w-3.5 h-3.5 text-sky-600" />
-                        <span>{formatDateTimeWithSeconds(selectedPostForDetails.scheduledFor)}</span>
-                      </span>
-                    </div>
-                  )}
-                  {selectedPostForDetails.publishedAt && (
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Actual Publishing Time</span>
-                      <span className="font-semibold text-emerald-700 flex items-center space-x-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{formatDateTimeWithSeconds(selectedPostForDetails.publishedAt)}</span>
-                      </span>
-                    </div>
-                  )}
+              {/* Timing & Creation Metadata Section (Creation Time kept strictly separate from scheduled & published) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+                {/* 1. Creation Time */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                    Creation Time
+                  </span>
+                  <div
+                    className="font-semibold text-gray-800 flex items-center space-x-1.5 cursor-help"
+                    title={`Database Creation Time: ${formatDateTimeWithSeconds(selectedPostForDetails.createdAt)}`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                    <span className="truncate">{formatCreationRelativeTime(selectedPostForDetails.createdAt)}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 block truncate">
+                    {formatDateTimeWithSeconds(selectedPostForDetails.createdAt)}
+                  </span>
                 </div>
-              )}
+
+                {/* 2. Scheduled Time */}
+                {selectedPostForDetails.scheduledFor ? (
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                      Intended Scheduled Time
+                    </span>
+                    <span className="font-semibold text-sky-900 flex items-center space-x-1.5">
+                      <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span className="truncate">{formatDateTimeWithSeconds(selectedPostForDetails.scheduledFor)}</span>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5 opacity-60">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Scheduled Time</span>
+                    <span className="text-gray-500 text-[11px]">—</span>
+                  </div>
+                )}
+
+                {/* 3. Published Time */}
+                {selectedPostForDetails.publishedAt ? (
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                      Actual Publishing Time
+                    </span>
+                    <span className="font-semibold text-emerald-700 flex items-center space-x-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">{formatDateTimeWithSeconds(selectedPostForDetails.publishedAt)}</span>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5 opacity-60">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Publishing Time</span>
+                    <span className="text-gray-500 text-[11px]">Not published yet</span>
+                  </div>
+                )}
+              </div>
 
               {/* Real-Time Platform Analytics Detailed Card */}
               {selectedPostForDetails.status === 'published' && (() => {

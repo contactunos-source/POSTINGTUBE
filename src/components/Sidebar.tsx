@@ -17,9 +17,11 @@ import {
   Building2,
   Cpu,
   BarChart3,
+  TrendingUp,
 } from 'lucide-react';
-import { Workspace } from '@/types/social';
+import { Workspace, SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
+import { PlatformLogo } from './SocialIcons';
 
 export type ActiveTab =
   | 'new-post'
@@ -32,6 +34,7 @@ export type ActiveTab =
   | 'posts-failed'
   | 'connections'
   | 'analytics'
+  | 'insights'
   | 'settings'
   | 'worker-console';
 
@@ -47,6 +50,9 @@ interface SidebarProps {
   failedCount: number;
   totalPostsCount?: number;
   authUser?: any;
+  accounts?: SocialAccount[];
+  selectedInsightsAccountId?: string;
+  onSelectInsightsAccount?: (accountId: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -61,7 +67,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   failedCount,
   totalPostsCount = 0,
   authUser,
+  accounts = [],
+  selectedInsightsAccountId = 'all',
+  onSelectInsightsAccount,
 }) => {
+  const connectedAccounts = accounts.filter((a) => a.status === 'connected' || !a.status);
   const displayName =
     authUser?.user_metadata?.full_name ||
     authUser?.email?.split('@')[0] ||
@@ -199,6 +209,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Calendar className="w-4 h-4" />
               <span>Calendar</span>
             </button>
+          </nav>
+        </div>
+
+        {/* Insights Section */}
+        <div>
+          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1 flex items-center justify-between">
+            <span>Insights</span>
+            {connectedAccounts.length > 0 && (
+              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded-full">
+                {connectedAccounts.length}
+              </span>
+            )}
+          </div>
+          <nav className="space-y-0.5">
+            <button
+              onClick={() => {
+                setActiveTab('insights');
+                if (onSelectInsightsAccount) onSelectInsightsAccount('all');
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'insights' && (!selectedInsightsAccountId || selectedInsightsAccountId === 'all')
+                  ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                <span>All Insights</span>
+              </div>
+            </button>
+
+            {/* List of Connected Social Accounts */}
+            {connectedAccounts.map((acc) => {
+              const isSelected = activeTab === 'insights' && selectedInsightsAccountId === acc.id;
+              return (
+                <button
+                  key={acc.id}
+                  onClick={() => {
+                    setActiveTab('insights');
+                    if (onSelectInsightsAccount) onSelectInsightsAccount(acc.id);
+                  }}
+                  className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 pl-4 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                  title={acc.displayName || acc.username}
+                >
+                  <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0">
+                    <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="truncate">{acc.displayName || acc.username}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
 
