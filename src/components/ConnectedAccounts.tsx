@@ -1244,21 +1244,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
                       </button>
 
-                      {discoveredPages.length > 0 ? (
-                        <button
-                          onClick={handleFinishConnection}
-                          className="px-7 py-2.5 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors shadow-sm cursor-pointer"
-                        >
-                          Save Instagram Account
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setConnectingPlatform(null)}
-                          className="px-5 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
-                        >
-                          Close
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setConnectingPlatform(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
                     </div>
 
                     {showHelp && (
