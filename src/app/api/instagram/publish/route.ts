@@ -155,6 +155,32 @@ export async function POST(req: NextRequest) {
         publicMediaUrl = `${baseUrl}${mediaUrl}`;
       }
 
+      // If local photo and on localhost, upload buffer to high-speed public CDN so Meta can fetch it
+      if (!isVideo && isLocalFile) {
+        try {
+          const filePath = path.join(process.cwd(), 'public', mediaUrl);
+          const fileBuffer = await readFile(filePath);
+          const base64 = fileBuffer.toString('base64');
+
+          const form = new FormData();
+          form.append('key', '6d207e02198a847aa98d0a2a901485a5');
+          form.append('action', 'upload');
+          form.append('source', base64);
+          form.append('format', 'json');
+
+          const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
+            method: 'POST',
+            body: form,
+          });
+          const cdnData = await cdnRes.json();
+          if (cdnData?.image?.url) {
+            publicMediaUrl = cdnData.image.url;
+          }
+        } catch (cdnErr) {
+          console.warn('Local image CDN relay note:', cdnErr);
+        }
+      }
+
       const containerUrl = `${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`;
       const containerParams = new URLSearchParams();
       containerParams.append('access_token', cleanToken);
