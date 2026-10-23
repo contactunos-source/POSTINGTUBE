@@ -194,8 +194,8 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 1. Date & Time Inputs Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative" ref={calendarRef}>
+      {/* 1. Date & Time Inputs (Stacked cleanly for right-sidebar card) */}
+      <div className="space-y-3.5 relative" ref={calendarRef}>
         {/* Date Selector Field */}
         <div>
           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
@@ -211,18 +211,18 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
                 : 'bg-gray-50/80 hover:bg-white border-gray-200 hover:border-gray-300 text-gray-800'
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <CalendarIcon className="w-3.5 h-3.5" />
+            <div className="flex items-center space-x-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <CalendarIcon className="w-4 h-4" />
               </div>
-              <span className="truncate">{displayFormattedDate}</span>
+              <span className="font-bold text-gray-900 text-xs">{displayFormattedDate}</span>
             </div>
-            <span className="text-[10px] text-gray-400 font-medium">Change</span>
+            <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isCalendarOpen ? 'rotate-90 text-emerald-600' : ''}`} />
           </button>
 
           {/* Calendar Popover */}
           {isCalendarOpen && (
-            <div className="absolute top-full left-0 mt-2 z-50 w-72 bg-white rounded-2xl border border-gray-200 shadow-[0_12px_36px_rgba(0,0,0,0.12)] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute top-[68px] left-0 z-50 w-72 bg-white rounded-2xl border border-gray-200 shadow-[0_12px_36px_rgba(0,0,0,0.12)] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
               {/* Calendar Header with Navigation */}
               <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
                 <h4 className="text-xs font-bold text-gray-900">
@@ -284,7 +284,7 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
                       type="button"
                       disabled={isDayPast}
                       onClick={() => handleSelectDay(day)}
-                      className={`w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition-all ${
+                      className={`w-8 h-8 rounded-xl text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
                         isDaySelected
                           ? 'bg-emerald-600 text-white font-bold shadow-xs scale-105'
                           : isDayPast
@@ -311,14 +311,14 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
                     onDateChange(`${yStr}-${mStr}-${dStr}`);
                     setIsCalendarOpen(false);
                   }}
-                  className="text-emerald-600 font-bold hover:underline"
+                  className="text-emerald-600 font-bold hover:underline cursor-pointer"
                 >
                   Select Today
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsCalendarOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
                   Close
                 </button>
@@ -333,12 +333,12 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
             <Clock className="w-3.5 h-3.5 text-gray-400" />
             <span>Publishing Time</span>
           </label>
-          <div className="flex items-center space-x-1.5 bg-gray-50/80 border border-gray-200 rounded-xl p-1">
+          <div className="flex items-center space-x-2 bg-gray-50/80 border border-gray-200 rounded-xl p-2">
             {/* Hour Dropdown */}
             <select
               value={hour12}
               onChange={(e) => handleTimeUpdate(parseInt(e.target.value, 10), minute, period as 'AM' | 'PM')}
-              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
+              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                 <option key={h} value={h}>
@@ -347,13 +347,13 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
               ))}
             </select>
 
-            <span className="font-bold text-gray-400">:</span>
+            <span className="font-bold text-gray-400 text-sm">:</span>
 
             {/* Minute Dropdown (5-min intervals or any 0-59) */}
             <select
               value={minute}
               onChange={(e) => handleTimeUpdate(hour12, parseInt(e.target.value, 10), period as 'AM' | 'PM')}
-              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
+              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
             >
               {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
                 <option key={m} value={m}>
@@ -363,11 +363,11 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
             </select>
 
             {/* AM / PM Segmented Control */}
-            <div className="flex items-center bg-gray-200/60 p-0.5 rounded-lg text-[11px] font-bold ml-auto">
+            <div className="flex items-center bg-gray-200/70 p-0.5 rounded-lg text-xs font-bold ml-auto">
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'AM')}
-                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                   period === 'AM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
@@ -378,7 +378,7 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'PM')}
-                className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                   period === 'PM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
