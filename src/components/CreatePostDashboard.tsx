@@ -7,8 +7,10 @@ import {
   SocialPlatform,
   PostType,
   PostMedia,
+  PlatformCaptionOverride,
 } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
+import { ScheduleDatePicker } from './ScheduleDatePicker';
 import {
   Calendar,
   Clock,
@@ -18,6 +20,7 @@ import {
   Video,
   X,
   ChevronDown,
+  ChevronUp,
   Sparkles,
   Check,
   Send,
@@ -26,7 +29,6 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  Layers,
   FileUp,
   Smile,
   Hash,
@@ -34,7 +36,6 @@ import {
   MessageSquare,
   Users,
   Eye,
-  RotateCcw,
   Crop,
   ShieldCheck,
   Zap,
@@ -44,7 +45,8 @@ import {
   Bookmark,
   MoreHorizontal,
   Flame,
-  CheckCheck,
+  Copy,
+  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe } from '@/lib/dateUtils';
@@ -58,6 +60,51 @@ interface CreatePostDashboardProps {
   openAiModal: (initialPrompt: string, onGenerated: (caption: string) => void) => void;
 }
 
+// 4 Primary Supported Social Platforms with Brand Specifications
+interface PlatformConfig {
+  id: SocialPlatform;
+  name: string;
+  brandColor: string;
+  badgeBg: string;
+  limit: number;
+  placeholder: string;
+}
+
+const SUPPORTED_PLATFORMS: PlatformConfig[] = [
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    brandColor: '#FF0000',
+    badgeBg: 'bg-red-600',
+    limit: 5000,
+    placeholder: 'Write video description, links, and timestamps...',
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram',
+    brandColor: '#E1306C',
+    badgeBg: 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600',
+    limit: 2200,
+    placeholder: 'Write an engaging Instagram caption with line breaks and #hashtags...',
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    brandColor: '#1877F2',
+    badgeBg: 'bg-blue-600',
+    limit: 63206,
+    placeholder: 'Write a detailed Facebook post update for your audience...',
+  },
+  {
+    id: 'twitter',
+    name: 'X (Twitter)',
+    brandColor: '#000000',
+    badgeBg: 'bg-black',
+    limit: 280,
+    placeholder: "What's happening? Keep it under 280 characters...",
+  },
+];
+
 export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   postType: initialPostType,
   accounts,
@@ -66,11 +113,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   onBack,
   openAiModal,
 }) => {
-  // Allow user to switch post type directly in this dashboard
+  // Format Switcher (text / image / video)
   const [currentPostType, setCurrentPostType] = useState<'text' | 'image' | 'video'>(initialPostType);
 
   // Accounts state
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(() => {
+    if (initialPost?.targetAccountIds && initialPost.targetAccountIds.length > 0) {
+      return initialPost.targetAccountIds;
+    }
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('pb_remembered_accounts');
       if (saved) {
@@ -80,16 +130,44 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         } catch {}
       }
     }
-    return initialPost?.targetAccountIds || (accounts.length > 0 ? [accounts[0].id] : []);
+    return accounts.length > 0 ? [accounts[0].id] : [];
   });
 
   const [rememberAccounts, setRememberAccounts] = useState(true);
-  const [accountSearch, setAccountSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<string>('all');
-  const [showPlatformFilterMenu, setShowPlatformFilterMenu] = useState(false);
 
-  // Content states
+  // Main Caption state
   const [mainCaption, setMainCaption] = useState<string>(initialPost?.content || '');
+
+  // Separate platform-specific captions state (dynamically shown when multiple platforms are selected)
+  const [platformCaptions, setPlatformCaptions] = useState<
+    Record<SocialPlatform, { caption: string; title?: string }>
+  >(() => {
+    return {
+      facebook: {
+        caption: initialPost?.platformOverrides?.facebook?.caption || '',
+      },
+      instagram: {
+        caption: initialPost?.platformOverrides?.instagram?.caption || '',
+      },
+      youtube: {
+        caption: initialPost?.platformOverrides?.youtube?.caption || '',
+        title: initialPost?.platformOverrides?.youtube?.title || '',
+      },
+      twitter: {
+        caption: initialPost?.platformOverrides?.twitter?.caption || '',
+      },
+      linkedin: { caption: '' },
+      tiktok: { caption: '' },
+      pinterest: { caption: '' },
+      threads: { caption: '' },
+      bluesky: { caption: '' },
+    };
+  });
+
+  // Collapsed / Expanded state for platform-specific caption cards
+  const [collapsedPlatforms, setCollapsedPlatforms] = useState<Record<string, boolean>>({});
+
+  // Media state
   const [mediaList, setMediaList] = useState<PostMedia[]>(initialPost?.media || []);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -100,9 +178,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [destinationLink, setDestinationLink] = useState('');
   const [collaborators, setCollaborators] = useState(initialPost?.collaborators || '');
   const [isAiGenerated, setIsAiGenerated] = useState(initialPost?.isAiGenerated || false);
-  const [activeConfigTab, setActiveConfigTab] = useState<'none' | 'comment' | 'link' | 'collab' | 'overrides'>('none');
+  const [activeConfigTab, setActiveConfigTab] = useState<'none' | 'comment' | 'link' | 'collab'>('none');
 
-  // Aspect ratio crop simulator (1:1, 4:5, 9:16, 16:9, original)
+  // Aspect ratio crop simulator (original, 1:1, 4:5, 9:16, 16:9)
   const [aspectRatio, setAspectRatio] = useState<'original' | '1:1' | '4:5' | '9:16' | '16:9'>('original');
 
   // Scheduling states (Mode: 'schedule' vs 'instant')
@@ -110,25 +188,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [scheduledDate, setScheduledDate] = useState(() => {
     if (initialPost?.scheduledFor) {
       const d = parseDateSafe(initialPost.scheduledFor);
-      if (d) {
-        return format(d, 'yyyy-MM-dd');
-      }
+      if (d) return format(d, 'yyyy-MM-dd');
     }
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    return format(d, 'yyyy-MM-dd');
   });
   const [scheduledTime, setScheduledTime] = useState(() => {
     if (initialPost?.scheduledFor) {
       const d = parseDateSafe(initialPost.scheduledFor);
-      if (d) {
-        return format(d, 'HH:mm');
-      }
+      if (d) return format(d, 'HH:mm');
     }
     return '14:00';
   });
+  const [isScheduleValid, setIsScheduleValid] = useState(true);
 
-  // Preview tab on the right
+  // Right column tab: 'schedule' or 'preview'
   const [activeRightTab, setActiveRightTab] = useState<'schedule' | 'preview'>('schedule');
 
   // UI state
@@ -141,7 +216,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Listen for clipboard paste (Ctrl+V) anywhere on the page to paste images directly!
+  // Clipboard Paste (Ctrl+V) listener
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
@@ -153,26 +228,56 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  // Filter accounts by search & platform
-  const displayedAccounts = useMemo(() => {
-    return accounts.filter((a) => {
-      const matchSearch =
-        a.displayName.toLowerCase().includes(accountSearch.toLowerCase()) ||
-        a.username.toLowerCase().includes(accountSearch.toLowerCase());
-      const matchPlatform = platformFilter === 'all' || a.platform === platformFilter;
-      return matchSearch && matchPlatform;
+  // Compute selected platforms from selectedAccountIds
+  const selectedPlatforms = useMemo(() => {
+    const plats = new Set<SocialPlatform>();
+    selectedAccountIds.forEach((id) => {
+      const acc = accounts.find((a) => a.id === id);
+      if (acc) plats.add(acc.platform);
     });
-  }, [accounts, accountSearch, platformFilter]);
+    return Array.from(plats);
+  }, [selectedAccountIds, accounts]);
 
-  const activeAccount = accounts.find((a) => selectedAccountIds.includes(a.id)) || accounts[0] || {
-    id: 'fb_default',
-    displayName: 'U NOS Digital marketing',
-    username: 'unosdigitalmarketing',
-    platform: 'facebook' as SocialPlatform,
-    avatarUrl: '',
+  // Active account for live preview
+  const activeAccount = useMemo(() => {
+    return accounts.find((a) => selectedAccountIds.includes(a.id)) || accounts[0] || {
+      id: 'fb_default',
+      displayName: 'PostBridge Studio',
+      username: 'postbridge',
+      platform: 'facebook' as SocialPlatform,
+      avatarUrl: '',
+    };
+  }, [accounts, selectedAccountIds]);
+
+  // Circular Platform Selection Handler
+  const handleTogglePlatform = (platformId: SocialPlatform) => {
+    const platformAccounts = accounts.filter((a) => a.platform === platformId);
+
+    if (platformAccounts.length === 0) {
+      showToast(`No ${platformId} account connected yet. Add one in Connections.`);
+      return;
+    }
+
+    const platformAccountIds = platformAccounts.map((a) => a.id);
+    const isCurrentlySelected = platformAccountIds.some((id) => selectedAccountIds.includes(id));
+
+    let nextAccountIds: string[];
+    if (isCurrentlySelected) {
+      // Deselect platform accounts (keep at least one account overall if possible)
+      const remaining = selectedAccountIds.filter((id) => !platformAccountIds.includes(id));
+      nextAccountIds = remaining.length > 0 ? remaining : selectedAccountIds;
+    } else {
+      // Select all accounts for this platform
+      nextAccountIds = Array.from(new Set([...selectedAccountIds, ...platformAccountIds]));
+    }
+
+    setSelectedAccountIds(nextAccountIds);
+    if (rememberAccounts && typeof window !== 'undefined') {
+      localStorage.setItem('pb_remembered_accounts', JSON.stringify(nextAccountIds));
+    }
   };
 
-  // Toggle account
+  // Specific account toggler
   const handleToggleAccount = (id: string) => {
     let next: string[];
     if (selectedAccountIds.includes(id)) {
@@ -187,15 +292,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
-  const selectAllAccounts = () => {
-    const allIds = accounts.map((a) => a.id);
-    setSelectedAccountIds(allIds);
-    if (rememberAccounts && typeof window !== 'undefined') {
-      localStorage.setItem('pb_remembered_accounts', JSON.stringify(allIds));
-    }
-  };
-
-  // File upload handler
+  // File Upload Handler
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
@@ -244,98 +341,69 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setIsUploading(false);
   };
 
-  // Preset Timing helper
-  const applyPresetTime = (type: 'tonight' | 'tomorrow_morning' | 'tomorrow_afternoon' | 'primetime') => {
-    const now = new Date();
-    const d = new Date();
+  // AI Quick Writing Helpers
+  const applyAiEnhancement = (
+    mode: 'improve' | 'punchy' | 'cta' | 'hashtags',
+    targetPlatform?: SocialPlatform
+  ) => {
+    const currentText = targetPlatform
+      ? platformCaptions[targetPlatform]?.caption || mainCaption
+      : mainCaption;
 
-    if (type === 'tonight') {
-      d.setHours(18, 0, 0);
-      setScheduledDate(d.toISOString().split('T')[0]);
-      setScheduledTime('18:00');
-    } else if (type === 'tomorrow_morning') {
-      d.setDate(now.getDate() + 1);
-      setScheduledDate(d.toISOString().split('T')[0]);
-      setScheduledTime('09:00');
-    } else if (type === 'tomorrow_afternoon') {
-      d.setDate(now.getDate() + 1);
-      setScheduledDate(d.toISOString().split('T')[0]);
-      setScheduledTime('14:00');
-    } else if (type === 'primetime') {
-      d.setDate(now.getDate() + 1);
-      setScheduledDate(d.toISOString().split('T')[0]);
-      setScheduledTime('20:00');
-    }
-    setScheduleMode('schedule');
-    showToast('Schedule timing updated');
-  };
+    let enhanced = currentText;
 
-  // AI Quick Writing helpers
-  const applyAiEnhancement = (mode: 'improve' | 'punchy' | 'cta' | 'hashtags') => {
     if (mode === 'improve') {
-      if (!mainCaption.trim()) {
-        setMainCaption(
-          '🚀 We are excited to announce our newest breakthrough feature!\n\nDesigned to make multi-channel publishing seamless and fast. Let us know what you think below! 👇'
-        );
+      if (!currentText.trim()) {
+        enhanced =
+          '🚀 We are excited to announce our newest breakthrough feature!\n\nDesigned to make multi-channel publishing seamless and fast. Let us know what you think below! 👇';
       } else {
-        setMainCaption(
-          `✨ ${mainCaption.trim()}\n\nDrop a comment below with your thoughts and share with someone who needs this!`
-        );
+        enhanced = `✨ ${currentText.trim()}\n\nDrop a comment below with your thoughts and share with someone who needs this!`;
       }
     } else if (mode === 'punchy') {
-      setMainCaption(
-        `⚡ Quick realization:\n\n${mainCaption.trim() || 'Consistency beats intensity every single time.'}\n\nAgree or disagree?`
-      );
+      enhanced = `⚡ Quick realization:\n\n${
+        currentText.trim() || 'Consistency beats intensity every single time.'
+      }\n\nAgree or disagree?`;
     } else if (mode === 'cta') {
-      setMainCaption(
-        `${mainCaption.trim()}\n\n👉 Save this post for later and click the link in bio to learn more!`
-      );
+      enhanced = `${currentText.trim()}\n\n👉 Save this post for later and click the link in bio to learn more!`;
     } else if (mode === 'hashtags') {
-      setMainCaption(
-        `${mainCaption.trim()}\n\n#marketing #growth #socialmedia #business #productivity #tech`
-      );
+      enhanced = `${currentText.trim()}\n\n#marketing #growth #socialmedia #business #productivity #tech`;
     }
-    showToast('Caption enhanced!');
+
+    if (targetPlatform) {
+      setPlatformCaptions((prev) => ({
+        ...prev,
+        [targetPlatform]: {
+          ...prev[targetPlatform],
+          caption: enhanced,
+        },
+      }));
+      showToast(`Enhanced ${targetPlatform} caption!`);
+    } else {
+      setMainCaption(enhanced);
+      showToast('Main caption enhanced!');
+    }
   };
 
-  // Formatted date string
-  const formattedDateString = (() => {
-    try {
-      const [year, month, day] = scheduledDate.split('-').map(Number);
-      return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch {
-      return scheduledDate;
-    }
-  })();
+  // Copy Main Caption into specific Platform Caption
+  const copyFromMainCaption = (platformId: SocialPlatform) => {
+    setPlatformCaptions((prev) => ({
+      ...prev,
+      [platformId]: {
+        ...prev[platformId],
+        caption: mainCaption,
+        title:
+          platformId === 'youtube' && !prev[platformId]?.title
+            ? mainCaption.split('\n')[0] || ''
+            : prev[platformId]?.title,
+      },
+    }));
+    showToast(`Copied main caption to ${platformId}`);
+  };
 
-  const formattedTimeString = (() => {
-    try {
-      const [h, m] = scheduledTime.split(':').map(Number);
-      const date = new Date();
-      date.setHours(h, m, 0);
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-    } catch {
-      return scheduledTime;
-    }
-  })();
-
-  // Character limit calculations
-  const platformLimit = activeAccount.platform === 'twitter' ? 280 : 2200;
-  const charsRemaining = Math.max(0, platformLimit - mainCaption.length);
-  const hashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
-
-  // Execute Save / Publish
+  // Handle Save / Publish execution
   const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
     if (action !== 'draft' && selectedAccountIds.length === 0) {
-      alert('Please select at least one social account to post to.');
+      alert('Please select at least one social platform to publish to.');
       return;
     }
 
@@ -345,7 +413,30 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     );
     const hasVideo = mediaList.some((m) => m.type === 'video');
     if (action !== 'draft' && hasYouTubeTarget && !hasVideo) {
-      alert('YouTube only supports video uploads (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.');
+      alert(
+        'YouTube requires a video upload (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.'
+      );
+      return;
+    }
+
+    // X (Twitter) 280-character limit validation
+    const hasTwitterTarget = selectedAccountIds.some(
+      (id) => accounts.find((a) => a.id === id)?.platform === 'twitter'
+    );
+    if (action !== 'draft' && hasTwitterTarget) {
+      const twitterText =
+        platformCaptions.twitter?.caption?.trim() || mainCaption.trim();
+      if (twitterText.length > 280) {
+        alert(
+          `X (Twitter) posts cannot exceed 280 characters (Current length: ${twitterText.length}). Please shorten your tweet or edit the X caption.`
+        );
+        return;
+      }
+    }
+
+    // Schedule validation
+    if (action === 'schedule' && !isScheduleValid) {
+      alert('The selected schedule time is in the past. Please select a future date and time.');
       return;
     }
 
@@ -356,11 +447,28 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString()
           : undefined;
 
+      // Build platformOverrides for each selected platform
+      const overrides: Partial<Record<SocialPlatform, PlatformCaptionOverride>> = {};
+      selectedPlatforms.forEach((p) => {
+        const platData = platformCaptions[p];
+        const captionText = platData?.caption?.trim() ? platData.caption : mainCaption;
+        overrides[p] = {
+          caption: destinationLink ? `${captionText}\n\n🔗 ${destinationLink}` : captionText,
+          title:
+            p === 'youtube'
+              ? platData?.title?.trim() || mainCaption.split('\n')[0] || 'Scheduled Video'
+              : undefined,
+          firstComment: p === 'instagram' ? firstComment || undefined : undefined,
+          collaborator: p === 'instagram' ? collaborators || undefined : undefined,
+        };
+      });
+
       const payload: Partial<Post> = {
         content: destinationLink ? `${mainCaption}\n\n🔗 ${destinationLink}` : mainCaption,
         targetAccountIds: selectedAccountIds,
         media: mediaList,
         postType: currentPostType === 'video' ? 'reel' : 'post',
+        platformOverrides: overrides,
         firstComment: firstComment || undefined,
         collaborators: collaborators || undefined,
         isAiGenerated,
@@ -398,6 +506,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
+  // Live character stats for main caption
+  const mainCharsRemaining = Math.max(0, 2200 - mainCaption.length);
+  const mainHashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
+
   return (
     <div className="min-h-full bg-[#f8fafc] text-gray-900 p-6 md:p-8 font-sans">
       {/* Toast Alert */}
@@ -414,8 +526,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           <div>
             <div className="flex items-center space-x-2 text-xs text-gray-400 mb-1">
               <button
+                type="button"
                 onClick={onBack}
-                className="hover:text-gray-800 flex items-center space-x-1 font-semibold transition-colors"
+                className="hover:text-gray-800 flex items-center space-x-1 font-semibold transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
@@ -438,9 +551,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setCurrentPostType('image')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     currentPostType === 'image'
-                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
@@ -449,9 +562,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setCurrentPostType('video')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     currentPostType === 'video'
-                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
@@ -460,9 +573,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setCurrentPostType('text')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     currentPostType === 'text'
-                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
@@ -472,123 +585,159 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </div>
           </div>
 
-          {/* Quick status & keyboard shortcut info */}
-          <div className="flex items-center space-x-3 text-xs text-gray-400">
-            <span className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-100 font-semibold">
+          {/* Publishing Ready Status */}
+          <div className="flex items-center space-x-3 text-xs text-gray-500">
+            <span className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200/80 font-bold shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Ready to dispatch</span>
+              <span>
+                {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'Platform' : 'Platforms'} Selected
+              </span>
             </span>
           </div>
         </div>
 
-        {/* Channel Selection Bar */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-3.5 shadow-2xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Search & Platform Filter */}
-            <div className="flex items-center space-x-2 flex-1 max-w-md">
-              <div className="relative flex-1">
-                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Filter channels..."
-                  value={accountSearch}
-                  onChange={(e) => setAccountSearch(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50/50 text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Platform Filter Dropdown */}
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowPlatformFilterMenu(!showPlatformFilterMenu)}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 shadow-2xs"
-                >
-                  <Filter className="w-3 h-3 text-gray-500" />
-                  <span className="capitalize">{platformFilter === 'all' ? 'All Platforms' : platformFilter}</span>
-                  <ChevronDown className="w-3 h-3 text-gray-400" />
-                </button>
-
-                {showPlatformFilterMenu && (
-                  <div className="absolute left-0 mt-1.5 w-44 bg-white border border-gray-200 rounded-xl shadow-xl p-1 z-50 text-xs">
-                    {['all', 'facebook', 'instagram', 'youtube', 'twitter'].map((plat) => (
-                      <button
-                        key={plat}
-                        type="button"
-                        onClick={() => {
-                          setPlatformFilter(plat);
-                          setShowPlatformFilterMenu(false);
-                        }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-gray-100 capitalize text-gray-700 flex items-center justify-between"
-                      >
-                        <span>{plat === 'all' ? 'All Platforms' : plat}</span>
-                        {platformFilter === plat && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+        {/* 1. REDESIGNED CIRCULAR SOCIAL PLATFORM SELECTOR */}
+        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
+                Select Social Platforms
+              </span>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Click any platform to toggle target publishing channels. Multiple platforms supported.
+              </p>
             </div>
 
-            {/* Quick Actions & Remember toggle */}
             <div className="flex items-center space-x-3 text-xs">
               <button
                 type="button"
-                onClick={selectAllAccounts}
-                className="text-emerald-600 hover:text-emerald-700 font-semibold"
+                onClick={() => {
+                  const allAccIds = accounts.map((a) => a.id);
+                  setSelectedAccountIds(allAccIds);
+                  if (rememberAccounts && typeof window !== 'undefined') {
+                    localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
+                  }
+                }}
+                className="text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
               >
                 Select All
               </button>
-
+              <span className="text-gray-300">•</span>
               <label className="flex items-center space-x-1.5 text-gray-500 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberAccounts}
                   onChange={(e) => setRememberAccounts(e.target.checked)}
-                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
                 />
-                <span className="font-medium">Remember</span>
+                <span className="font-medium text-xs">Remember</span>
               </label>
             </div>
           </div>
 
-          {/* Connected Channels List */}
-          <div className="flex items-center gap-2.5 overflow-x-auto py-1 scrollbar-thin">
-            {displayedAccounts.map((account) => {
-              const isSelected = selectedAccountIds.includes(account.id);
+          {/* Premium Circular Platform Buttons Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+            {SUPPORTED_PLATFORMS.map((plat) => {
+              const platformAccounts = accounts.filter((a) => a.platform === plat.id);
+              const isConnected = platformAccounts.length > 0;
+              const isSelected =
+                isConnected &&
+                platformAccounts.some((a) => selectedAccountIds.includes(a.id));
+
               return (
-                <button
-                  key={account.id}
-                  type="button"
-                  onClick={() => handleToggleAccount(account.id)}
-                  className={`flex items-center space-x-2.5 px-3 py-1.5 rounded-xl border transition-all shrink-0 ${
+                <div
+                  key={plat.id}
+                  onClick={() => handleTogglePlatform(plat.id)}
+                  role="checkbox"
+                  aria-checked={isSelected}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                      e.preventDefault();
+                      handleTogglePlatform(plat.id);
+                    }
+                  }}
+                  className={`group relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all cursor-pointer select-none text-center ${
                     isSelected
-                      ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950 font-semibold shadow-xs ring-1 ring-emerald-400/50'
-                      : 'bg-white border-gray-200 hover:border-gray-300 text-gray-600 opacity-60 hover:opacity-100'
+                      ? 'bg-emerald-50/40 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
+                      : isConnected
+                      ? 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xs'
+                      : 'bg-gray-50/60 border-gray-200/60 opacity-60 hover:opacity-100 hover:bg-white'
                   }`}
                 >
-                  <div className="relative">
-                    <img
-                      src={account.avatarUrl}
-                      alt={account.username}
-                      className="w-6 h-6 rounded-full object-cover border border-gray-200"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-white flex items-center justify-center shadow-xs">
-                      <PlatformLogo platform={account.platform} className="w-2.5 h-2.5" />
+                  {/* Circular Platform Icon Container */}
+                  <div className="relative mb-2.5">
+                    <div
+                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs ${
+                        isSelected
+                          ? 'bg-white border-2 border-emerald-500 ring-2 ring-offset-2 ring-emerald-500'
+                          : 'bg-gray-50 border border-gray-200 text-gray-500 group-hover:bg-white group-hover:text-gray-800'
+                      }`}
+                    >
+                      <PlatformLogo
+                        platform={plat.id}
+                        className={`w-7 h-7 transition-colors ${
+                          isSelected ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'
+                        }`}
+                      />
                     </div>
+
+                    {/* Selected Badge Indicator */}
+                    {isSelected && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs ring-2 ring-white animate-in zoom-in-75 duration-150">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                    )}
                   </div>
 
-                  <span className="text-xs truncate max-w-[130px]">{account.displayName}</span>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                </button>
+                  {/* Platform Label */}
+                  <span className="text-xs font-bold text-gray-900 block leading-tight">
+                    {plat.name}
+                  </span>
+
+                  {/* Channel Status */}
+                  <span className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[120px]">
+                    {isConnected
+                      ? `@${platformAccounts[0].username || platformAccounts[0].displayName}`
+                      : 'Not Connected'}
+                  </span>
+                </div>
               );
             })}
           </div>
+
+          {/* Connected Channels Pill Strip (for multi-account fine-grained selection) */}
+          {accounts.length > 0 && (
+            <div className="pt-2 border-t border-gray-100 flex items-center space-x-2 overflow-x-auto py-1">
+              <span className="text-[11px] font-semibold text-gray-400 shrink-0">
+                Active Channels:
+              </span>
+              {accounts.map((acc) => {
+                const isAccSelected = selectedAccountIds.includes(acc.id);
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => handleToggleAccount(acc.id)}
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all shrink-0 cursor-pointer ${
+                      isAccSelected
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs'
+                        : 'bg-white border-gray-200 text-gray-500 hover:text-gray-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <PlatformLogo platform={acc.platform} className="w-3 h-3" />
+                    <span className="truncate max-w-[110px]">{acc.displayName}</span>
+                    {isAccSelected && <Check className="w-3 h-3 text-emerald-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 2-Column Main Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* LEFT 2 COLUMNS: Media + Caption + Advanced Configurations */}
+          {/* LEFT 2 COLUMNS: Media + Captions + Customizations */}
           <div className="lg:col-span-2 space-y-6">
             {/* Media Dropzone (when postType is image or video) */}
             {currentPostType !== 'text' && (
@@ -608,11 +757,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                          {currentPostType === 'video' ? <Video className="w-4 h-4 text-emerald-600" /> : <FileImage className="w-4 h-4 text-emerald-600" />}
+                          {currentPostType === 'video' ? (
+                            <Video className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <FileImage className="w-4 h-4 text-emerald-600" />
+                          )}
                           <span>Attached Media ({mediaList.length})</span>
                         </span>
                         <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-mono">
-                          {mediaList[0].size ? `${(mediaList[0].size / 1024 / 1024).toFixed(1)} MB` : 'Ready'}
+                          {mediaList[0].size
+                            ? `${(mediaList[0].size / 1024 / 1024).toFixed(1)} MB`
+                            : 'Ready'}
                         </span>
                       </div>
 
@@ -624,7 +779,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             key={ratio}
                             type="button"
                             onClick={() => setAspectRatio(ratio)}
-                            className={`px-2 py-0.5 rounded-md transition-colors ${
+                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
                               aspectRatio === ratio
                                 ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                                 : 'hover:text-gray-900'
@@ -638,9 +793,15 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                     {/* Preview Box */}
                     <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-950 flex items-center justify-center group shadow-xs">
-                      <div className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center`}>
+                      <div
+                        className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center`}
+                      >
                         {mediaList[0].type === 'video' ? (
-                          <video src={mediaList[0].url} controls className="w-full h-full object-contain" />
+                          <video
+                            src={mediaList[0].url}
+                            controls
+                            className="w-full h-full object-contain"
+                          />
                         ) : (
                           <img
                             src={mediaList[0].thumbnailUrl || mediaList[0].url}
@@ -655,7 +816,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md"
+                          className="px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer"
                         >
                           <Upload className="w-3 h-3" />
                           <span>Replace</span>
@@ -663,7 +824,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setMediaList([])}
-                          className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md"
+                          className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md cursor-pointer"
                           title="Remove media"
                         >
                           <X className="w-4 h-4" />
@@ -672,7 +833,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     </div>
                   </div>
                 ) : (
-                  /* Big High-Converting Dropzone */
+                  /* High-Converting Dropzone */
                   <div
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -688,7 +849,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
                     }}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[200px] ${
+                    className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] ${
                       isDragging
                         ? 'border-emerald-500 bg-emerald-50/60 scale-[0.99]'
                         : 'border-gray-300 hover:border-emerald-500 bg-gray-50/40 hover:bg-emerald-50/20'
@@ -718,54 +879,103 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 {isUploading && (
                   <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-2 animate-pulse">
                     <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <span>Uploading and syncing media to durable server & Supabase storage...</span>
+                    <span>Uploading and syncing media securely...</span>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Main Caption Editor */}
+            {/* 2. MAIN / DEFAULT CAPTION EDITOR */}
             <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-3 focus-within:border-emerald-500 transition-colors">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800 flex items-center space-x-1.5">
-                  <span>Main Caption</span>
-                  <Info className="w-3.5 h-3.5 text-gray-400" />
-                </span>
+                <div>
+                  <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                    <span>
+                      {selectedPlatforms.length > 1
+                        ? 'Main Caption (Master / Default)'
+                        : selectedPlatforms[0] === 'youtube'
+                        ? 'YouTube Video Description'
+                        : selectedPlatforms[0] === 'twitter'
+                        ? 'X (Twitter) Tweet Content'
+                        : selectedPlatforms[0] === 'instagram'
+                        ? 'Instagram Caption'
+                        : 'Post Caption'}
+                    </span>
+                    <Info className="w-3.5 h-3.5 text-gray-400" />
+                  </span>
+                  {selectedPlatforms.length > 1 && (
+                    <span className="text-[11px] text-gray-400 block mt-0.5">
+                      Applies automatically across all selected platforms unless customized below.
+                    </span>
+                  )}
+                </div>
 
                 {/* Live Character & Hashtag Counter */}
                 <div className="flex items-center space-x-3 text-xs text-gray-400 font-medium">
                   <span className="flex items-center space-x-1">
                     <Hash className="w-3 h-3 text-gray-400" />
-                    <span>{hashtagsCount}/30</span>
+                    <span>{mainHashtagsCount}/30</span>
                   </span>
                   <span>•</span>
-                  <span className={`font-mono ${charsRemaining < 50 ? 'text-rose-600 font-bold' : ''}`}>
-                    {mainCaption.length} / {platformLimit}
+                  <span
+                    className={`font-mono ${
+                      selectedPlatforms.includes('twitter') && mainCaption.length > 280
+                        ? 'text-rose-600 font-bold'
+                        : mainCharsRemaining < 50
+                        ? 'text-amber-600 font-bold'
+                        : ''
+                    }`}
+                  >
+                    {mainCaption.length} chars
                   </span>
                 </div>
               </div>
+
+              {/* YouTube Title field (shown when only YouTube is selected) */}
+              {selectedPlatforms.length === 1 && selectedPlatforms[0] === 'youtube' && (
+                <div className="space-y-1 pb-1 border-b border-gray-100">
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                    YouTube Video Title (Required)
+                  </label>
+                  <input
+                    type="text"
+                    value={platformCaptions.youtube?.title || ''}
+                    onChange={(e) =>
+                      setPlatformCaptions((prev) => ({
+                        ...prev,
+                        youtube: { ...prev.youtube, title: e.target.value },
+                      }))
+                    }
+                    placeholder="Enter an engaging video title (max 100 characters)..."
+                    maxLength={100}
+                    className="w-full text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-hidden focus:border-emerald-500"
+                  />
+                </div>
+              )}
 
               {/* Textarea */}
               <textarea
                 value={mainCaption}
                 onChange={(e) => setMainCaption(e.target.value)}
-                placeholder="What would you like to share? Write your post or generate ideas with AI..."
-                className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-36 leading-relaxed bg-transparent"
+                placeholder="What would you like to share? Write your post or use AI to craft engaging copy..."
+                className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
               />
 
               {/* Emoji Picker Bar */}
               {showEmojiPicker && (
                 <div className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base">
-                  {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map((em) => (
-                    <button
-                      key={em}
-                      type="button"
-                      onClick={() => setMainCaption(mainCaption + ' ' + em)}
-                      className="hover:scale-125 transition-transform p-1"
-                    >
-                      {em}
-                    </button>
-                  ))}
+                  {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
+                    (em) => (
+                      <button
+                        key={em}
+                        type="button"
+                        onClick={() => setMainCaption(mainCaption + ' ' + em)}
+                        className="hover:scale-125 transition-transform p-1 cursor-pointer"
+                      >
+                        {em}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
 
@@ -776,7 +986,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => applyAiEnhancement('improve')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                   >
                     <Sparkles className="w-3 h-3 text-emerald-600" />
                     <span>Engage</span>
@@ -784,7 +994,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => applyAiEnhancement('punchy')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                   >
                     <Flame className="w-3 h-3 text-amber-500" />
                     <span>Punchy Hook</span>
@@ -792,14 +1002,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => applyAiEnhancement('cta')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                   >
                     <span>+ CTA</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => applyAiEnhancement('hashtags')}
-                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 border border-gray-200 font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                   >
                     <span># Viral Tags</span>
                   </button>
@@ -809,7 +1019,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                     title="Insert Emoji"
                   >
                     <Smile className="w-4 h-4" />
@@ -817,7 +1027,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => openAiModal(mainCaption, (gen) => setMainCaption(gen))}
-                    className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1"
+                    className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Full AI Generator</span>
@@ -825,6 +1035,209 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EACH SELECTED PLATFORM (Shown when >1 platform selected) */}
+            {selectedPlatforms.length > 1 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-2">
+                      <span>Platform-Specific Captions</span>
+                      <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {selectedPlatforms.length} active
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Customize independent captions for each platform, or leave blank to inherit the main caption.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stack of Platform Caption Editors */}
+                <div className="space-y-3">
+                  {selectedPlatforms.map((platId) => {
+                    const platConfig =
+                      SUPPORTED_PLATFORMS.find((p) => p.id === platId) || {
+                        id: platId,
+                        name: platId,
+                        brandColor: '#4F46E5',
+                        badgeBg: 'bg-indigo-600',
+                        limit: 2200,
+                        placeholder: 'Write platform caption...',
+                      };
+
+                    const platData = platformCaptions[platId] || { caption: '' };
+                    const currentCaptionText = platData.caption;
+                    const charCount = currentCaptionText.length;
+                    const isOverLimit = platConfig.limit && charCount > platConfig.limit;
+                    const isCollapsed = collapsedPlatforms[platId];
+
+                    return (
+                      <div
+                        key={platId}
+                        className={`bg-white rounded-2xl border transition-all ${
+                          isOverLimit
+                            ? 'border-rose-400 ring-2 ring-rose-400/20 shadow-xs'
+                            : 'border-gray-200/90 hover:border-gray-300 shadow-xs'
+                        }`}
+                      >
+                        {/* Platform Caption Header */}
+                        <div className="p-4 flex items-center justify-between border-b border-gray-100">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                              <PlatformLogo platform={platId} className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-gray-900 block leading-tight">
+                                {platConfig.name} Caption
+                              </span>
+                              <span className="text-[10px] text-gray-400">
+                                {platData.caption.trim() ? 'Customized' : 'Inheriting main caption'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            {/* Live Char Limit Counter */}
+                            <span
+                              className={`text-xs font-mono px-2 py-0.5 rounded-md ${
+                                isOverLimit
+                                  ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200'
+                                  : 'bg-gray-50 text-gray-500 font-medium'
+                              }`}
+                            >
+                              {charCount} / {platConfig.limit}
+                            </span>
+
+                            {/* Copy from Main Caption Button */}
+                            <button
+                              type="button"
+                              onClick={() => copyFromMainCaption(platId)}
+                              className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
+                              title="Copy main caption into this field"
+                            >
+                              <Copy className="w-3 h-3 text-gray-400" />
+                              <span className="hidden sm:inline">Copy Main</span>
+                            </button>
+
+                            {/* Collapse/Expand Toggle */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCollapsedPlatforms((prev) => ({
+                                  ...prev,
+                                  [platId]: !prev[platId],
+                                }))
+                              }
+                              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                            >
+                              {isCollapsed ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronUp className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Caption Input Area */}
+                        {!isCollapsed && (
+                          <div className="p-4 space-y-3">
+                            {/* Special YouTube Title Field */}
+                            {platId === 'youtube' && (
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                                  YouTube Video Title (Required)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={platData.title || ''}
+                                  onChange={(e) =>
+                                    setPlatformCaptions((prev) => ({
+                                      ...prev,
+                                      youtube: { ...prev.youtube, title: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="Enter YouTube title (e.g., How to Build a SaaS in 2026)..."
+                                  maxLength={100}
+                                  className="w-full text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-hidden focus:border-emerald-500"
+                                />
+                              </div>
+                            )}
+
+                            {/* Specific Caption Textarea */}
+                            <textarea
+                              value={platData.caption}
+                              onChange={(e) =>
+                                setPlatformCaptions((prev) => ({
+                                  ...prev,
+                                  [platId]: {
+                                    ...prev[platId],
+                                    caption: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={
+                                platData.caption.trim()
+                                  ? platConfig.placeholder
+                                  : `${platConfig.placeholder} (Leave blank to use main caption)`
+                              }
+                              className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200/80 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
+                            />
+
+                            {/* Platform Validation Warning if exceeded */}
+                            {isOverLimit && (
+                              <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  Exceeds {platConfig.name} character limit ({charCount} / {platConfig.limit}). Please trim text.
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Platform AI Quick Actions */}
+                            <div className="flex items-center justify-between text-xs pt-1">
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => applyAiEnhancement('punchy', platId)}
+                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
+                                >
+                                  ⚡ Punchy
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyAiEnhancement('hashtags', platId)}
+                                  className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-emerald-800 font-medium text-[11px] transition-colors cursor-pointer"
+                                >
+                                  # Tags
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openAiModal(platData.caption || mainCaption, (gen) => {
+                                    setPlatformCaptions((prev) => ({
+                                      ...prev,
+                                      [platId]: { ...prev[platId], caption: gen },
+                                    }));
+                                  })
+                                }
+                                className="text-emerald-700 hover:text-emerald-800 font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
+                              >
+                                <Sparkles className="w-3 h-3 text-emerald-600" />
+                                <span>AI Generator for {platConfig.name}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Advanced Configurations Tabbed Strip */}
             <div className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-xs space-y-3">
@@ -835,7 +1248,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveConfigTab(activeConfigTab === 'comment' ? 'none' : 'comment')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
                     activeConfigTab === 'comment' || firstComment
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -848,7 +1261,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveConfigTab(activeConfigTab === 'link' ? 'none' : 'link')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
                     activeConfigTab === 'link' || destinationLink
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -861,7 +1274,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveConfigTab(activeConfigTab === 'collab' ? 'none' : 'collab')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer ${
                     activeConfigTab === 'collab' || collaborators
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'text-gray-600 hover:bg-gray-100'
@@ -876,11 +1289,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               {activeConfigTab === 'comment' && (
                 <div className="pt-1 space-y-2 text-xs animate-fade-in">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-gray-700">First Comment (Published automatically with post)</span>
+                    <span className="font-semibold text-gray-700">
+                      First Comment (Published automatically with post)
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setFirstComment('Drop your thoughts below! Check the link in bio for more details. 🚀 #viral')}
-                      className="text-emerald-600 hover:underline font-semibold"
+                      onClick={() =>
+                        setFirstComment(
+                          'Drop your thoughts below! Check the link in bio for more details. 🚀 #viral'
+                        )
+                      }
+                      className="text-emerald-600 hover:underline font-semibold cursor-pointer"
                     >
                       Insert Suggested
                     </button>
@@ -923,16 +1342,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Scheduling Engine & Live Feed Preview */}
+          {/* RIGHT COLUMN: Redesigned Scheduling Engine & Live Feed Preview */}
           <div className="space-y-4">
             {/* Tab switch between Schedule Settings and Live Preview */}
             <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200/80">
               <button
                 type="button"
                 onClick={() => setActiveRightTab('schedule')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
                   activeRightTab === 'schedule'
-                    ? 'bg-white text-emerald-800 shadow-2xs'
+                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
@@ -942,9 +1361,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveRightTab('preview')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
                   activeRightTab === 'preview'
-                    ? 'bg-white text-emerald-800 shadow-2xs'
+                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
@@ -954,18 +1373,18 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </div>
 
             {activeRightTab === 'schedule' ? (
-              /* Scheduling Card */
+              /* Redesigned Scheduling Engine Card */
               <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
-                {/* Schedule Mode Switcher */}
+                {/* Publishing Mode Switcher (Schedule vs Instant) */}
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
                   <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
                     <button
                       type="button"
                       onClick={() => setScheduleMode('schedule')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
                         scheduleMode === 'schedule'
-                          ? 'bg-white text-emerald-700 shadow-2xs'
+                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                           : 'text-gray-500 hover:text-gray-900'
                       }`}
                     >
@@ -974,9 +1393,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => setScheduleMode('instant')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
                         scheduleMode === 'instant'
-                          ? 'bg-white text-emerald-700 shadow-2xs'
+                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                           : 'text-gray-500 hover:text-gray-900'
                       }`}
                     >
@@ -986,91 +1405,37 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
 
                 {scheduleMode === 'schedule' ? (
-                  <div className="space-y-4">
-                    {/* Quick Timing Presets */}
-                    <div className="space-y-1.5">
-                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">
-                        Quick Timings
-                      </span>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => applyPresetTime('tonight')}
-                          className="px-2.5 py-1.5 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-gray-700 text-left font-medium transition-colors"
-                        >
-                          Today 6:00 PM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyPresetTime('tomorrow_morning')}
-                          className="px-2.5 py-1.5 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-gray-700 text-left font-medium transition-colors"
-                        >
-                          Tomorrow 9:00 AM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyPresetTime('tomorrow_afternoon')}
-                          className="px-2.5 py-1.5 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-gray-700 text-left font-medium transition-colors"
-                        >
-                          Tomorrow 2:00 PM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyPresetTime('primetime')}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-emerald-800 text-left font-bold transition-colors"
-                        >
-                          🔥 Prime 8:00 PM
-                        </button>
-                      </div>
-                    </div>
+                  <div className="space-y-5">
+                    {/* Professional Date & Time Picker Component */}
+                    <ScheduleDatePicker
+                      scheduledDate={scheduledDate}
+                      scheduledTime={scheduledTime}
+                      onDateChange={(d) => setScheduledDate(d)}
+                      onTimeChange={(t) => setScheduledTime(t)}
+                      onValidationChange={(valid) => setIsScheduleValid(valid)}
+                    />
 
-                    {/* Date & Time Input Boxes */}
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-semibold text-gray-400 block mb-1">DATE</label>
-                          <input
-                            type="date"
-                            value={scheduledDate}
-                            onChange={(e) => setScheduledDate(e.target.value)}
-                            className="w-full text-xs font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-hidden focus:border-emerald-500"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-semibold text-gray-400 block mb-1">TIME</label>
-                          <input
-                            type="time"
-                            value={scheduledTime}
-                            onChange={(e) => setScheduledTime(e.target.value)}
-                            className="w-full text-xs font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-hidden focus:border-emerald-500"
-                          />
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-gray-500">
-                        Will publish on <strong className="text-gray-800">{formattedDateString}</strong> at <strong className="text-gray-800">{formattedTimeString}</strong> (local time).
-                      </p>
-                    </div>
-
-                    {/* Big Action Button */}
+                    {/* Schedule Post Action Button */}
                     <button
                       type="button"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !isScheduleValid}
                       onClick={() => handleExecute('schedule')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Calendar className="w-4 h-4" />
                       <span>{isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
                     </button>
                   </div>
                 ) : (
-                  /* Instant Publishing Mode */
+                  /* Instant Live Dispatch Mode */
                   <div className="space-y-4">
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
                       <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
                         <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                        <span>Your post will be dispatched directly to your connected Meta channels via Graph API v20.0 right now.</span>
+                        <span>
+                          Your post will be published immediately to all {selectedPlatforms.length} selected platforms using official APIs.
+                        </span>
                       </div>
                     </div>
 
@@ -1081,26 +1446,28 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
                     >
                       <Send className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Publishing to Meta...' : 'Publish Live Now'}</span>
+                      <span>{isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
                     </button>
                   </div>
                 )}
 
-                {/* Subtext info */}
+                {/* Status Bar */}
                 <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
                   <span className="flex items-center space-x-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} selected</span>
+                    <span>
+                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
+                    </span>
                   </span>
                   <span>Supabase Queue Active</span>
                 </div>
 
-                {/* Secondary: Save to Drafts */}
+                {/* Secondary Save to Draft */}
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => handleExecute('draft')}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5"
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5 text-gray-500" />
                   <span>Save as Draft</span>
@@ -1120,7 +1487,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 {/* Post Header */}
                 <div className="p-3 flex items-center space-x-2.5">
                   <img
-                    src={activeAccount.avatarUrl}
+                    src={activeAccount.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
                     alt={activeAccount.displayName}
                     className="w-9 h-9 rounded-full object-cover border border-gray-200"
                   />
@@ -1136,9 +1503,18 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* Caption in Preview */}
+                {/* Video Title (if YouTube) */}
+                {activeAccount.platform === 'youtube' && (
+                  <div className="px-3 pb-1 font-bold text-xs text-gray-900">
+                    {platformCaptions.youtube?.title || mainCaption.split('\n')[0] || 'Scheduled Video Title'}
+                  </div>
+                )}
+
+                {/* Caption in Preview (uses platform-specific caption if customized, else mainCaption) */}
                 <div className="px-3 pb-2 text-xs text-gray-800 leading-relaxed whitespace-pre-line break-words">
-                  {mainCaption || 'Your post caption preview will appear here in real-time...'}
+                  {platformCaptions[activeAccount.platform]?.caption ||
+                    mainCaption ||
+                    'Your post caption preview will appear here in real-time...'}
                 </div>
 
                 {/* Media Preview in Card */}

@@ -24,9 +24,9 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
     <div className="p-8 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Create a New Post</h1>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Create a New Post</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Select post format to open the multi-platform composer with platform-specific custom rules.
+          Select post format to open the multi-platform composer with circular channel selectors and independent platform captions.
         </p>
       </div>
 
@@ -35,20 +35,22 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
         {/* Text Post */}
         <div
           onClick={() => onSelectType('text')}
-          className="group relative flex flex-col items-center justify-center p-8 bg-white border-2 border-dashed border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
+          className="group relative flex flex-col items-center justify-center p-8 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
         >
           <div className="w-16 h-16 rounded-2xl bg-gray-50 group-hover:bg-emerald-50 flex items-center justify-center text-gray-400 group-hover:text-emerald-600 transition-colors mb-4">
             <Type className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors">
+          <h3 className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">
             Text Post
           </h3>
           <p className="text-xs text-gray-400 mt-1 mb-6">Short updates, questions, links and thoughts</p>
 
-          {/* Social logos strip */}
-          <div className="flex items-center space-x-2 text-gray-400 group-hover:text-gray-600">
+          {/* Social circular logos strip */}
+          <div className="flex items-center space-x-2">
             {textPlatforms.map((p) => (
-              <PlatformLogo key={p} platform={p} className="w-4 h-4" />
+              <div key={p} className="w-6 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shadow-2xs">
+                <PlatformLogo platform={p} className="w-3.5 h-3.5 text-gray-600" />
+              </div>
             ))}
           </div>
         </div>
@@ -56,19 +58,21 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
         {/* Image Post */}
         <div
           onClick={() => onSelectType('image')}
-          className="group relative flex flex-col items-center justify-center p-8 bg-white border-2 border-dashed border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
+          className="group relative flex flex-col items-center justify-center p-8 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
         >
           <div className="w-16 h-16 rounded-2xl bg-gray-50 group-hover:bg-emerald-50 flex items-center justify-center text-gray-400 group-hover:text-emerald-600 transition-colors mb-4">
             <ImageIcon className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors">
+          <h3 className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">
             Image Post
           </h3>
           <p className="text-xs text-gray-400 mt-1 mb-6">Photos, graphics, infographics and carousels</p>
 
-          <div className="flex items-center space-x-2 text-gray-400 group-hover:text-gray-600">
+          <div className="flex items-center space-x-2">
             {imagePlatforms.map((p) => (
-              <PlatformLogo key={p} platform={p} className="w-4 h-4" />
+              <div key={p} className="w-6 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shadow-2xs">
+                <PlatformLogo platform={p} className="w-3.5 h-3.5 text-gray-600" />
+              </div>
             ))}
           </div>
         </div>
@@ -76,19 +80,21 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
         {/* Video Post */}
         <div
           onClick={() => onSelectType('video')}
-          className="group relative flex flex-col items-center justify-center p-8 bg-white border-2 border-dashed border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
+          className="group relative flex flex-col items-center justify-center p-8 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer text-center min-h-[260px]"
         >
           <div className="w-16 h-16 rounded-2xl bg-gray-50 group-hover:bg-emerald-50 flex items-center justify-center text-gray-400 group-hover:text-emerald-600 transition-colors mb-4">
             <VideoIcon className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors">
+          <h3 className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-colors">
             Video Post
           </h3>
-          <p className="text-xs text-gray-400 mt-1 mb-6">Reels, TikToks, Shorts and widescreen videos</p>
+          <p className="text-xs text-gray-400 mt-1 mb-6">Reels, Shorts, and widescreen HD videos</p>
 
-          <div className="flex items-center space-x-2 text-gray-400 group-hover:text-gray-600">
+          <div className="flex items-center space-x-2">
             {videoPlatforms.map((p) => (
-              <PlatformLogo key={p} platform={p} className="w-4 h-4" />
+              <div key={p} className="w-6 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shadow-2xs">
+                <PlatformLogo platform={p} className="w-3.5 h-3.5 text-gray-600" />
+              </div>
             ))}
           </div>
         </div>
@@ -100,7 +106,7 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
           <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
             {connectedCount === 0 ? (
-              <span>No channels connected yet. Link your Facebook Page or social account to start publishing.</span>
+              <span>No channels connected yet. Link your social accounts to start publishing.</span>
             ) : (
               <span>
                 You have <strong className="font-semibold">{connectedCount} social {connectedCount === 1 ? 'channel' : 'channels'}</strong> connected.
@@ -110,9 +116,9 @@ export const NewPostLaunchpad: React.FC<NewPostLaunchpadProps> = ({
         </div>
         <button
           onClick={onGoToConnections}
-          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center space-x-1"
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center space-x-1 cursor-pointer"
         >
-          <span>{connectedCount === 0 ? 'Connect Facebook Page' : 'Manage accounts'}</span>
+          <span>{connectedCount === 0 ? 'Connect channels' : 'Manage accounts'}</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
