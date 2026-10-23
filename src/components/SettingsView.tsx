@@ -3,34 +3,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Workspace, SocialAccount } from '@/types/social';
 import {
-  Info,
-  X,
   User,
   AlertTriangle,
-  ExternalLink,
   CheckCircle2,
   Camera,
   Trash2,
-  ShieldCheck,
-  ShieldAlert,
   Lock,
   Mail,
   KeyRound,
   Eye,
   EyeOff,
   Bell,
-  Smartphone,
   Laptop,
   LogOut,
-  RefreshCw,
   Loader2,
-  Check,
-  Copy,
 } from 'lucide-react';
 import { supabase, signOutUser } from '@/lib/supabase';
 import { DeleteChannelModal } from '@/components/DeleteChannelModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
-import { TwoFactorAuthModal } from '@/components/TwoFactorAuthModal';
 
 interface SettingsViewProps {
   currentWorkspace: Workspace;
@@ -50,9 +40,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   accounts = [],
   onRemoveAccount,
 }) => {
-  // Banner state
-  const [showBanner, setShowBanner] = useState(true);
-
   // Profile Form States
   const [photoUrl, setPhotoUrl] = useState<string>('');
   const [name, setName] = useState<string>('');
@@ -65,12 +52,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [passwordLoading, setPasswordLoading] = useState<boolean>(false);
-
-  // 2FA States
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(false);
-  const [factorId, setFactorId] = useState<string | null>(null);
-  const [is2FaModalOpen, setIs2FaModalOpen] = useState(false);
-  const [twoFactorAction, setTwoFactorAction] = useState<'enable' | 'disable'>('enable');
 
   // Deletion Modals State
   const [channelToDelete, setChannelToDelete] = useState<SocialAccount | null>(null);
@@ -88,7 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize and load saved profile & MFA status
+  // Initialize and load saved profile
   useEffect(() => {
     // 1. Set from authUser if provided
     if (authUser) {
@@ -117,9 +98,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           if (parsed.email && !email) setEmail(parsed.email);
           if (parsed.backupEmail && !backupEmail) setBackupEmail(parsed.backupEmail);
           if (parsed.photoUrl && !photoUrl) setPhotoUrl(parsed.photoUrl);
-          if (typeof parsed.twoFactorEnabled === 'boolean') {
-            setTwoFactorEnabled(parsed.twoFactorEnabled);
-          }
         }
 
         const storedNotifs = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
@@ -133,27 +111,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         console.error('Error loading stored settings:', e);
       }
     }
-
-    // 3. Query Supabase for real MFA TOTP factors
-    const queryMfaFactors = async () => {
-      if (supabase && authUser && authUser.id !== 'usr_guest_demo') {
-        try {
-          const { data, error } = await supabase.auth.mfa.listFactors();
-          if (!error && data?.totp) {
-            const verified = data.totp.find((f: any) => f.status === 'verified');
-            if (verified) {
-              setTwoFactorEnabled(true);
-              setFactorId(verified.id);
-            } else {
-              setTwoFactorEnabled(false);
-            }
-          }
-        } catch (mfaErr) {
-          console.warn('Failed to query Supabase MFA factors:', mfaErr);
-        }
-      }
-    };
-    queryMfaFactors();
   }, [authUser]);
 
   const showToast = (msg: string) => {
@@ -168,14 +125,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     email: string;
     backupEmail: string;
     photoUrl: string;
-    twoFactorEnabled: boolean;
   }>) => {
     const data = {
       name: overrides?.name ?? name,
       email: overrides?.email ?? email,
       backupEmail: overrides?.backupEmail ?? backupEmail,
       photoUrl: overrides?.photoUrl ?? photoUrl,
-      twoFactorEnabled: overrides?.twoFactorEnabled ?? twoFactorEnabled,
     };
     if (typeof window !== 'undefined') {
       localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(data));
@@ -354,16 +309,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  // 7. Toggle 2FA Modal Open
-  const handleOpen2FaModal = () => {
-    if (twoFactorEnabled) {
-      setTwoFactorAction('disable');
-    } else {
-      setTwoFactorAction('enable');
-    }
-    setIs2FaModalOpen(true);
-  };
-
   // Notification Preferences Persistence
   const handleToggleNotification = (key: 'publish' | 'failure' | 'digest') => {
     let nextPublish = notifyOnPublish;
@@ -410,32 +355,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2.5 text-xs z-50 animate-fade-in border border-gray-800">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="font-medium">{toastMessage}</span>
-        </div>
-      )}
-
-      {/* 2FA Recommendation Banner (matching screenshot) */}
-      {showBanner && !twoFactorEnabled && (
-        <div className="bg-[#1E293B] text-slate-200 border border-slate-700/80 rounded-xl px-4 py-3 flex items-center justify-between text-xs shadow-xs">
-          <div className="flex items-center space-x-2.5">
-            <Info className="w-4 h-4 text-sky-400 shrink-0" />
-            <span>
-              For added security and easier logins, we recommend setting up two-factor authentication.{' '}
-              <button
-                onClick={handleOpen2FaModal}
-                className="text-sky-400 hover:text-sky-300 font-medium inline-flex items-center space-x-0.5 ml-1 underline cursor-pointer"
-              >
-                <span>Set up now</span>
-                <ExternalLink className="w-3 h-3 ml-0.5" />
-              </button>
-            </span>
-          </div>
-          <button
-            onClick={() => setShowBanner(false)}
-            className="text-slate-400 hover:text-white p-1 rounded-md transition-colors"
-            title="Dismiss"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 
@@ -683,65 +602,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-gray-200/80 pt-2" id="two-factor-section" />
-
-        {/* Two Factor Authentication Section (matching screenshot toggle) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <h3 className="text-sm font-bold text-gray-900">Two Factor Authentication</h3>
-              {twoFactorEnabled ? (
-                <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center space-x-1">
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span>Active & Verified</span>
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  Inactive
-                </span>
-              )}
-            </div>
-
-            {/* Toggle switch matching screenshot */}
-            <button
-              type="button"
-              onClick={handleOpen2FaModal}
-              title={twoFactorEnabled ? 'Click to disable 2FA' : 'Click to enable 2FA'}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-hidden cursor-pointer ${
-                twoFactorEnabled ? 'bg-emerald-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'
-                } flex items-center justify-center shadow-xs`}
-              >
-                {twoFactorEnabled ? (
-                  <span className="text-[9px] text-emerald-600 font-bold">✓</span>
-                ) : (
-                  <span className="text-[9px] text-gray-400 font-bold">✕</span>
-                )}
-              </span>
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed max-w-2xl">
-            Two factor authentication adds an extra layer of security for your account. Whenever you
-            log in to your account, after entering your username and password, you will be asked for a
-            second authentication code that will be sent to you via email or generated on an
-            authentication app, such as Google Authenticator or Authy.{' '}
-            <a
-              href="https://safety.google/authentication/"
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-600 hover:underline inline-flex items-center space-x-0.5"
-            >
-              <span>Learn more</span>
-              <ExternalLink className="w-3 h-3 ml-0.5" />
-            </a>
-          </p>
-        </div>
-
-        {/* Divider */}
         <div className="border-t border-gray-200/80 pt-2" />
 
         {/* Connected Social Channels Management Section */}
@@ -928,20 +788,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Two Factor Authentication Setup / Disable Modal */}
-      <TwoFactorAuthModal
-        isOpen={is2FaModalOpen}
-        onClose={() => setIs2FaModalOpen(false)}
-        action={twoFactorAction}
-        currentFactorId={factorId}
-        onSuccess={(enabled, newFactorId) => {
-          setTwoFactorEnabled(enabled);
-          if (newFactorId) setFactorId(newFactorId);
-          persistProfileToStorage({ twoFactorEnabled: enabled });
-          showToast(enabled ? 'Two-Factor Authentication is now enabled!' : 'Two-Factor Authentication disabled.');
-        }}
-      />
 
       {/* Delete Connected Channel Modal (Requires typing DELETE CHANNEL) */}
       {channelToDelete && (
