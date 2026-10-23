@@ -68,6 +68,88 @@ function formatRelativeTime(date: Date | null): string {
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
+const MediaThumbnail: React.FC<{
+  media?: any;
+  post?: Post;
+  className?: string;
+}> = ({ media, post, className = 'w-10 h-10' }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (!media) {
+    return (
+      <div className={`${className} rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0`}>
+        <span className="text-[10px] font-bold">TXT</span>
+      </div>
+    );
+  }
+
+  // Detect video by type, extension, or filename
+  const isVideo =
+    media.type === 'video' ||
+    /\.(mp4|webm|mov|m4v|avi|mkv)($|\?)/i.test(media.url || '') ||
+    /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(media.name || '');
+
+  // YouTube high-res thumbnail fallback if published to YouTube
+  let ytThumb: string | null = null;
+  if (post?.results) {
+    for (const r of Object.values(post.results)) {
+      if (r?.platform === 'youtube' && r.externalPostId && /^[a-zA-Z0-9_-]{11}$/.test(r.externalPostId)) {
+        ytThumb = `https://img.youtube.com/vi/${r.externalPostId}/hqdefault.jpg`;
+        break;
+      }
+    }
+  }
+
+  // An image thumbnail is valid only if it does NOT point to a video file
+  const hasRealImageThumb =
+    Boolean(media.thumbnailUrl) &&
+    !/\.(mp4|webm|mov|m4v|avi|mkv)($|\?)/i.test(media.thumbnailUrl || '');
+
+  const imageSrc = ytThumb || (hasRealImageThumb ? media.thumbnailUrl : (!isVideo ? media.url : null));
+
+  return (
+    <div className={`${className} rounded-lg overflow-hidden shrink-0 bg-gray-950 border border-gray-200 relative`}>
+      {isVideo ? (
+        <div className="w-full h-full relative flex items-center justify-center bg-gray-950">
+          {imageSrc && !imgFailed ? (
+            <img
+              src={imageSrc}
+              alt={media.name || 'Video cover'}
+              onError={() => setImgFailed(true)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <video
+              src={`${media.url}#t=0.001`}
+              preload="metadata"
+              muted
+              playsInline
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          )}
+          {/* Video play overlay indicator */}
+          <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+            <div className="w-4 h-4 rounded-full bg-black/60 flex items-center justify-center shadow-xs">
+              <Play className="w-2 h-2 text-white fill-white ml-0.5" />
+            </div>
+          </div>
+        </div>
+      ) : imgFailed ? (
+        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+          <span className="text-[10px] font-semibold">IMG</span>
+        </div>
+      ) : (
+        <img
+          src={media.thumbnailUrl || media.url}
+          alt={media.name || 'Post image'}
+          onError={() => setImgFailed(true)}
+          className="w-full h-full object-cover"
+        />
+      )}
+    </div>
+  );
+};
+
 export const InsightsView: React.FC<InsightsViewProps> = ({
   posts,
   accounts,
@@ -915,34 +997,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       {/* Post Thumbnail & Caption */}
                       <td className="py-3 pl-2">
                         <div className="flex items-center space-x-3 max-w-xs">
-                          {media ? (
-                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-100 border border-gray-200 relative">
-                              {media.type === 'video' ? (
-                                <div className="w-full h-full relative bg-gray-900 flex items-center justify-center">
-                                  <img
-                                    src={media.thumbnailUrl || media.url}
-                                    alt="Video thumbnail"
-                                    className="w-full h-full object-cover opacity-80"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-3.5 h-3.5 rounded-full bg-black/60 flex items-center justify-center">
-                                      <Play className="w-2 h-2 text-white fill-white ml-0.5" />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <img
-                                  src={media.thumbnailUrl || media.url}
-                                  alt="Post thumbnail"
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0">
-                              <span className="text-[10px] font-bold">TXT</span>
-                            </div>
-                          )}
+                          <MediaThumbnail media={media} post={post} className="w-10 h-10" />
 
                           <span className="line-clamp-2 text-xs font-medium text-gray-800 leading-snug">
                             {post.content || '(Media Post)'}
@@ -1036,23 +1091,27 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             </div>
 
             {/* Media Asset Preview */}
-            {inspectedPost.media && inspectedPost.media.length > 0 && (
-              <div className="w-full h-56 rounded-xl overflow-hidden bg-black relative border border-gray-100">
-                {inspectedPost.media[0].type === 'video' ? (
-                  <video
-                    src={inspectedPost.media[0].url}
-                    controls
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <img
-                    src={inspectedPost.media[0].url}
-                    alt="Post media preview"
-                    className="w-full h-full object-contain"
-                  />
-                )}
-              </div>
-            )}
+            {inspectedPost.media && inspectedPost.media.length > 0 && (() => {
+              const med = inspectedPost.media[0];
+              const isVid = med.type === 'video' || /\.(mp4|webm|mov|m4v|avi|mkv)($|\?)/i.test(med.url || '');
+              return (
+                <div className="w-full h-56 rounded-xl overflow-hidden bg-black relative border border-gray-100">
+                  {isVid ? (
+                    <video
+                      src={med.url}
+                      controls
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={med.url}
+                      alt="Post media preview"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Caption Content */}
             <div className="space-y-1">
