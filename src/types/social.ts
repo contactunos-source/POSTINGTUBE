@@ -35,8 +35,6 @@ export interface PlatformCaptionOverride {
   firstComment?: string; // For IG, LinkedIn
   collaborator?: string; // For IG
   isAiGenerated?: boolean;
-  media?: PostMedia[];
-  aspectRatio?: string;
 }
 
 export interface PostMedia {

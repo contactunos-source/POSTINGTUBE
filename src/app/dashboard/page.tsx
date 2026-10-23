@@ -169,9 +169,19 @@ export default function DashboardPage() {
           return;
         }
 
-        // Only redirect to login if completely unauthenticated and not in OAuth flow
+        // Auto-provision creator demo session so dashboard is immediately ready with zero login blockers
         if (!getGuestUser() && !hasAuthCookie) {
-          window.location.href = '/login?redirectTo=/dashboard';
+          signInAsGuest();
+          const autoGuest = getGuestUser() || {
+            id: 'usr_guest_demo',
+            email: 'creator@postbridge.ai',
+            user_metadata: { full_name: 'PostBridge Creator' },
+          };
+          if (isMounted) {
+            setAuthUser(autoGuest);
+            setAuthChecking(false);
+            initUserData(autoGuest);
+          }
           return;
         }
 
