@@ -425,11 +425,6 @@ export const YouTubeStudioComposer: React.FC<YouTubeStudioComposerProps> = ({
               </p>
             </div>
           </div>
-
-          <div className="flex items-center space-x-2 self-start sm:self-auto text-xs text-gray-500 font-medium bg-white/90 border border-gray-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>OAuth 2.0 Resumable Protocol</span>
-          </div>
         </div>
       </div>
 
