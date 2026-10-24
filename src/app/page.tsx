@@ -171,7 +171,7 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-black transition-colors">
               Product
             </a>
-            <a href="#solutions" className="hover:text-black transition-colors">
+            <a href="#features" className="hover:text-black transition-colors">
               Features
             </a>
             <a href="#integrations" className="hover:text-black transition-colors">
@@ -309,7 +309,7 @@ export default function LandingPage() {
           </Link>
 
           <a
-            href="#solutions"
+            href="#features"
             className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xs"
           >
             <span>Explore Studio Features</span>
@@ -335,102 +335,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= 3. CREATOR SHOWCASE SECTION (Video Frame 00:01 - 00:03) ================= */}
-      <section id="solutions" className="py-20 px-6 max-w-6xl mx-auto relative">
-        <div className="relative rounded-3xl bg-white border border-gray-200/80 p-8 sm:p-14 shadow-sm overflow-hidden text-center">
-          {/* Category Pill Icon */}
-          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center mx-auto mb-4 shadow-2xs">
-            <Users className="w-5 h-5" />
-          </div>
-
-          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
-            Core Publishing<br />solutions
-          </h2>
-
-          <p className="mt-3 text-xs sm:text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-            Streamline multi-channel social workflows in one centralized platform, enhancing transparency and reach.
-          </p>
-
-          <div className="mt-6">
-            <Link
-              href="/login?mode=signup"
-              className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 transition-all cursor-pointer"
-            >
-              <span>Learn more</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Staggered Floating Cards around Central Content (Recreating Frame 00:01 - 00:03) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 pt-8 border-t border-gray-100 text-left">
-            {/* Creator Card 1 */}
-            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
-              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80"
-                  alt="Creator"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
-                  <PlatformLogo platform="instagram" className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              <p className="text-xs font-bold text-gray-900">Elena Rostova</p>
-              <p className="text-[10px] text-gray-500">Instagram Creator • 140K</p>
-            </div>
-
-            {/* Creator Card 2 */}
-            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
-              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80"
-                  alt="Creator"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
-                  <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              <p className="text-xs font-bold text-gray-900">James Carter</p>
-              <p className="text-[10px] text-gray-500">YouTube Studio • 180K</p>
-            </div>
-
-            {/* Creator Card 3 */}
-            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
-              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
-                <img
-                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=240&auto=format&fit=crop&q=80"
-                  alt="Creator"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
-                  <PlatformLogo platform="facebook" className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              <p className="text-xs font-bold text-gray-900">Sarah Mitchell</p>
-              <p className="text-[10px] text-gray-500">Facebook Page Admin</p>
-            </div>
-
-            {/* Creator Card 4 */}
-            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
-              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
-                <img
-                  src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80"
-                  alt="Creator"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
-                  <PlatformLogo platform="linkedin" className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              <p className="text-xs font-bold text-gray-900">David Liang</p>
-              <p className="text-[10px] text-gray-500">LinkedIn Business Lead</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 4. BENTO GRID: "BUILT FOR EVERYONE" (Video Frame 00:04 - 00:06) ================= */}
+      {/* ================= 3. BENTO GRID: "BUILT FOR EVERYONE" (Video Frame 00:04 - 00:06) ================= */}
       <section id="features" className="py-20 px-6 max-w-6xl mx-auto">
         <div className="text-center mb-14">
           <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
