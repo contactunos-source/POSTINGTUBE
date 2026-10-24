@@ -367,22 +367,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       >
         {/* Top Header: Platform Icon + Time + Status Indicator */}
         <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-1.5 min-w-0">
             {/* Primary Platform Icon */}
-            <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0">
-              <PlatformLogo platform={primaryAccount?.platform || 'facebook'} className="w-3.5 h-3.5" />
+            <div className="w-4 h-4 rounded-full bg-white border border-gray-200/80 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+              <PlatformLogo platform={primaryAccount?.platform || 'facebook'} className="w-3 h-3" />
             </div>
 
             {/* Exact Time Display */}
-            <span className="text-[11px] font-bold text-gray-900 tracking-tight">
+            <span className="text-[11px] font-bold text-gray-900 tracking-tight shrink-0">
               {timeStr}
             </span>
 
-            {/* Additional platform chips if targeting multiple platforms */}
+            {/* Additional platform chips cleanly separated without overlapping */}
             {platforms.length > 1 && (
-              <div className="flex items-center -space-x-1 pl-0.5">
-                {platforms.slice(1, 3).map((pl) => (
-                  <div key={pl} className="w-3 h-3 rounded-full bg-white shadow-2xs">
+              <div className="flex items-center space-x-1 pl-0.5 shrink-0">
+                {platforms.slice(1, 4).map((pl) => (
+                  <div
+                    key={pl}
+                    className="w-4 h-4 rounded-full bg-white border border-gray-200/90 flex items-center justify-center p-0.5 shrink-0 shadow-2xs"
+                    title={`Target platform: ${pl}`}
+                  >
                     <PlatformLogo platform={pl} className="w-3 h-3" />
                   </div>
                 ))}

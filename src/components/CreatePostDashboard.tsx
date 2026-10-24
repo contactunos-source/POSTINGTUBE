@@ -715,16 +715,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               </div>
             </div>
           </div>
-
-          {/* Publishing Ready Status */}
-          <div className="flex items-center space-x-3 text-xs text-gray-500">
-            <span className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200/80 font-bold shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>
-                {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'Platform' : 'Platforms'} Selected
-              </span>
-            </span>
-          </div>
         </div>
 
         {/* 1. EXACT BUFFER-STYLE CIRCULAR SOCIAL ACCOUNT SELECTOR (from User Image) */}
