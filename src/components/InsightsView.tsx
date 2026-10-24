@@ -446,7 +446,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
       const data = await res.json();
       if (data.success) {
         setLastRefreshedAt(new Date());
-        if (onPostsUpdated && data.refreshedPosts) {
+        if (onPostsUpdated && data.refreshedPosts && Array.isArray(data.refreshedPosts)) {
           onPostsUpdated(data.refreshedPosts);
         }
       } else {
@@ -458,6 +458,22 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
       setIsRefreshing(false);
     }
   };
+
+  // Background auto-refresh: trigger sync on mount and periodically every 5 minutes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleRefreshAnalytics();
+    }, 1500);
+
+    const interval = setInterval(() => {
+      handleRefreshAnalytics();
+    }, 5 * 60 * 1000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Sort and Filter Table Posts
   const sortedTablePosts = useMemo(() => {
@@ -587,6 +603,34 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           );
         })}
       </div>
+
+      {/* Active Account Connection Health Banner */}
+      {activeAccount && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200/90 rounded-2xl p-4 shadow-2xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+              <PlatformLogo platform={activeAccount.platform} className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold text-gray-900 text-sm truncate">
+                  {activeAccount.displayName || activeAccount.username}
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  Live &amp; Connected
+                </span>
+              </div>
+              <p className="text-gray-500 text-xs mt-0.5">
+                Official {activeAccount.platform.toUpperCase()} Integration • Direct API Metrics Active
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 text-xs text-gray-500 font-medium ml-auto sm:ml-0">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Automatic Sync Active</span>
+          </div>
+        </div>
+      )}
 
       {/* Date Range Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200/90 rounded-2xl p-3 shadow-2xs">
@@ -965,24 +1009,38 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                   const resultsEntries = post.results ? Object.entries(post.results) : [];
 
                   let postViews: number | null = null;
-                  let likes = 0;
-                  let comments = 0;
-                  let shares = 0;
+                  let likes: number | null = null;
+                  let comments: number | null = null;
+                  let shares: number | null = null;
+                  let hasAnyMetrics = false;
+                  let fetchStatus: string = 'success';
+                  let errorMessage: string | null = null;
 
                   for (const [accId, r] of resultsEntries) {
                     if (selectedAccountId !== 'all' && accId !== selectedAccountId) continue;
                     const m = r.analytics || (post.analytics ? post.analytics[accId] : undefined);
                     if (m) {
+                      hasAnyMetrics = true;
+                      if (m.fetchStatus && m.fetchStatus !== 'success') {
+                        fetchStatus = m.fetchStatus;
+                        errorMessage = m.errorMessage || null;
+                      }
                       if (typeof m.views === 'number') {
                         postViews = (postViews ?? 0) + m.views;
                       }
-                      if (typeof m.likes === 'number') likes += m.likes;
-                      if (typeof m.comments === 'number') comments += m.comments;
-                      if (typeof m.shares === 'number') shares += m.shares;
+                      if (typeof m.likes === 'number') {
+                        likes = (likes ?? 0) + m.likes;
+                      }
+                      if (typeof m.comments === 'number') {
+                        comments = (comments ?? 0) + m.comments;
+                      }
+                      if (typeof m.shares === 'number') {
+                        shares = (shares ?? 0) + m.shares;
+                      }
                     }
                   }
 
-                  const totalInteractions = likes + comments + shares;
+                  const totalInteractions = (likes ?? 0) + (comments ?? 0) + (shares ?? 0);
                   const rate = postViews && postViews > 0 ? (totalInteractions / postViews) * 100 : null;
 
                   const targetAccounts = accounts.filter((a) => (post.targetAccountIds || []).includes(a.id));
@@ -1022,27 +1080,53 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                       {/* Views */}
                       <td className="py-3 text-right font-medium text-gray-900">
-                        {postViews !== null ? postViews.toLocaleString() : 'Not available'}
+                        {postViews !== null ? (
+                          postViews.toLocaleString()
+                        ) : !hasAnyMetrics ? (
+                          <span className="text-gray-400 italic">Sync pending</span>
+                        ) : fetchStatus === 'permission_error' ? (
+                          <span className="text-amber-600 text-[11px] font-semibold" title={errorMessage || 'Permission needed'}>Permission needed</span>
+                        ) : (
+                          <span className="text-gray-400">Not available</span>
+                        )}
                       </td>
 
                       {/* Likes */}
                       <td className="py-3 text-right font-medium text-gray-900">
-                        {likes.toLocaleString()}
+                        {likes !== null ? (
+                          likes.toLocaleString()
+                        ) : !hasAnyMetrics ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <span className="text-gray-400">Not available</span>
+                        )}
                       </td>
 
                       {/* Comments */}
                       <td className="py-3 text-right font-medium text-gray-900">
-                        {comments.toLocaleString()}
+                        {comments !== null ? (
+                          comments.toLocaleString()
+                        ) : !hasAnyMetrics ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <span className="text-gray-400">Not available</span>
+                        )}
                       </td>
 
                       {/* Shares */}
                       <td className="py-3 text-right font-medium text-gray-900">
-                        {shares.toLocaleString()}
+                        {shares !== null ? (
+                          shares.toLocaleString()
+                        ) : !hasAnyMetrics ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <span className="text-gray-400">Not available</span>
+                        )}
                       </td>
 
                       {/* Engagement Rate */}
                       <td className="py-3 text-right font-semibold text-emerald-700">
-                        {rate !== null ? `${rate.toFixed(2)}%` : '—'}
+                        {rate !== null ? `${rate.toFixed(2)}%` : totalInteractions > 0 ? `${totalInteractions} actions` : '—'}
                       </td>
 
                       {/* Action */}
@@ -1157,29 +1241,40 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                           )}
                         </div>
 
+                        {metrics?.fetchStatus === 'permission_error' && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 font-medium">
+                            ⚠️ {metrics.errorMessage || 'Account requires re-authentication or official API read permissions.'}
+                          </div>
+                        )}
+                        {metrics?.fetchStatus === 'failed' && (
+                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 font-medium">
+                            ⚠️ {metrics.errorMessage || 'Sync attempt failed. Will retry on next sync.'}
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-4 gap-2 pt-1 border-t border-gray-200/80 text-center text-xs">
                           <div>
                             <span className="text-[10px] text-gray-400 block">Views</span>
                             <span className="font-bold text-gray-800">
-                              {metrics?.views !== null && metrics?.views !== undefined ? metrics.views.toLocaleString() : 'N/A'}
+                              {metrics?.views !== null && metrics?.views !== undefined ? metrics.views.toLocaleString() : 'Not available'}
                             </span>
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block">Likes</span>
                             <span className="font-bold text-gray-800">
-                              {metrics?.likes !== null && metrics?.likes !== undefined ? metrics.likes.toLocaleString() : '0'}
+                              {metrics?.likes !== null && metrics?.likes !== undefined ? metrics.likes.toLocaleString() : 'Not available'}
                             </span>
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block">Comments</span>
                             <span className="font-bold text-gray-800">
-                              {metrics?.comments !== null && metrics?.comments !== undefined ? metrics.comments.toLocaleString() : '0'}
+                              {metrics?.comments !== null && metrics?.comments !== undefined ? metrics.comments.toLocaleString() : 'Not available'}
                             </span>
                           </div>
                           <div>
                             <span className="text-[10px] text-gray-400 block">Shares</span>
                             <span className="font-bold text-gray-800">
-                              {metrics?.shares !== null && metrics?.shares !== undefined ? metrics.shares.toLocaleString() : '0'}
+                              {metrics?.shares !== null && metrics?.shares !== undefined ? metrics.shares.toLocaleString() : 'Not available'}
                             </span>
                           </div>
                         </div>

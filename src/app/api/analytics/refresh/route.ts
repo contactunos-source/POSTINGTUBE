@@ -9,8 +9,35 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { postId, workspaceId } = body;
 
+    // 1. Resilient Account Loader: Query connected accounts from Supabase
+    let accounts: SocialAccount[] = [];
+    if (supabase) {
+      try {
+        let accQuery = supabase.from('connected_accounts').select('*');
+        if (workspaceId) {
+          accQuery = accQuery.eq('workspace_id', workspaceId);
+        }
+        const { data: accRows } = await accQuery;
+        if (accRows && accRows.length > 0) {
+          accounts = accRows.map(mapDbAccountToAccount);
+        } else if (workspaceId) {
+          // If no accounts found in this workspace, query all connected accounts as fallback
+          const { data: allAccs } = await supabase.from('connected_accounts').select('*');
+          if (allAccs && allAccs.length > 0) {
+            accounts = allAccs.map(mapDbAccountToAccount);
+          }
+        }
+      } catch (accErr) {
+        console.warn('[Analytics API] DB account query error:', accErr);
+      }
+    }
+
+    if (accounts.length === 0) {
+      accounts = await DatabaseService.getAccounts(workspaceId || DEFAULT_WORKSPACE_ID);
+    }
+
+    // SCENARIO A: Refresh a Single Post
     if (postId) {
-      // 1. Find post directly in Supabase or cache
       let targetPost: Post | null = null;
       let effectiveWsId = workspaceId || DEFAULT_WORKSPACE_ID;
 
@@ -43,42 +70,93 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 2. Fetch connected accounts
-      const accounts = await DatabaseService.getAccounts(effectiveWsId);
-
-      // 3. Fetch real-time analytics using official platform APIs
+      // Fetch real-time analytics using official platform APIs
       const metricsMap = await fetchAllMetricsForPost(targetPost, accounts);
 
-      // 4. Persist to Supabase and cache
-      await DatabaseService.savePostAnalytics(targetPost.id, metricsMap, effectiveWsId);
+      // Persist to Supabase and cache
+      const updatedPost = await DatabaseService.savePostAnalytics(
+        targetPost.id,
+        metricsMap,
+        effectiveWsId
+      );
 
       return NextResponse.json({
         success: true,
         postId: targetPost.id,
         analytics: metricsMap,
+        refreshedPost: updatedPost || targetPost,
       });
     }
 
-    // Refresh multiple published posts in workspace
+    // SCENARIO B: Refresh All Published Posts in Workspace
     const effectiveWsId = workspaceId || DEFAULT_WORKSPACE_ID;
-    const [accounts, allPosts] = await Promise.all([
-      DatabaseService.getAccounts(effectiveWsId),
-      DatabaseService.getPosts(effectiveWsId),
-    ]);
+    let publishedPosts: Post[] = [];
 
-    const publishedPosts = allPosts
-      .filter((p) => p.status === 'published' && p.results && Object.keys(p.results).length > 0)
-      .slice(0, 15);
+    if (supabase) {
+      try {
+        let postQuery = supabase
+          .from('posts')
+          .select('*')
+          .eq('status', 'published')
+          .order('published_at', { ascending: false });
 
+        if (workspaceId) {
+          postQuery = postQuery.eq('workspace_id', workspaceId);
+        }
+
+        const { data: postRows } = await postQuery;
+        if (postRows && postRows.length > 0) {
+          publishedPosts = postRows.map(mapDbPostToPost);
+        } else if (workspaceId) {
+          // Fallback to all published posts across workspaces if none in specific workspace ID
+          const { data: fallbackRows } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('status', 'published')
+            .order('published_at', { ascending: false });
+          if (fallbackRows && fallbackRows.length > 0) {
+            publishedPosts = fallbackRows.map(mapDbPostToPost);
+          }
+        }
+      } catch (pErr) {
+        console.warn('[Analytics API] DB post query error:', pErr);
+      }
+    }
+
+    if (publishedPosts.length === 0) {
+      const cachedPosts = await DatabaseService.getPosts(effectiveWsId);
+      publishedPosts = cachedPosts.filter(
+        (p) => p.status === 'published' && p.results && Object.keys(p.results).length > 0
+      );
+    }
+
+    // Limit to latest 25 published posts for responsive rate-limit-safe execution
+    const targetPosts = publishedPosts.slice(0, 25);
     const updatedResultsMap: Record<string, any> = {};
+    const refreshedPostsList: Post[] = [];
 
-    for (const post of publishedPosts) {
+    for (const post of targetPosts) {
       try {
         const metricsMap = await fetchAllMetricsForPost(post, accounts);
-        await DatabaseService.savePostAnalytics(post.id, metricsMap, effectiveWsId);
+        const updatedPost = await DatabaseService.savePostAnalytics(
+          post.id,
+          metricsMap,
+          post.workspaceId || effectiveWsId
+        );
         updatedResultsMap[post.id] = metricsMap;
+        if (updatedPost) {
+          refreshedPostsList.push(updatedPost);
+        }
       } catch (postErr) {
         console.warn(`[Analytics API] Error fetching metrics for post #${post.id}:`, postErr);
+      }
+    }
+
+    // If some published posts weren't updated in this batch, retain them so frontend list is complete
+    const updatedPostIds = new Set(refreshedPostsList.map((p) => p.id));
+    for (const post of publishedPosts) {
+      if (!updatedPostIds.has(post.id)) {
+        refreshedPostsList.push(post);
       }
     }
 
@@ -86,6 +164,7 @@ export async function POST(req: NextRequest) {
       success: true,
       updatedCount: Object.keys(updatedResultsMap).length,
       analytics: updatedResultsMap,
+      refreshedPosts: refreshedPostsList,
     });
   } catch (err: any) {
     console.error('[API /api/analytics/refresh] Error:', err);

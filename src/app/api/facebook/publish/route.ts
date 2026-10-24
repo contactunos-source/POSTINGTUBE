@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const postId = data.id || data.post_id;
+    const postId = data.post_id || data.id;
     const postUrl = `https://www.facebook.com/${postId}`;
 
     const successPayload = {

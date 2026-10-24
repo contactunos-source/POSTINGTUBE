@@ -40,10 +40,36 @@ export async function GET(
     }
 
     if (refresh && targetPost.status === 'published') {
-      const accounts = await DatabaseService.getAccounts(effectiveWsId);
+      let accounts = await DatabaseService.getAccounts(effectiveWsId);
+      if (accounts.length === 0 && supabase) {
+        const { data: dbAccs } = await supabase.from('connected_accounts').select('*');
+        if (dbAccs && dbAccs.length > 0) {
+          accounts = dbAccs.map((a: any) => ({
+            id: a.id,
+            platform: a.platform,
+            username: a.username,
+            displayName: a.display_name,
+            avatarUrl: a.avatar_url || '',
+            accountType: a.account_type,
+            accessToken: a.access_token,
+            refreshToken: a.refresh_token,
+            tokenExpiresAt: a.token_expires_at,
+            pageId: a.page_id,
+            status: a.status || 'connected',
+            followersCount: a.followers_count || 0,
+            externalId: a.page_id || a.id,
+          }));
+        }
+      }
+
       const metricsMap = await fetchAllMetricsForPost(targetPost, accounts);
-      await DatabaseService.savePostAnalytics(targetPost.id, metricsMap, effectiveWsId);
-      return NextResponse.json({ success: true, postId, analytics: metricsMap });
+      const updatedPost = await DatabaseService.savePostAnalytics(targetPost.id, metricsMap, effectiveWsId);
+      return NextResponse.json({
+        success: true,
+        postId,
+        analytics: metricsMap,
+        refreshedPost: updatedPost || targetPost,
+      });
     }
 
     // Return existing analytics

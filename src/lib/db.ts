@@ -480,66 +480,95 @@ export const DatabaseService = {
     postId: string,
     metricsMap: Record<string, PlatformPostMetrics>,
     workspaceId: string = DEFAULT_WORKSPACE_ID
-  ): Promise<void> {
+  ): Promise<Post | null> {
     const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId)) ? workspaceId : DEFAULT_WORKSPACE_ID;
 
-    // 1. Fetch current post from cache or database
-    const posts = StorageService.getPosts(targetWsId);
-    const post = posts.find((p) => p.id === postId);
-    if (post) {
-      // 2. Attach analytics to results
-      const updatedResults = { ...(post.results || {}) };
-      for (const [accId, metrics] of Object.entries(metricsMap)) {
-        if (updatedResults[accId]) {
-          updatedResults[accId].analytics = metrics;
-        } else {
-          updatedResults[accId] = {
-            status: 'success',
-            platform: metrics.platform,
-            externalPostId: metrics.externalPostId,
-            analytics: metrics,
-          };
-        }
-      }
-
-      const updatedPost: Post = {
-        ...post,
-        results: updatedResults,
-        analytics: metricsMap,
-        updatedAt: new Date().toISOString(),
-      };
-
-      // 3. Persist post
-      await this.savePost(updatedPost);
-    }
-
-    // 4. Also attempt to upsert into dedicated post_analytics table if available
+    // 1. Fetch current post from Supabase first, then fallback to cache
+    let currentPost: Post | null = null;
     if (supabase) {
       try {
-        const rows = Object.entries(metricsMap).map(([accId, m]) => ({
-          post_id: postId,
-          account_id: accId,
-          workspace_id: targetWsId,
-          platform: m.platform,
-          external_post_id: m.externalPostId,
-          views: m.views ?? null,
-          impressions: m.impressions ?? null,
-          reach: m.reach ?? null,
-          likes: m.likes ?? null,
-          comments: m.comments ?? null,
-          shares: m.shares ?? null,
-          saved: m.saved ?? null,
-          engagement_rate: m.engagementRate ?? null,
-          fetch_status: m.fetchStatus,
-          error_message: m.errorMessage || null,
-          last_fetched_at: m.lastFetchedAt || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-
-        await supabase.from('post_analytics').upsert(rows, { onConflict: 'post_id,account_id' });
+        const { data: row, error: selErr } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('id', postId)
+          .single();
+        if (!selErr && row) {
+          currentPost = mapDbPostToPost(row);
+        }
       } catch (err) {
-        console.warn('[Analytics DB] post_analytics table upsert skipped:', err);
+        console.warn('[Analytics DB] Supabase post lookup warning:', err);
       }
     }
+
+    if (!currentPost) {
+      const posts = StorageService.getPosts(targetWsId);
+      currentPost = posts.find((p) => p.id === postId) || null;
+    }
+
+    if (!currentPost) {
+      console.warn(`[Analytics DB] Post #${postId} not found in DB or cache.`);
+      return null;
+    }
+
+    // 2. Attach fresh platform metrics directly into the post's results JSONB object
+    const updatedResults = { ...(currentPost.results || {}) };
+    for (const [accId, metrics] of Object.entries(metricsMap)) {
+      if (updatedResults[accId]) {
+        updatedResults[accId] = {
+          ...updatedResults[accId],
+          analytics: metrics,
+        };
+      } else {
+        updatedResults[accId] = {
+          status: 'success',
+          platform: metrics.platform,
+          externalPostId: metrics.externalPostId,
+          analytics: metrics,
+        };
+      }
+    }
+
+    const updatedPost: Post = {
+      ...currentPost,
+      results: updatedResults,
+      analytics: metricsMap,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 3. Persist updated results directly to Supabase
+    if (supabase) {
+      try {
+        const { error: updErr } = await supabase
+          .from('posts')
+          .update({
+            results: updatedResults,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', postId);
+
+        if (updErr) {
+          console.error('[Analytics DB] Failed to update post results in Supabase:', updErr);
+        }
+      } catch (err) {
+        console.error('[Analytics DB] Error updating post results in Supabase:', err);
+      }
+    }
+
+    // 4. Update local storage cache
+    try {
+      const wsToUse = currentPost.workspaceId || targetWsId;
+      const curPosts = StorageService.getPosts(wsToUse);
+      const idx = curPosts.findIndex((p) => p.id === postId);
+      if (idx >= 0) {
+        curPosts[idx] = updatedPost;
+      } else {
+        curPosts.unshift(updatedPost);
+      }
+      StorageService.savePosts(curPosts, wsToUse);
+    } catch (cacheErr) {
+      console.warn('[Analytics DB] StorageService update warning:', cacheErr);
+    }
+
+    return updatedPost;
   },
 };

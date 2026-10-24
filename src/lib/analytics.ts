@@ -1,14 +1,31 @@
 import { Post, SocialAccount, SocialPlatform, PlatformPostMetrics } from '@/types/social';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Refresh Google / YouTube OAuth access token using refresh_token
+ * Persists the fresh access token and new expiry directly to Supabase and cache.
  */
 async function refreshYouTubeToken(account: SocialAccount): Promise<string | null> {
-  if (!account.refreshToken) return null;
+  let refreshToken = account.refreshToken;
+
+  // Check if refresh_token was stored inside JSON-packed access_token
+  if (!refreshToken && account.accessToken && account.accessToken.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(account.accessToken);
+      refreshToken = parsed.refresh_token || null;
+    } catch {}
+  }
+
+  if (!refreshToken) return null;
 
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID || '';
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET || '';
+
+    if (!clientId || !clientSecret) {
+      console.warn('[Analytics] Missing Google OAuth client credentials in environment.');
+      return null;
+    }
 
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -16,14 +33,48 @@ async function refreshYouTubeToken(account: SocialAccount): Promise<string | nul
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: account.refreshToken,
+        refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      return data.access_token || null;
+      const newAccessToken = data.access_token;
+      if (newAccessToken) {
+        account.accessToken = newAccessToken;
+        account.refreshToken = refreshToken;
+        const expiresIn = data.expires_in || 3600;
+        const newExpiry = new Date(Date.now() + expiresIn * 1000).toISOString();
+        account.tokenExpiresAt = newExpiry;
+
+        // Persist fresh token directly to Supabase
+        if (supabase && account.id) {
+          try {
+            const tokenBundle = JSON.stringify({
+              access_token: newAccessToken,
+              refresh_token: refreshToken,
+              expires_at: newExpiry,
+            });
+            await supabase
+              .from('connected_accounts')
+              .update({
+                access_token: tokenBundle,
+                token_expires_at: newExpiry,
+                status: 'connected',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', account.id);
+          } catch (dbErr) {
+            console.warn('[Analytics] Failed to persist refreshed YouTube token to DB:', dbErr);
+          }
+        }
+
+        return newAccessToken;
+      }
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      console.warn('[Analytics] YouTube token refresh API error:', res.status, errJson);
     }
   } catch (err) {
     console.warn('[Analytics] Failed to refresh YouTube token:', err);
@@ -33,13 +84,17 @@ async function refreshYouTubeToken(account: SocialAccount): Promise<string | nul
 
 /**
  * Fetch real video analytics using YouTube Data API v3
- * Endpoint: GET https://www.googleapis.com/youtube/v3/videos?part=statistics&id=VIDEO_ID
+ * Endpoint: GET https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=VIDEO_ID
  */
 export async function fetchYouTubeMetrics(
   videoId: string,
   account: SocialAccount
 ): Promise<PlatformPostMetrics> {
-  const cleanId = videoId.replace(/^https?:\/\/youtu\.be\//, '').replace(/^https?:\/\/.*[?&]v=/, '').split(/[?&#]/)[0].trim();
+  const cleanId = videoId
+    .replace(/^https?:\/\/youtu\.be\//, '')
+    .replace(/^https?:\/\/.*[?&]v=/, '')
+    .split(/[?&#]/)[0]
+    .trim();
   const now = new Date().toISOString();
 
   let accessToken = account.accessToken;
@@ -57,20 +112,26 @@ export async function fetchYouTubeMetrics(
   };
 
   try {
+    // If no access token, or if we have a refresh token and token is expired/missing, refresh first
+    if (!accessToken && (account.refreshToken || (account.accessToken && account.accessToken.includes('refresh_token')))) {
+      const refreshed = await refreshYouTubeToken(account);
+      if (refreshed) accessToken = refreshed;
+    }
+
     if (!accessToken) {
       return {
         platform: 'youtube',
         externalPostId: cleanId,
         lastFetchedAt: now,
         fetchStatus: 'permission_error',
-        errorMessage: 'Missing YouTube access token. Please re-authenticate in Connections.',
+        errorMessage: 'Missing YouTube access token. Please re-authenticate your channel in Connections.',
       };
     }
 
     let response = await queryApi(accessToken);
 
-    // If 401 Unauthorized, attempt refresh
-    if (response.status === 401 && account.refreshToken) {
+    // If 401 Unauthorized, refresh token and retry
+    if (response.status === 401) {
       const newToken = await refreshYouTubeToken(account);
       if (newToken) {
         accessToken = newToken;
@@ -95,7 +156,7 @@ export async function fetchYouTubeMetrics(
         platform: 'youtube',
         externalPostId: cleanId,
         lastFetchedAt: now,
-        fetchStatus: 'failed',
+        fetchStatus: response.status === 401 || response.status === 403 ? 'permission_error' : 'failed',
         errorMessage: msg,
       };
     }
@@ -122,11 +183,11 @@ export async function fetchYouTubeMetrics(
       platform: 'youtube',
       externalPostId: cleanId,
       views,
-      impressions: null, // YouTube Data API v3 does not expose impressions (requires separate YouTube Analytics API with channel owner token)
+      impressions: null, // Note: YouTube Data API v3 does not expose impression reach metrics (requires separate YouTube Reporting API)
       reach: null,
       likes,
       comments,
-      shares: null, // YouTube does not expose public share count via Data API v3
+      shares: null, // Note: YouTube does not expose public share count via Data API v3
       engagementRate: views > 0 ? parseFloat((((likes + comments) / views) * 100).toFixed(2)) : 0,
       lastFetchedAt: now,
       fetchStatus: 'success',
@@ -148,8 +209,7 @@ export async function fetchYouTubeMetrics(
 
 /**
  * Fetch real Instagram post/reel metrics using Meta Graph API
- * Endpoint: GET https://graph.facebook.com/v20.0/{mediaId}?fields=like_count,comments_count,media_type
- * Insights: GET https://graph.facebook.com/v20.0/{mediaId}/insights?metric=reach,saved
+ * Supports both Instagram User Tokens (graph.instagram.com) and Linked Page Tokens (graph.facebook.com)
  */
 export async function fetchInstagramMetrics(
   mediaId: string,
@@ -158,82 +218,97 @@ export async function fetchInstagramMetrics(
   const cleanId = mediaId.trim();
   const now = new Date().toISOString();
 
-  let accessToken = account.accessToken || process.env.FACEBOOK_PAGE_ACCESS_TOKEN || '';
+  let accessToken = account.accessToken || '';
   if (accessToken.startsWith('{')) {
     try {
-      accessToken = JSON.parse(accessToken).access_token;
+      accessToken = JSON.parse(accessToken).access_token || '';
     } catch {}
   }
 
-  if (!accessToken) {
+  // Check for fallback Facebook Page token if account token is empty or invalid
+  const fallbackPageToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN || '';
+
+  if (!accessToken && !fallbackPageToken) {
     return {
       platform: 'instagram',
       externalPostId: cleanId,
       lastFetchedAt: now,
       fetchStatus: 'permission_error',
-      errorMessage: 'Missing Instagram access token. Connect your Instagram Business account.',
+      errorMessage: 'Missing Instagram access token. Connect your Instagram Business account in Connections.',
     };
   }
 
   try {
-    // 1. Fetch base media object (likes, comments, media type)
-    const baseRes = await fetch(
-      `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,like_count,comments_count,media_type,permalink&access_token=${accessToken}`
-    );
+    let baseData: any = null;
+    let successfulToken = accessToken;
+    let successfulDomain = 'facebook'; // 'instagram' or 'facebook'
 
-    if (baseRes.status === 429) {
-      return {
-        platform: 'instagram',
-        externalPostId: cleanId,
-        lastFetchedAt: now,
-        fetchStatus: 'rate_limited',
-        errorMessage: 'Instagram Graph API rate limit reached.',
-      };
+    // Strategy 1: If token starts with IGAA (Instagram User Token), try graph.instagram.com first
+    if (accessToken && accessToken.startsWith('IGAA')) {
+      try {
+        const igRes = await fetch(
+          `https://graph.instagram.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,like_count,comments_count,media_type,permalink&access_token=${accessToken}`
+        );
+        if (igRes.ok) {
+          baseData = await igRes.json();
+          successfulDomain = 'instagram';
+        }
+      } catch {}
     }
 
-    if (!baseRes.ok) {
-      const errData = await baseRes.json().catch(() => ({}));
-      const errMsg = errData?.error?.message || `Instagram API error: ${baseRes.status}`;
-
-      // If object not found directly, try querying the Instagram account's recent media list
-      const accountId = account.pageId || account.externalId || account.id.replace(/^ig_/, '');
-      if (accountId && !cleanId.startsWith('ig_simulated')) {
-        try {
-          const listRes = await fetch(
-            `https://graph.facebook.com/v20.0/${accountId}/media?fields=id,like_count,comments_count,media_type,permalink&access_token=${accessToken}&limit=15`
-          );
-          if (listRes.ok) {
-            const listData = await listRes.json();
-            const matchingItem = listData.data?.find((m: any) => m.id === cleanId);
-            if (matchingItem) {
-              return {
-                platform: 'instagram',
-                externalPostId: cleanId,
-                views: null,
-                impressions: null,
-                reach: null,
-                likes: matchingItem.like_count ?? 0,
-                comments: matchingItem.comments_count ?? 0,
-                shares: null,
-                saved: null,
-                lastFetchedAt: now,
-                fetchStatus: 'success',
-              };
-            }
-          }
-        } catch {}
+    // Strategy 2: Try graph.facebook.com with account token (for standard Page tokens)
+    if (!baseData && accessToken && !accessToken.startsWith('IGAA')) {
+      const fbRes = await fetch(
+        `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,like_count,comments_count,media_type,permalink&access_token=${accessToken}`
+      );
+      if (fbRes.ok) {
+        baseData = await fbRes.json();
+        successfulDomain = 'facebook';
       }
+    }
 
+    // Strategy 3: Try graph.facebook.com with verified system Page Token
+    if (!baseData && fallbackPageToken && fallbackPageToken !== accessToken) {
+      const fallbackRes = await fetch(
+        `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,like_count,comments_count,media_type,permalink&access_token=${fallbackPageToken}`
+      );
+      if (fallbackRes.ok) {
+        baseData = await fallbackRes.json();
+        successfulToken = fallbackPageToken;
+        successfulDomain = 'facebook';
+      }
+    }
+
+    // If still not found, check the linked Instagram Business account media list
+    if (!baseData) {
+      const igAccountId = account.pageId || account.externalId || process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
+      const tokenToUse = fallbackPageToken || accessToken;
+      try {
+        const listRes = await fetch(
+          `https://graph.facebook.com/v20.0/${igAccountId}/media?fields=id,like_count,comments_count,media_type,permalink&access_token=${tokenToUse}&limit=25`
+        );
+        if (listRes.ok) {
+          const listJson = await listRes.json();
+          const match = listJson.data?.find((m: any) => m.id === cleanId);
+          if (match) {
+            baseData = match;
+            successfulToken = tokenToUse;
+            successfulDomain = 'facebook';
+          }
+        }
+      } catch {}
+    }
+
+    if (!baseData) {
       return {
         platform: 'instagram',
         externalPostId: cleanId,
         lastFetchedAt: now,
         fetchStatus: 'permission_error',
-        errorMessage: errMsg,
+        errorMessage: `Instagram media #${cleanId} not found or token expired. Please re-authenticate your Instagram account.`,
       };
     }
 
-    const baseData = await baseRes.json();
     const likes = baseData.like_count !== undefined ? baseData.like_count : 0;
     const comments = baseData.comments_count !== undefined ? baseData.comments_count : 0;
     const isVideoOrReel = baseData.media_type === 'VIDEO';
@@ -241,40 +316,55 @@ export async function fetchInstagramMetrics(
     let reach: number | null = null;
     let saved: number | null = null;
     let views: number | null = null;
+    let shares: number | null = null;
 
-    // 2. Fetch Insights (reach, saved, views/plays)
-    try {
-      const insightsMetrics = isVideoOrReel ? 'reach,saved,views' : 'reach,saved';
-      const insightsRes = await fetch(
-        `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}/insights?metric=${insightsMetrics}&access_token=${accessToken}`
-      );
+    // 2. Fetch Insights (reach, saved, views, shares, total_interactions) using verified metrics
+    const tokenForInsights = fallbackPageToken || successfulToken;
+    if (tokenForInsights && successfulDomain === 'facebook') {
+      try {
+        const metricNames = isVideoOrReel
+          ? 'views,reach,saved,shares,total_interactions'
+          : 'reach,saved,total_interactions';
 
-      if (insightsRes.ok) {
-        const insightsData = await insightsRes.json();
-        const metricsList = insightsData?.data || [];
+        const insightsRes = await fetch(
+          `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}/insights?metric=${metricNames}&access_token=${tokenForInsights}`
+        );
 
-        for (const item of metricsList) {
-          const val = item.values?.[0]?.value ?? 0;
-          if (item.name === 'reach') reach = val;
-          if (item.name === 'saved') saved = val;
-          if (item.name === 'views' || item.name === 'plays') views = val;
+        if (insightsRes.ok) {
+          const insightsData = await insightsRes.json();
+          const metricsList = insightsData?.data || [];
+
+          for (const item of metricsList) {
+            const val = item.values?.[0]?.value ?? 0;
+            if (item.name === 'views') views = val;
+            if (item.name === 'reach') reach = val;
+            if (item.name === 'saved') saved = val;
+            if (item.name === 'shares') shares = val;
+          }
         }
+      } catch (iErr) {
+        console.warn('[Analytics] Instagram insights query skipped:', iErr);
       }
-    } catch {
-      // Insights might not be available for non-business or older media; base likes/comments are preserved
     }
+
+    const totalInteractions = likes + comments + (shares || 0) + (saved || 0);
+    const engagementRate = views && views > 0
+      ? parseFloat(((totalInteractions / views) * 100).toFixed(2))
+      : reach && reach > 0
+      ? parseFloat(((totalInteractions / reach) * 100).toFixed(2))
+      : null;
 
     return {
       platform: 'instagram',
       externalPostId: cleanId,
       views,
-      impressions: reach, // Instagram Business uses reach/impressions
+      impressions: reach,
       reach,
       likes,
       comments,
-      shares: null, // Instagram Graph API does not expose shares publicly on media endpoints
+      shares,
       saved,
-      engagementRate: (reach && reach > 0) ? parseFloat((((likes + comments) / reach) * 100).toFixed(2)) : null,
+      engagementRate,
       lastFetchedAt: now,
       fetchStatus: 'success',
       rawDetails: {
@@ -295,16 +385,16 @@ export async function fetchInstagramMetrics(
 
 /**
  * Fetch real Facebook Page post metrics using Meta Graph API
- * Endpoint: GET https://graph.facebook.com/v20.0/{page_id}_{post_id}?fields=shares,likes.summary(true),comments.summary(true)
+ * Endpoint: GET https://graph.facebook.com/v20.0/{post_id}?fields=id,shares,likes.summary(true),comments.summary(true)
  */
 export async function fetchFacebookMetrics(
   postId: string,
   account: SocialAccount
 ): Promise<PlatformPostMetrics> {
-  const pageId = account.pageId || account.externalId || '868941086292404';
+  const pageId = account.pageId || account.externalId || process.env.FACEBOOK_PAGE_ID || '868941086292404';
   let cleanId = postId.trim();
 
-  // If ID does not include pageId prefix, construct the compound ID
+  // If ID does not include pageId prefix, construct compound ID
   const compoundId = cleanId.includes('_') ? cleanId : `${pageId}_${cleanId}`;
   const now = new Date().toISOString();
 
@@ -326,15 +416,15 @@ export async function fetchFacebookMetrics(
   }
 
   try {
-    // 1. Try compound ID `{pageId}_{postId}`
+    // 1. Try compound ID `{pageId}_{postId}` without invalid 'reactions' field
     let response = await fetch(
-      `https://graph.facebook.com/v20.0/${encodeURIComponent(compoundId)}?fields=id,shares,likes.summary(true),comments.summary(true),reactions.summary(true)&access_token=${accessToken}`
+      `https://graph.facebook.com/v20.0/${encodeURIComponent(compoundId)}?fields=id,shares,likes.summary(true),comments.summary(true)&access_token=${accessToken}`
     );
 
-    // 2. If 400/404, fallback to short ID `{postId}`
+    // 2. If not found, try clean ID directly (for video/photo objects)
     if (!response.ok && cleanId !== compoundId) {
       const fallbackRes = await fetch(
-        `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,shares,likes.summary(true),comments.summary(true),reactions.summary(true)&access_token=${accessToken}`
+        `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}?fields=id,views,shares,likes.summary(true),comments.summary(true)&access_token=${accessToken}`
       );
       if (fallbackRes.ok) {
         response = fallbackRes;
@@ -351,61 +441,75 @@ export async function fetchFacebookMetrics(
       };
     }
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errMsg = errData?.error?.message || `Facebook API error (${response.status})`;
-
-      // Fallback: check recent page feed
+    // 3. Fallback: query page feed to locate matching post
+    let data: any = null;
+    if (response.ok) {
+      data = await response.json();
+    } else {
       try {
         const feedRes = await fetch(
-          `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,shares,likes.summary(true),comments.summary(true)&access_token=${accessToken}&limit=10`
+          `https://graph.facebook.com/v20.0/${pageId}/feed?fields=id,shares,likes.summary(true),comments.summary(true)&access_token=${accessToken}&limit=15`
         );
         if (feedRes.ok) {
           const feedData = await feedRes.json();
-          const match = feedData.data?.find((p: any) => p.id === compoundId || p.id?.endsWith(`_${cleanId}`));
+          const match = feedData.data?.find(
+            (p: any) => p.id === compoundId || p.id?.endsWith(`_${cleanId}`) || p.id === cleanId
+          );
           if (match) {
-            const likes = match.likes?.summary?.total_count ?? 0;
-            const comments = match.comments?.summary?.total_count ?? 0;
-            const shares = match.shares?.count ?? 0;
-            return {
-              platform: 'facebook',
-              externalPostId: cleanId,
-              views: null,
-              impressions: null,
-              reach: null,
-              likes,
-              comments,
-              shares,
-              lastFetchedAt: now,
-              fetchStatus: 'success',
-            };
+            data = match;
           }
         }
       } catch {}
+    }
 
+    if (!data) {
       return {
         platform: 'facebook',
         externalPostId: cleanId,
         lastFetchedAt: now,
         fetchStatus: 'permission_error',
-        errorMessage: errMsg,
+        errorMessage: `Facebook post #${cleanId} not found or requires pages_read_engagement permission.`,
       };
     }
 
-    const data = await response.json();
-    const likes = data.likes?.summary?.total_count ?? data.reactions?.summary?.total_count ?? 0;
+    const likes = data.likes?.summary?.total_count ?? 0;
     const comments = data.comments?.summary?.total_count ?? 0;
     const shares = data.shares?.count ?? 0;
+    let views: number | null = typeof data.views === 'number' ? data.views : null;
+
+    // Check video insights if this is a video object
+    if (views === null && !cleanId.includes('_')) {
+      try {
+        const vInsightsRes = await fetch(
+          `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanId)}/video_insights?access_token=${accessToken}`
+        );
+        if (vInsightsRes.ok) {
+          const vData = await vInsightsRes.json();
+          const playCountItem = vData.data?.find(
+            (i: any) => i.name === 'blue_reels_play_count' || i.name === 'fb_reels_total_plays'
+          );
+          if (playCountItem && typeof playCountItem.values?.[0]?.value === 'number') {
+            views = playCountItem.values[0].value;
+          }
+        }
+      } catch {}
+    }
+
+    const totalInteractions = likes + comments + shares;
+    const engagementRate = views && views > 0
+      ? parseFloat(((totalInteractions / views) * 100).toFixed(2))
+      : null;
 
     return {
       platform: 'facebook',
       externalPostId: cleanId,
-      views: null,
-      impressions: null, // Note: Post impressions require 'pages_read_engagement' or reviewable permission
+      views,
+      impressions: null,
       reach: null,
       likes,
       comments,
       shares,
+      engagementRate,
       lastFetchedAt: now,
       fetchStatus: 'success',
     };
@@ -422,7 +526,7 @@ export async function fetchFacebookMetrics(
 
 /**
  * Fetch Twitter / X Post metrics
- * Note: If Twitter integration is disabled, returns clean 'not_supported' status
+ * Note: If Twitter integration is disconnected or disabled, returns clean 'not_supported' or 'permission_error' status
  */
 export async function fetchTwitterMetrics(
   tweetId: string,
@@ -431,14 +535,13 @@ export async function fetchTwitterMetrics(
   const cleanId = tweetId.trim();
   const now = new Date().toISOString();
 
-  // If Twitter integration is disabled in system
   if (!account.accessToken || account.status === 'expired') {
     return {
       platform: 'twitter',
       externalPostId: cleanId,
       lastFetchedAt: now,
       fetchStatus: 'not_supported',
-      errorMessage: 'Twitter (X) integration has been disabled or account is disconnected.',
+      errorMessage: 'Twitter (X) account is disconnected or requires re-authentication.',
     };
   }
 
@@ -454,15 +557,23 @@ export async function fetchTwitterMetrics(
       const json = await res.json();
       const metrics = json.data?.public_metrics;
       if (metrics) {
+        const views = metrics.impression_count ?? 0;
+        const likes = metrics.like_count ?? 0;
+        const comments = metrics.reply_count ?? 0;
+        const shares = (metrics.retweet_count ?? 0) + (metrics.quote_count ?? 0);
+        const saved = metrics.bookmark_count ?? 0;
+        const totalInteractions = likes + comments + shares;
+
         return {
           platform: 'twitter',
           externalPostId: cleanId,
-          views: metrics.impression_count ?? 0,
-          impressions: metrics.impression_count ?? 0,
-          likes: metrics.like_count ?? 0,
-          comments: metrics.reply_count ?? 0,
-          shares: (metrics.retweet_count ?? 0) + (metrics.quote_count ?? 0),
-          saved: metrics.bookmark_count ?? 0,
+          views,
+          impressions: views,
+          likes,
+          comments,
+          shares,
+          saved,
+          engagementRate: views > 0 ? parseFloat(((totalInteractions / views) * 100).toFixed(2)) : null,
           lastFetchedAt: now,
           fetchStatus: 'success',
         };
@@ -474,7 +585,7 @@ export async function fetchTwitterMetrics(
       externalPostId: cleanId,
       lastFetchedAt: now,
       fetchStatus: 'permission_error',
-      errorMessage: 'Twitter API error or missing v2 read permissions.',
+      errorMessage: 'Twitter API: Tweet read permissions or API tier required.',
     };
   } catch (err: any) {
     return {
@@ -528,6 +639,7 @@ export async function fetchLinkedInMetrics(
         likes,
         comments,
         shares: null,
+        engagementRate: null,
         lastFetchedAt: now,
         fetchStatus: 'success',
       };
@@ -538,7 +650,7 @@ export async function fetchLinkedInMetrics(
       externalPostId: cleanUrn,
       lastFetchedAt: now,
       fetchStatus: 'permission_error',
-      errorMessage: 'LinkedIn API: socialActions endpoint requires r_organization_social permission.',
+      errorMessage: 'LinkedIn API: socialActions endpoint requires verified r_organization_social permission.',
     };
   } catch (err: any) {
     return {
@@ -607,7 +719,6 @@ export async function fetchAllMetricsForPost(
       }
 
       if (!account) {
-        // Fallback account descriptor
         account = {
           id: accId,
           platform: (res.platform as SocialPlatform) || 'facebook',
