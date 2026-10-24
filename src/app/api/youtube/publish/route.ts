@@ -56,6 +56,10 @@ export async function POST(req: NextRequest) {
       privacyStatus = 'public',
       scheduledTimestamp,
       categoryId = '22',
+      madeForKids = false,
+      playlistId,
+      recordingDate,
+      videoLocation,
     } = body;
 
     // 1. Content Validation: YouTube ONLY supports video files
@@ -153,22 +157,36 @@ export async function POST(req: NextRequest) {
         snippet: {
           title: videoTitle,
           description: videoDescription,
-          tags: Array.isArray(tags) ? tags : [],
+          tags: Array.isArray(tags) ? tags.map((t: string) => String(t).trim()).filter(Boolean) : [],
           categoryId: String(categoryId || '22'),
         },
         status: {
-          privacyStatus: isScheduled ? 'private' : privacyStatus,
-          selfDeclaredMadeForKids: false,
+          privacyStatus: isScheduled ? 'private' : (privacyStatus || 'public'),
+          selfDeclaredMadeForKids: Boolean(madeForKids),
         },
       };
+
+      if (recordingDate) {
+        videoMetadata.recordingDetails = {
+          recordingDate: new Date(recordingDate).toISOString(),
+        };
+      }
+
+      if (videoLocation) {
+        videoMetadata.recordingDetails = {
+          ...(videoMetadata.recordingDetails || {}),
+          locationDescription: String(videoLocation).trim(),
+        };
+      }
 
       if (isScheduled) {
         videoMetadata.status.publishAt = new Date(scheduledTimestamp).toISOString();
       }
 
       // Step 1: Initiate Resumable Upload Session
-      const initUrl =
-        'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
+      const parts = ['snippet', 'status'];
+      if (videoMetadata.recordingDetails) parts.push('recordingDetails');
+      const initUrl = `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=${parts.join(',')}`;
 
       const initRes = await fetch(initUrl, {
         method: 'POST',
@@ -214,38 +232,104 @@ export async function POST(req: NextRequest) {
         };
       }
 
-      // Step 3: Optional Custom Thumbnail
+      let thumbnailApplied = false;
+      let thumbnailWarning: string | undefined = undefined;
+
+      // Step 3: Optional Custom Thumbnail Upload via YouTube thumbnails.set API
       if (thumbnailUrl && videoData.id) {
         try {
           let thumbBuf: Buffer | null = null;
+          let thumbMime = 'image/jpeg';
+
           if (thumbnailUrl.startsWith('/uploads/')) {
-            thumbBuf = await readFile(path.join(process.cwd(), 'public', thumbnailUrl));
-          } else if (thumbnailUrl.startsWith('http')) {
+            const localThumbPath = path.join(process.cwd(), 'public', thumbnailUrl);
+            thumbBuf = await readFile(localThumbPath);
+            if (thumbnailUrl.toLowerCase().endsWith('.png')) thumbMime = 'image/png';
+            if (thumbnailUrl.toLowerCase().endsWith('.webp')) thumbMime = 'image/webp';
+            if (thumbnailUrl.toLowerCase().endsWith('.gif')) thumbMime = 'image/gif';
+          } else if (thumbnailUrl.startsWith('data:image/')) {
+            const commaIdx = thumbnailUrl.indexOf(',');
+            const meta = thumbnailUrl.slice(0, commaIdx);
+            thumbMime = meta.split(';')[0].replace('data:', '') || 'image/jpeg';
+            thumbBuf = Buffer.from(thumbnailUrl.slice(commaIdx + 1), 'base64');
+          } else if (thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')) {
             const tRes = await fetch(thumbnailUrl);
-            if (tRes.ok) thumbBuf = Buffer.from(await tRes.arrayBuffer());
+            if (tRes.ok) {
+              const ct = tRes.headers.get('content-type');
+              if (ct) thumbMime = ct;
+              thumbBuf = Buffer.from(await tRes.arrayBuffer());
+            }
           }
 
           if (thumbBuf) {
-            await fetch(
+            const thumbRes = await fetch(
               `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoData.id}`,
               {
                 method: 'POST',
                 headers: {
                   Authorization: `Bearer ${token}`,
-                  'Content-Type': 'image/jpeg',
+                  'Content-Type': thumbMime,
                 },
                 body: new Uint8Array(thumbBuf),
               }
             );
+
+            if (thumbRes.ok) {
+              thumbnailApplied = true;
+              console.log(`[YouTube Publish] Custom thumbnail applied successfully to video ${videoData.id}`);
+            } else {
+              const thumbErrJson = await thumbRes.json().catch(() => ({}));
+              console.warn('[YouTube Publish] Thumbnail upload response:', thumbRes.status, thumbErrJson);
+              thumbnailWarning =
+                thumbErrJson.error?.message ||
+                'Custom thumbnail upload was not accepted by YouTube. Your channel must be phone verified at youtube.com/verify to use custom thumbnails.';
+            }
           }
-        } catch (tErr) {
-          console.warn('[YouTube Publish] Thumbnail upload warning:', tErr);
+        } catch (tErr: unknown) {
+          const tMsg = tErr instanceof Error ? tErr.message : 'Thumbnail upload failed';
+          console.warn('[YouTube Publish] Thumbnail upload warning:', tMsg);
+          thumbnailWarning = tMsg;
+        }
+      }
+
+      // Step 4: Optional Add to Channel Playlist via playlistItems.insert
+      let playlistAdded = false;
+      if (playlistId && videoData.id) {
+        try {
+          const plRes = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              snippet: {
+                playlistId,
+                resourceId: {
+                  kind: 'youtube#video',
+                  videoId: videoData.id,
+                },
+              },
+            }),
+          });
+          if (plRes.ok) {
+            playlistAdded = true;
+            console.log(`[YouTube Publish] Video ${videoData.id} added to playlist ${playlistId}`);
+          } else {
+            const plErr = await plRes.json().catch(() => ({}));
+            console.warn('[YouTube Publish] Playlist insert warning:', plErr);
+          }
+        } catch (plErr) {
+          console.warn('[YouTube Publish] Playlist assignment error:', plErr);
         }
       }
 
       return {
         ok: true,
         data: videoData,
+        thumbnailApplied,
+        thumbnailWarning,
+        playlistAdded,
       };
     }
 
@@ -282,12 +366,17 @@ export async function POST(req: NextRequest) {
       channelId,
       title: result.data.snippet?.title || videoTitle,
       publishedAt: new Date().toISOString(),
+      thumbnailApplied: result.thumbnailApplied,
+      thumbnailWarning: result.thumbnailWarning,
+      playlistAdded: result.playlistAdded,
       details: {
         id: videoId,
         url: videoUrl,
         privacyStatus: result.data.status?.privacyStatus || privacyStatus,
         publishAt: result.data.status?.publishAt,
         kind: result.data.kind,
+        thumbnailApplied: result.thumbnailApplied,
+        thumbnailWarning: result.thumbnailWarning,
       },
     });
   } catch (err: unknown) {

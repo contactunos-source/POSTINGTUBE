@@ -35,6 +35,16 @@ export interface PlatformCaptionOverride {
   firstComment?: string; // For IG, LinkedIn
   collaborator?: string; // For IG
   isAiGenerated?: boolean;
+  // YouTube Studio specific metadata
+  thumbnailUrl?: string;
+  tags?: string[];
+  categoryId?: string;
+  madeForKids?: boolean; // COPPA compliance (selfDeclaredMadeForKids)
+  privacyStatus?: 'public' | 'unlisted' | 'private';
+  playlistId?: string;
+  commentModeration?: 'allow_all' | 'hold_inappropriate' | 'disable';
+  recordingDate?: string;
+  videoLocation?: string;
 }
 
 export interface PostMedia {
