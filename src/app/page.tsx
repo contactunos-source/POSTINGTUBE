@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Layers,
   ArrowRight,
   Sparkles,
   CheckCircle2,
@@ -14,6 +13,8 @@ import {
   Globe,
   Share2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Play,
   RotateCw,
@@ -22,57 +23,108 @@ import {
   ThumbsUp,
   Sliders,
   Lock,
-  Workflow,
-  CheckCircle,
   Eye,
   Plus,
   Compass,
   Video,
   FileText,
   TrendingUp,
+  Users,
+  Lightbulb,
+  Layers,
+  Heart,
+  BarChart3,
+  Flame,
+  Radio,
+  FolderPlus,
+  Tv,
 } from 'lucide-react';
 import { PlatformLogo } from '@/components/SocialIcons';
 import { supabase, getGuestUser } from '@/lib/supabase';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PostingTubeLogo, PostingTubeIcon } from '@/components/PostingTubeLogo';
 
-// Supported channels for showcase
-const SUPPORTED_NETWORKS = [
-  { id: 'facebook', name: 'Facebook Pages', badge: 'Meta v20', color: '#1877F2', capabilities: 'Pages • Video Reels • Photos' },
-  { id: 'instagram', name: 'Instagram', badge: 'Business & Creator', color: '#E4405F', capabilities: 'Feed • Reels • Stories' },
-  { id: 'youtube', name: 'YouTube', badge: 'Shorts API', color: '#FF0000', capabilities: 'Shorts • Long-Form • Thumbnails' },
-  { id: 'linkedin', name: 'LinkedIn', badge: 'Company & Profile', color: '#0A66C2', capabilities: 'Articles • Documents • Polls' },
-  { id: 'threads', name: 'Threads', badge: 'Official API', color: '#000000', capabilities: 'Carousels • Text • Media' },
-  { id: 'pinterest', name: 'Pinterest', badge: 'Pins API', color: '#E60023', capabilities: 'Idea Pins • Rich Pins' },
-  { id: 'tiktok', name: 'TikTok', badge: 'Official API', color: '#000000', capabilities: 'Reels • Sounds • Direct Share' },
-  { id: 'bluesky', name: 'Bluesky', badge: 'AT Protocol', color: '#0285FF', capabilities: 'Decentralized Feed' },
+// Supported channels for integration arc
+const INTEGRATION_PLATFORMS = [
+  {
+    id: 'youtube',
+    name: 'YouTube Studio API',
+    subtitle: 'Direct 4K video uploads, custom thumbnail frame extraction, tags & official analytics',
+    badge: 'Official Partner API',
+    color: '#FF0000',
+    capabilities: 'Shorts • Long-Form • Thumbnails • COPPA',
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram Professional',
+    subtitle: 'Direct feed scheduling, automatic 9:16 reels, carousels, and first-comment auto-pinning',
+    badge: 'Meta Graph v20.0',
+    color: '#E4405F',
+    capabilities: 'Reels • Carousels • Single Photo • Insights',
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook Pages API',
+    subtitle: 'Multi-page publishing, HD video reels, link previews, and engagement tracking',
+    badge: 'Meta Graph v20.0',
+    color: '#1877F2',
+    capabilities: 'Business Pages • Creator Profiles • Video Feed',
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn REST API',
+    subtitle: 'Company page & personal profile updates, technical articles, and rich document carousels',
+    badge: 'Community Management API',
+    color: '#0A66C2',
+    capabilities: 'Company Updates • Article Sharing • Analytics',
+  },
+  {
+    id: 'tiktok',
+    name: 'TikTok Direct Share',
+    subtitle: 'Vertical 9:16 video publishing, sound hooks, and creator analytics',
+    badge: 'Direct Share API',
+    color: '#000000',
+    capabilities: 'Vertical Reels • Video Hooks • Reach Metrics',
+  },
 ];
 
-// Mock scheduled calendar items for the interactive showcase
-const CALENDAR_EVENTS = [
-  { day: 'Mon', time: '09:00 AM', platform: 'instagram', title: 'Product launch reel & story tease', status: 'Published' },
-  { day: 'Mon', time: '02:30 PM', platform: 'linkedin', title: 'Deep dive: How we scaled to 10k users', status: 'Published' },
-  { day: 'Tue', time: '11:15 AM', platform: 'youtube', title: 'YouTube Short: 3 workflow shortcuts', status: 'Scheduled' },
-  { day: 'Wed', time: '10:00 AM', platform: 'facebook', title: 'Community update & customer spotlight', status: 'Scheduled' },
-  { day: 'Thu', time: '04:00 PM', platform: 'threads', title: 'Weekly feature breakdown thread (1/6)', status: 'Queued' },
-  { day: 'Fri', time: '01:00 PM', platform: 'tiktok', title: 'Behind the scenes: Studio setup tour', status: 'Queued' },
+// Testimonials data for the Envelope showcase
+const TESTIMONIALS = [
+  {
+    name: 'Sarah Mitchell',
+    role: 'Head of Content at Nova Studios',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=160&auto=format&fit=crop&q=80',
+    rating: 5.0,
+    quote:
+      'PostingTube has completely streamlined our video distribution. What used to take our agency 3 hours across 5 open tabs every morning now takes 3 minutes. The custom thumbnail frame extractor for YouTube alone is worth the subscription.',
+  },
+  {
+    name: 'James Carter',
+    role: 'YouTube Creator & Founder (180K Subs)',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&auto=format&fit=crop&q=80',
+    rating: 5.0,
+    quote:
+      'The platform is incredibly smooth and easy to use. The autonomous scheduler publishes faithfully even when my laptop is shut. Our cross-platform impressions grew by 240% in our first 60 days.',
+  },
+  {
+    name: 'Elena Rostova',
+    role: 'Growth Marketing Director at ScaleFlow',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80',
+    rating: 5.0,
+    quote:
+      'The multi-tenant workspace separation is a lifesaver for managing client brand accounts. No token expiration panics, no broken aspect ratios—everything publishes deterministically.',
+  },
 ];
 
 export default function LandingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAnnual, setIsAnnual] = useState(true);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-  const [activeShowcaseTab, setActiveShowcaseTab] = useState<'composer' | 'calendar' | 'channels'>('composer');
 
-  // Interactive Live Composer Simulator State
-  const [simPlatform, setSimPlatform] = useState<'facebook' | 'instagram' | 'youtube' | 'linkedin' | 'threads'>('facebook');
-  const [simCaption, setSimCaption] = useState(
-    '🚀 Announcing our breakthrough background publishing worker for multi-channel creators. Write once, adapt automatically, and dispatch with sub-second accuracy.'
-  );
-  const [simAiTone, setSimAiTone] = useState<'punchy' | 'story' | 'bullets'>('punchy');
-  const [simIncludeFirstComment, setSimIncludeFirstComment] = useState(true);
-  const [simScheduledMinutes, setSimScheduledMinutes] = useState(15);
-  const [simSimulatingPublish, setSimSimulatingPublish] = useState(false);
-  const [simPublishedSuccess, setSimPublishedSuccess] = useState(false);
+  // Integration Arc Carousel active index
+  const [activeIntegrationIndex, setActiveIntegrationIndex] = useState(0);
+
+  // Testimonials Slider state
+  const [activeTestimonialIndex, setActiveTestimonialIndex] = useState(0);
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -96,59 +148,34 @@ export default function LandingPage() {
     }
   }, []);
 
-  const handleSimAiTransform = (tone: 'punchy' | 'story' | 'bullets') => {
-    setSimAiTone(tone);
-    if (tone === 'punchy') {
-      setSimCaption('⚡ The fastest way to publish across 10+ social platforms simultaneously. Zero token headaches. 100% Meta Graph v20 compliant.');
-    } else if (tone === 'story') {
-      setSimCaption('✨ 3 months ago, our social workflow was fragmented across 6 open tabs. Every morning felt like copy-paste chaos.\n\nToday, everything publishes through a single autonomous bridge with sub-second accuracy.');
-    } else {
-      setSimCaption('🎯 Why modern creator teams choose PostingTube:\n\n• Sub-second autonomous background scheduler\n• 100% isolated workspaces per client\n• Automatic 9:16 video aspect conversion\n• Smart first-comment hashtag auto-drop');
-    }
-  };
+  // Auto-rotate the integration carousel every 4.5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveIntegrationIndex((prev) => (prev + 1) % INTEGRATION_PLATFORMS.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, []);
 
-  const handleTriggerSimPublish = () => {
-    setSimSimulatingPublish(true);
-    setSimPublishedSuccess(false);
-    setTimeout(() => {
-      setSimSimulatingPublish(false);
-      setSimPublishedSuccess(true);
-      setTimeout(() => setSimPublishedSuccess(false), 5000);
-    }, 1100);
-  };
+  const activeIntegration = INTEGRATION_PLATFORMS[activeIntegrationIndex];
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans selection:bg-gray-900 selection:text-white relative overflow-x-hidden">
-      {/* ================= 1. SLEEK ANNOUNCEMENT BANNER ================= */}
-      <div className="bg-gray-50 border-b border-gray-100 py-2.5 px-4 text-center">
-        <div className="inline-flex items-center space-x-2 text-xs font-medium text-gray-700">
-          <span className="px-2 py-0.5 rounded-full bg-black text-white text-[10px] font-bold tracking-wide uppercase">
-            New
-          </span>
-          <span>PostingTube v2.4 released: YouTube Shorts API & Meta Graph v20 support</span>
-          <ArrowRight className="w-3.5 h-3.5 text-gray-500" />
-        </div>
-      </div>
-
-      {/* ================= 2. APPLE-STYLE FROSTED GLASS NAVBAR ================= */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#fafafa] text-gray-900 font-sans selection:bg-gray-900 selection:text-white relative overflow-x-hidden">
+      {/* ================= 1. FLOATING PILL NAVBAR (Inspired by Reference Video) ================= */}
+      <div className="fixed top-4 left-0 right-0 z-50 px-4 pointer-events-none">
+        <nav className="max-w-4xl mx-auto bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-full px-5 py-2.5 shadow-sm shadow-gray-200/50 flex items-center justify-between pointer-events-auto transition-all">
           {/* Logo */}
-          <PostingTubeLogo size="md" href="/" badge="v2.4" />
+          <PostingTubeLogo size="sm" href="/" />
 
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-600">
-            <a href="#preview" className="hover:text-black transition-colors">
+          {/* Navigation Items */}
+          <div className="hidden md:flex items-center space-x-7 text-xs font-semibold text-gray-600">
+            <a href="#features" className="hover:text-black transition-colors">
               Product
             </a>
-            <a href="#channels" className="hover:text-black transition-colors">
-              Channels
-            </a>
-            <a href="#features" className="hover:text-black transition-colors">
+            <a href="#solutions" className="hover:text-black transition-colors">
               Features
             </a>
-            <a href="#workflow" className="hover:text-black transition-colors">
-              How it works
+            <a href="#integrations" className="hover:text-black transition-colors">
+              Channels
             </a>
             <a href="#pricing" className="hover:text-black transition-colors">
               Pricing
@@ -158,12 +185,12 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Right Action Buttons */}
+          {/* Right Action Button */}
           <div className="flex items-center space-x-3">
             {currentUser ? (
               <Link
                 href="/dashboard"
-                className="px-4 py-2 rounded-full text-xs font-semibold bg-black hover:bg-gray-800 text-white flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                className="px-4 py-1.5 rounded-full text-xs font-bold bg-black hover:bg-gray-800 text-white flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <span>Dashboard</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -172,13 +199,13 @@ export default function LandingPage() {
               <>
                 <Link
                   href="/login"
-                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-gray-600 hover:text-black transition-colors"
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold text-gray-700 hover:text-black transition-colors"
                 >
-                  Sign In
+                  Sign in
                 </Link>
                 <Link
                   href="/login?mode=signup"
-                  className="px-4 py-2 rounded-full text-xs font-semibold bg-black hover:bg-gray-800 text-white flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  className="px-4 py-1.5 rounded-full text-xs font-bold bg-black hover:bg-gray-800 text-white flex items-center space-x-1.5 shadow-xs hover:shadow-md transition-all cursor-pointer"
                 >
                   <span>Start Free</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -186,593 +213,538 @@ export default function LandingPage() {
               </>
             )}
           </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
-      {/* ================= 3. HERO SECTION (APPLE STYLE CLEAN WHITE) ================= */}
-      <section className="pt-20 pb-16 px-6 max-w-5xl mx-auto text-center">
-        {/* Subtle Pill Badge */}
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-gray-50 border border-gray-200 text-gray-800 text-xs font-medium mb-6 shadow-2xs">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-          <span>Cross-posting & Social Scheduling Engine</span>
-          <span className="text-gray-300">•</span>
-          <span className="text-gray-500 font-mono text-[11px]">Official APIs Only</span>
+      {/* ================= 2. HERO SECTION WITH CONNECTED NODE NETWORK (Video Frame 00:00) ================= */}
+      <section className="pt-32 pb-20 px-6 max-w-5xl mx-auto text-center relative">
+        {/* Subtle Ambient Glow */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-96 h-96 bg-gradient-to-tr from-emerald-100/40 via-red-50/30 to-blue-50/40 rounded-full blur-3xl -z-10 pointer-events-none" />
+
+        {/* Central Interactive Node with Bus Connection Lines (Frame 00:00 visual recreated) */}
+        <div className="relative w-full max-w-xl mx-auto h-56 mb-8 flex items-center justify-center">
+          {/* SVG Connection Lines / Circuit Network */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none stroke-gray-200/90"
+            viewBox="0 0 576 224"
+            fill="none"
+          >
+            {/* Left Connections */}
+            <path d="M 288 112 C 220 112, 180 40, 100 40" strokeWidth="1.5" strokeDasharray="3 3" />
+            <path d="M 288 112 C 200 112, 170 112, 80 112" strokeWidth="1.5" />
+            <path d="M 288 112 C 210 112, 180 184, 110 184" strokeWidth="1.5" strokeDasharray="4 4" />
+
+            {/* Right Connections */}
+            <path d="M 288 112 C 356 112, 396 40, 476 40" strokeWidth="1.5" strokeDasharray="3 3" />
+            <path d="M 288 112 C 376 112, 406 112, 496 112" strokeWidth="1.5" />
+            <path d="M 288 112 C 366 112, 396 184, 466 184" strokeWidth="1.5" strokeDasharray="4 4" />
+          </svg>
+
+          {/* Central Main Hub Squircle Card */}
+          <div className="relative z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-500 text-white shadow-xl shadow-purple-500/25 flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+              <Check className="w-6 h-6 sm:w-7 sm:h-7 stroke-[3] text-white" />
+            </div>
+          </div>
+
+          {/* Floating Orbit Node 1: Top Left (AI Lightbulb) */}
+          <div className="absolute top-2 left-16 sm:left-20 w-11 h-11 rounded-2xl bg-amber-400 text-amber-950 shadow-md shadow-amber-400/25 flex items-center justify-center animate-bounce [animation-duration:3.2s]">
+            <Lightbulb className="w-5 h-5 fill-amber-950/20" />
+          </div>
+
+          {/* Floating Orbit Node 2: Mid Left (Creator Avatar) */}
+          <div className="absolute top-1/2 -translate-y-1/2 left-4 sm:left-8 w-12 h-12 rounded-2xl bg-white p-0.5 shadow-md border border-gray-100">
+            <img
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
+              alt="Creator"
+              className="w-full h-full object-cover rounded-[14px]"
+            />
+          </div>
+
+          {/* Floating Orbit Node 3: Bottom Left (Social Cyan Pill) */}
+          <div className="absolute bottom-2 left-18 sm:left-24 w-11 h-11 rounded-2xl bg-cyan-400 text-white shadow-md shadow-cyan-400/25 flex items-center justify-center animate-bounce [animation-duration:3.8s]">
+            <Share2 className="w-5 h-5" />
+          </div>
+
+          {/* Floating Orbit Node 4: Top Right (YouTube Red Bolt) */}
+          <div className="absolute top-2 right-16 sm:right-20 w-11 h-11 rounded-2xl bg-red-600 text-white shadow-md shadow-red-600/25 flex items-center justify-center animate-bounce [animation-duration:3.4s]">
+            <Zap className="w-5 h-5 fill-white" />
+          </div>
+
+          {/* Floating Orbit Node 5: Mid Right (Real-time Vision Glasses) */}
+          <div className="absolute top-1/2 -translate-y-1/2 right-4 sm:right-8 w-12 h-12 rounded-2xl bg-white shadow-md border border-gray-100 flex items-center justify-center text-gray-800">
+            <Eye className="w-6 h-6 stroke-[2]" />
+          </div>
+
+          {/* Floating Orbit Node 6: Bottom Right (Creator Portrait) */}
+          <div className="absolute bottom-2 right-18 sm:right-24 w-11 h-11 rounded-2xl bg-white p-0.5 shadow-md border border-gray-100">
+            <img
+              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80"
+              alt="Creator"
+              className="w-full h-full object-cover rounded-[14px]"
+            />
+          </div>
         </div>
 
-        {/* Hero Title */}
+        {/* Big Bold Headline */}
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[1.08]">
-          Post once.<br />
-          <span className="text-gray-900">Reach everywhere.</span>
+          All-in-one social<br />
+          <span className="text-gray-900">publishing platform</span>
         </h1>
 
-        {/* Subtitle */}
-        <p className="mt-6 text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-          The all-in-one cross-posting platform built for founders, creators, and agencies.
-          Schedule and adapt your posts for Instagram, YouTube, Facebook, LinkedIn, TikTok, and X in seconds.
+        {/* Clean Subtitle */}
+        <p className="mt-5 text-sm sm:text-base text-gray-600 max-w-xl mx-auto leading-relaxed">
+          PostingTube is a modern, all-in-one social media publishing platform designed to perfectly schedule,
+          adapt, and grow across YouTube, Instagram, Facebook, and LinkedIn.
         </p>
 
-        {/* CTA Group */}
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+        {/* CTA Button Group */}
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
-            href="/login"
-            className="w-full sm:w-auto px-7 py-3.5 rounded-full text-sm font-semibold bg-black hover:bg-gray-800 text-white flex items-center justify-center space-x-2 shadow-md hover:shadow-lg transition-all cursor-pointer group"
+            href="/login?mode=signup"
+            className="w-full sm:w-auto px-7 py-3 rounded-full text-xs font-bold bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white flex items-center justify-center space-x-2 shadow-md shadow-red-600/20 transition-all cursor-pointer"
           >
-            <span>Start for free</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            <span>Request a Demo</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
 
           <a
-            href="#preview"
-            className="w-full sm:w-auto px-6 py-3.5 rounded-full text-sm font-medium bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xs"
+            href="#solutions"
+            className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xs"
           >
-            <Play className="w-3.5 h-3.5 text-gray-900 fill-gray-900" />
-            <span>Try the interactive demo</span>
+            <span>Explore Studio Features</span>
           </a>
         </div>
 
         {/* Trust Badges */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 font-medium">
           <span className="flex items-center space-x-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>No credit card required</span>
           </span>
-          <span className="hidden sm:inline text-gray-300">•</span>
+          <span className="text-gray-300">•</span>
           <span className="flex items-center space-x-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>1-Click Meta & YouTube OAuth</span>
+            <span>Official Google &amp; Meta OAuth 2.0</span>
           </span>
-          <span className="hidden sm:inline text-gray-300">•</span>
+          <span className="text-gray-300">•</span>
           <span className="flex items-center space-x-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>100% Isolated client workspaces</span>
+            <span>100% Isolated Client Workspaces</span>
           </span>
         </div>
       </section>
 
-      {/* ================= 4. CONNECTED PLATFORMS STRIP ================= */}
-      <section className="py-6 px-6 max-w-6xl mx-auto">
-        <div className="text-center mb-4">
-          <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
-            Directly integrates with the world&apos;s leading platforms
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-          {SUPPORTED_NETWORKS.map((network) => (
-            <div
-              key={network.id}
-              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-gray-50/80 hover:bg-gray-100 border border-gray-200/80 transition-colors cursor-default"
+      {/* ================= 3. CREATOR SHOWCASE SECTION (Video Frame 00:01 - 00:03) ================= */}
+      <section id="solutions" className="py-20 px-6 max-w-6xl mx-auto relative">
+        <div className="relative rounded-3xl bg-white border border-gray-200/80 p-8 sm:p-14 shadow-sm overflow-hidden text-center">
+          {/* Category Pill Icon */}
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+            <Users className="w-5 h-5" />
+          </div>
+
+          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
+            Core Publishing<br />solutions
+          </h2>
+
+          <p className="mt-3 text-xs sm:text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+            Streamline multi-channel social workflows in one centralized platform, enhancing transparency and reach.
+          </p>
+
+          <div className="mt-6">
+            <Link
+              href="/login?mode=signup"
+              className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-full text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 transition-all cursor-pointer"
             >
-              <PlatformLogo platform={network.id as any} className="w-4 h-4" />
-              <span className="text-xs font-semibold text-gray-800">{network.name}</span>
+              <span>Learn more</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {/* Staggered Floating Cards around Central Content (Recreating Frame 00:01 - 00:03) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 pt-8 border-t border-gray-100 text-left">
+            {/* Creator Card 1 */}
+            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
+              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
+                <img
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80"
+                  alt="Creator"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                  <PlatformLogo platform="instagram" className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-gray-900">Elena Rostova</p>
+              <p className="text-[10px] text-gray-500">Instagram Creator • 140K</p>
             </div>
-          ))}
+
+            {/* Creator Card 2 */}
+            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
+              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
+                <img
+                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80"
+                  alt="Creator"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                  <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-gray-900">James Carter</p>
+              <p className="text-[10px] text-gray-500">YouTube Studio • 180K</p>
+            </div>
+
+            {/* Creator Card 3 */}
+            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
+              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
+                <img
+                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=240&auto=format&fit=crop&q=80"
+                  alt="Creator"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                  <PlatformLogo platform="facebook" className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-gray-900">Sarah Mitchell</p>
+              <p className="text-[10px] text-gray-500">Facebook Page Admin</p>
+            </div>
+
+            {/* Creator Card 4 */}
+            <div className="p-3 bg-gray-50/80 border border-gray-200/80 rounded-2xl shadow-2xs hover:scale-105 transition-transform duration-300">
+              <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative">
+                <img
+                  src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80"
+                  alt="Creator"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-lg bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                  <PlatformLogo platform="linkedin" className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <p className="text-xs font-bold text-gray-900">David Liang</p>
+              <p className="text-[10px] text-gray-500">LinkedIn Business Lead</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ================= 5. INTERACTIVE PRODUCT SHOWCASE (MOCKUP WINDOW) ================= */}
-      <section id="preview" className="py-16 px-6 max-w-6xl mx-auto">
-        {/* Apple Style Window Frame */}
-        <div className="rounded-3xl border border-gray-200/90 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.08)] overflow-hidden">
-          {/* macOS Title Bar */}
-          <div className="bg-gray-50/90 border-b border-gray-200/80 px-5 py-3.5 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="w-3 h-3 rounded-full bg-red-400"></span>
-              <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-              <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
-              <span className="text-xs font-mono text-gray-400 ml-3 hidden sm:inline">
-                https://app.postingtube.com
-              </span>
-            </div>
+      {/* ================= 4. BENTO GRID: "BUILT FOR EVERYONE" (Video Frame 00:04 - 00:06) ================= */}
+      <section id="features" className="py-20 px-6 max-w-6xl mx-auto">
+        <div className="text-center mb-14">
+          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
+            Built for everyone
+          </h2>
+          <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-lg mx-auto">
+            Thousands of creators, from solo podcasters to global digital agencies, use PostingTube to automate publishing.
+          </p>
+        </div>
 
-            {/* Window Mode Switcher Tabs */}
-            <div className="flex items-center space-x-1 bg-gray-200/60 p-1 rounded-xl">
-              <button
-                onClick={() => setActiveShowcaseTab('composer')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeShowcaseTab === 'composer'
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                Interactive Composer
-              </button>
-              <button
-                onClick={() => setActiveShowcaseTab('calendar')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeShowcaseTab === 'calendar'
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                Calendar View
-              </button>
-              <button
-                onClick={() => setActiveShowcaseTab('channels')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeShowcaseTab === 'channels'
-                    ? 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                Channel Hub
-              </button>
+        {/* Bento Grid (Exactly matching 3 top cards + 2 wide bottom cards from reference) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* Card 1: Visual Bar Chart / Analytics Report */}
+          <div className="bg-white rounded-3xl border border-gray-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+              {/* Graphic Preview */}
+              <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col justify-between mb-5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-gray-700">
+                  <span>Reach Report</span>
+                  <span className="text-emerald-600 font-mono">+38.4%</span>
+                </div>
+                {/* Visual bar chart columns */}
+                <div className="flex items-end justify-between h-20 px-2 gap-2">
+                  {[35, 60, 45, 80, 65, 95, 75].map((height, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div
+                        style={{ height: `${height}%` }}
+                        className={`w-full rounded-t-md transition-all ${
+                          i === 5 ? 'bg-red-500' : 'bg-red-200'
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <h3 className="text-base font-bold text-gray-900">For video creators</h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Dedicated YouTube Studio composer with custom thumbnail frame extraction, tags, and COPPA settings.
+              </p>
             </div>
           </div>
 
-          {/* TAB 1: INTERACTIVE COMPOSER */}
-          {activeShowcaseTab === 'composer' && (
-            <div className="p-6 sm:p-8 bg-white">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Left Column: Composer Controls */}
-                <div className="lg:col-span-7 space-y-5">
-                  {/* Channel Target Selector */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-700 block mb-2">
-                      Select Target Preview Network:
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {(['facebook', 'instagram', 'youtube', 'linkedin', 'threads'] as const).map((plat) => (
-                        <button
-                          key={plat}
-                          onClick={() => setSimPlatform(plat)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize flex items-center space-x-1.5 transition-all cursor-pointer border ${
-                            simPlatform === plat
-                              ? 'bg-black text-white border-black shadow-xs'
-                              : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
-                          }`}
-                        >
-                          <PlatformLogo platform={plat} className="w-3.5 h-3.5" />
-                          <span>{plat}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Caption & AI Tone */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-gray-700">Master Caption</label>
-                      <div className="flex items-center space-x-1 text-xs">
-                        <span className="text-gray-600 mr-1 flex items-center space-x-1">
-                          <Sparkles className="w-3 h-3 text-blue-600" />
-                          <span>AI Tone:</span>
-                        </span>
-                        {(['punchy', 'story', 'bullets'] as const).map((tone) => (
-                          <button
-                            key={tone}
-                            onClick={() => handleSimAiTransform(tone)}
-                            className={`px-2 py-0.5 rounded-md capitalize text-[11px] font-medium transition-colors cursor-pointer ${
-                              simAiTone === tone
-                                ? 'bg-gray-900 text-white font-semibold'
-                                : 'bg-gray-100 text-gray-600 hover:text-gray-900'
-                            }`}
-                          >
-                            {tone}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <textarea
-                      rows={5}
-                      value={simCaption}
-                      onChange={(e) => setSimCaption(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-4 rounded-2xl bg-gray-50/50 border border-gray-200 text-gray-900 focus:outline-hidden focus:border-black focus:ring-1 focus:ring-black leading-relaxed font-sans resize-none transition-colors"
-                      placeholder="Draft your post..."
-                    />
-                    <div className="flex justify-between items-center text-[11px] text-gray-600 mt-1">
-                      <span>Syncs across all selected channels automatically</span>
-                      <span>{simCaption.length} chars</span>
-                    </div>
-                  </div>
-
-                  {/* Automation & Scheduler Toggles */}
-                  <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-200/80">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <MessageSquare className="w-4 h-4 text-blue-600" />
-                        <div>
-                          <span className="font-semibold text-gray-900">Auto First-Comment Drop</span>
-                          <p className="text-[11px] text-gray-500">Separates links and hashtags into comment #1 for maximum organic reach.</p>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={simIncludeFirstComment}
-                        onChange={(e) => setSimIncludeFirstComment(e.target.checked)}
-                        className="accent-black w-4 h-4 cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-200/60 flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-emerald-600" />
-                        <div>
-                          <span className="font-semibold text-gray-900">Queue & Dispatch Time</span>
-                          <p className="text-[11px] text-gray-500">Autonomous background worker executes deterministically.</p>
-                        </div>
-                      </div>
-                      <select
-                        value={simScheduledMinutes}
-                        onChange={(e) => setSimScheduledMinutes(Number(e.target.value))}
-                        className="bg-white border border-gray-200 text-gray-800 text-xs px-2.5 py-1 rounded-lg cursor-pointer"
-                      >
-                        <option value={0}>Publish Right Now</option>
-                        <option value={15}>In 15 minutes</option>
-                        <option value={60}>In 1 hour</option>
-                        <option value={1440}>Tomorrow morning (9:00 AM)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Dispatch Action */}
-                  <div className="pt-1">
-                    <button
-                      onClick={handleTriggerSimPublish}
-                      disabled={simSimulatingPublish}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white flex items-center justify-center space-x-2 text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {simSimulatingPublish ? (
-                        <>
-                          <RotateCw className="w-4 h-4 animate-spin text-white" />
-                          <span>Dispatching to {simPlatform.toUpperCase()} API...</span>
-                        </>
-                      ) : simPublishedSuccess ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                          <span>Published Successfully! (HTTP 200 via Official API)</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          <span>Schedule Across Connected Channels</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+          {/* Card 2: Interactive Real-Time Pills */}
+          <div className="bg-white rounded-3xl border border-gray-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+              {/* Graphic Preview */}
+              <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col items-center justify-center space-y-2 mb-5">
+                <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 shadow-2xs text-xs font-bold text-gray-800">
+                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <span>Track Performance in Real Time</span>
                 </div>
-
-                {/* Right Column: Platform-Accurate Live Preview Card */}
-                <div className="lg:col-span-5 flex flex-col justify-center">
-                  <div className="bg-gray-50/80 border border-gray-200 rounded-2xl p-5 shadow-xs">
-                    {/* Channel Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-200/80">
-                      <div className="flex items-center space-x-2.5">
-                        <div className="w-9 h-9 rounded-full bg-black text-white font-bold flex items-center justify-center text-xs">
-                          PB
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-gray-900 flex items-center space-x-1">
-                            <span>Acme Studio</span>
-                            <PlatformLogo platform={simPlatform} className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="text-[10px] text-gray-600">Just now • Published via PostingTube</div>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Live Preview
-                      </span>
-                    </div>
-
-                    {/* Preview Text */}
-                    <div className="py-4 text-xs text-gray-800 whitespace-pre-line leading-relaxed min-h-[90px]">
-                      {simCaption || 'Drafting post...'}
-                    </div>
-
-                    {/* Auto First Comment Preview */}
-                    {simIncludeFirstComment && (
-                      <div className="mt-2 p-2.5 rounded-xl bg-white border border-gray-200 text-[11px] text-gray-600">
-                        <span className="font-bold text-gray-900 mr-1.5">First Comment (Auto):</span>
-                        <span>🔗 https://postingtube.com/launch #marketing #creators #saas</span>
-                      </div>
-                    )}
-
-                    {/* Channel Footer Actions */}
-                    <div className="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between text-[11px] text-gray-600">
-                      <span className="flex items-center space-x-1">
-                        <ThumbsUp className="w-3 h-3" />
-                        <span>0 Likes</span>
-                      </span>
-                      <span>0 Comments</span>
-                      <span>0 Shares</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 text-center">
-                    <span className="text-[11px] text-gray-600">
-                      Format rules, character limitations, and aspect ratios adapt automatically.
-                    </span>
-                  </div>
+                <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Scheduled for 8:00 PM</span>
                 </div>
               </div>
+
+              <h3 className="text-base font-bold text-gray-900">For managers &amp; leaders</h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Schedule multi-platform campaigns ahead of time with frame-accurate calendar queues and automatic execution.
+              </p>
             </div>
-          )}
+          </div>
 
-          {/* TAB 2: CALENDAR VIEW */}
-          {activeShowcaseTab === 'calendar' && (
-            <div className="p-6 sm:p-8 bg-white">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">Weekly Scheduled Queue</h3>
-                  <p className="text-xs text-gray-500">Autonomous worker dispatches posts even when your computer is off.</p>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                    6 Posts in Queue
-                  </span>
+          {/* Card 3: Compliant Stacked Official APIs */}
+          <div className="bg-white rounded-3xl border border-gray-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+              {/* Graphic Preview */}
+              <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center justify-center mb-5">
+                <div className="relative w-24 h-24">
+                  <div className="absolute inset-0 rounded-2xl bg-purple-100 border border-purple-200 transform -rotate-6" />
+                  <div className="absolute inset-0 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-center transform rotate-3">
+                    <ShieldCheck className="w-8 h-8 text-purple-600" />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {CALENDAR_EVENTS.map((event, i) => (
+              <h3 className="text-base font-bold text-gray-900">For legal &amp; agency teams</h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                PostingTube adheres 100% to official platform terms of service. No scrapers, zero risk of account bans.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom 2 Bento Cards (1 Wide + 1 Circular Orbit) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 4 (Wide 2-col): All channel data at once */}
+          <div className="md:col-span-2 bg-white rounded-3xl border border-gray-200/80 p-6 sm:p-7 shadow-xs hover:shadow-md transition-shadow">
+            {/* Visual Table of Connected Accounts */}
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100 mb-5 overflow-x-auto">
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
+                Connected Social Destinations
+              </div>
+              <div className="space-y-2">
+                {[
+                  { name: 'U NOS AI', platform: 'youtube', followers: '18.4K', status: 'Connected' },
+                  { name: 'U NOS Digital Marketing', platform: 'facebook', followers: '42.1K', status: 'Active' },
+                  { name: '@image_rescaler', platform: 'instagram', followers: '12.8K', status: 'Active' },
+                ].map((ch, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 hover:border-gray-300 transition-colors"
+                    className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-200/70 text-xs"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <PlatformLogo platform={event.platform as any} className="w-4 h-4" />
-                        <span className="text-xs font-bold text-gray-800 capitalize">{event.platform}</span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          event.status === 'Published'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : event.status === 'Scheduled'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-200 text-gray-800'
-                        }`}
-                      >
-                        {event.status}
-                      </span>
+                    <div className="flex items-center space-x-2.5">
+                      <PlatformLogo platform={ch.platform as any} className="w-4 h-4" />
+                      <span className="font-bold text-gray-900">{ch.name}</span>
                     </div>
-
-                    <p className="text-xs text-gray-700 font-medium mb-3 line-clamp-2">{event.title}</p>
-
-                    <div className="flex items-center space-x-2 text-[11px] text-gray-600 pt-2 border-t border-gray-200/60">
-                      <Calendar className="w-3 h-3 text-gray-600" />
-                      <span>{event.day}</span>
-                      <span>•</span>
-                      <Clock className="w-3 h-3 text-gray-600" />
-                      <span>{event.time}</span>
+                    <div className="flex items-center space-x-3 text-[11px] text-gray-500">
+                      <span>{ch.followers} subscribers</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                        {ch.status}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* TAB 3: CONNECTED CHANNELS HUB */}
-          {activeShowcaseTab === 'channels' && (
-            <div className="p-6 sm:p-8 bg-white">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">Connected Social Accounts</h3>
-                  <p className="text-xs text-gray-500">Official OAuth credentials with automatic token refreshes.</p>
+            <h3 className="text-base font-bold text-gray-900">All channel data at once</h3>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              Connect accounts once via official OAuth. Secure automated token refresh keeps your scheduling uninterrupted.
+            </p>
+          </div>
+
+          {/* Card 5 (1-col): Team & Orbit Wheel */}
+          <div className="bg-white rounded-3xl border border-gray-200/80 p-6 sm:p-7 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+              {/* Circular Orbit Wheel (Visual from Frame 00:06) */}
+              <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center justify-center relative mb-5 overflow-hidden">
+                <div className="w-24 h-24 rounded-full border border-dashed border-gray-300 flex items-center justify-center relative animate-[spin_20s_linear_infinite]">
+                  <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
+                    <PostingTubeIcon size={18} />
+                  </div>
+                  {/* Orbiting mini avatars */}
+                  <div className="absolute -top-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=60&auto=format&fit=crop&q=80" alt="team" />
+                  </div>
+                  <div className="absolute -bottom-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&auto=format&fit=crop&q=80" alt="team" />
+                  </div>
+                  <div className="absolute -left-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">
+                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&auto=format&fit=crop&q=80" alt="team" />
+                  </div>
+                  <div className="absolute -right-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">
+                    <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=60&auto=format&fit=crop&q=80" alt="team" />
+                  </div>
                 </div>
-                <button className="px-3 py-1.5 rounded-xl bg-black text-white text-xs font-semibold flex items-center space-x-1">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Connect Account</span>
+              </div>
+
+              <h3 className="text-base font-bold text-gray-900">For teams &amp; agencies</h3>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                Isolate client workspaces, collaborate on post drafts, and maintain brand approvals effortlessly.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 5. CURVED ARC INTEGRATION CAROUSEL (Video Frame 00:07 - 00:10) ================= */}
+      <section id="integrations" className="py-20 px-6 max-w-5xl mx-auto text-center">
+        {/* Category Pill */}
+        <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+          <Share2 className="w-5 h-5" />
+        </div>
+
+        <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
+          Integrate with your existing<br />channels in seconds
+        </h2>
+
+        <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
+          Direct platform APIs with official OAuth authorization. No third-party scrapers, zero security risks.
+        </p>
+
+        {/* Curved Arc Layout (Exactly matching Frame 00:07 - 00:10) */}
+        <div className="relative pt-16 pb-8 max-w-2xl mx-auto">
+          {/* Subtle curved arc baseline */}
+          <div className="flex items-center justify-center gap-3 sm:gap-6">
+            {INTEGRATION_PLATFORMS.map((platform, idx) => {
+              const isActive = idx === activeIntegrationIndex;
+              // Calculate subtle vertical arc offset: center items are higher
+              const distance = Math.abs(idx - 2);
+              const translateY = distance === 0 ? '-translate-y-4 scale-110' : distance === 1 ? '-translate-y-1' : 'translate-y-3 opacity-60';
+
+              return (
+                <button
+                  key={platform.id}
+                  type="button"
+                  onClick={() => setActiveIntegrationIndex(idx)}
+                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-white border-2 flex items-center justify-center transition-all duration-500 cursor-pointer shadow-sm ${translateY} ${
+                    isActive
+                      ? 'border-gray-900 ring-4 ring-gray-100 shadow-lg'
+                      : 'border-gray-200/80 hover:border-gray-400'
+                  }`}
+                  title={platform.name}
+                >
+                  <PlatformLogo platform={platform.id as any} className="w-8 h-8 sm:w-10 sm:h-10" />
                 </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <PlatformLogo platform="facebook" className="w-6 h-6" />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900">Acme Corporation (Facebook Page)</div>
-                      <div className="text-[11px] text-gray-500">Meta Graph API v20.0 • Verified Page</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Connected
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <PlatformLogo platform="instagram" className="w-6 h-6" />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900">@acmestudio (Instagram Creator)</div>
-                      <div className="text-[11px] text-gray-500">Reels & Carousels Enabled</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Connected
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <PlatformLogo platform="youtube" className="w-6 h-6" />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900">Acme Tech (YouTube Shorts)</div>
-                      <div className="text-[11px] text-gray-500">Google OAuth 2.0 • 1080p Support</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Connected
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <PlatformLogo platform="linkedin" className="w-6 h-6" />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900">Acme Global (LinkedIn Organization)</div>
-                      <div className="text-[11px] text-gray-500">Official Community Management API</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Connected
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ================= 6. THE 4 BENTO GRID PILLARS (APPLE STYLE) ================= */}
-      <section id="features" className="py-20 px-6 max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
-            Engineered for Creators & Agencies
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
-            Everything you need to automate your social footprint
-          </h2>
-          <p className="text-sm text-gray-600 mt-2 max-w-xl mx-auto">
-            Zero third-party scrapers. Zero token headaches. 100% compliant with official platform policies.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1 */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 hover:border-gray-300 transition-all flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center mb-6">
-                <Zap className="w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Autonomous 10-Second Scheduler Daemon</h3>
-              <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Never worry about keeping your browser tab open. The PostingTube background worker checks queue status continuously, dispatches due posts directly to official APIs, and records delivery audits.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-emerald-700">
-              <CheckCircle className="w-4 h-4" />
-              <span>Runs 24/7 even with laptop shut</span>
-            </div>
+              );
+            })}
           </div>
 
-          {/* Card 2 */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 hover:border-gray-300 transition-all flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center mb-6">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Deep Multi-Tenant Isolation</h3>
-              <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Every user gets a dedicated workspace in Supabase PostgreSQL with strict Row-Level Security. Connected accounts, scheduled posts, and media are partition-scoped to guarantee zero cross-client leakage.
-              </p>
+          {/* Active Platform Information Card */}
+          <div className="mt-8 p-6 bg-white rounded-3xl border border-gray-200/80 shadow-xs max-w-md mx-auto transition-all animate-fade-in">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+              <span>{activeIntegration.badge}</span>
             </div>
-            <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-blue-700">
-              <Lock className="w-4 h-4" />
-              <span>100% Agency workspace separation</span>
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 hover:border-gray-300 transition-all flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center mb-6">
-                <Sliders className="w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Platform-Adaptive Formatting</h3>
-              <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Say goodbye to broken video aspect ratios or failed image uploads. PostingTube validates file constraints, conforms 9:16 reels for Facebook and Instagram, and formats caption breaks for maximum organic readability.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-gray-900">
-              <CheckCircle className="w-4 h-4" />
-              <span>Auto 9:16 Video & 1:1 Image conformation</span>
-            </div>
-          </div>
-
-          {/* Card 4 */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 hover:border-gray-300 transition-all flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center mb-6">
-                <Compass className="w-5 h-5" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Smart First-Comment Link Pinning</h3>
-              <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
-                Keep your post copy clean and uncluttered. PostingTube automatically posts your promotional links and hashtag clusters into the very first comment as soon as the main post publishes.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-gray-200/80 flex items-center space-x-2 text-xs font-semibold text-gray-900">
-              <CheckCircle className="w-4 h-4" />
-              <span>Increases organic social reach by up to 35%</span>
+            <h4 className="text-base font-bold text-gray-900">{activeIntegration.name}</h4>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              {activeIntegration.subtitle}
+            </p>
+            <div className="mt-3 text-[11px] font-mono text-emerald-700 font-semibold">
+              ✓ {activeIntegration.capabilities}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= 7. THREE-STEP WORKFLOW ================= */}
-      <section id="workflow" className="py-20 px-6 max-w-6xl mx-auto border-t border-gray-100">
-        <div className="text-center mb-16">
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
-            Streamlined Setup
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
-            Publishing made effortless in 3 steps
-          </h2>
-        </div>
+      {/* ================= 6. ENVELOPE TESTIMONIALS SLIDER (Video Frame 00:11 - 00:14) ================= */}
+      <section className="py-20 px-6 max-w-4xl mx-auto text-center">
+        <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
+          Words of Appreciation
+        </h2>
+        <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
+          Thousands of businesses, from startups to enterprises, use PostingTube to schedule and scale social content.
+        </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="p-7 rounded-3xl bg-gray-50 border border-gray-200/80 relative">
-            <div className="text-4xl font-black text-gray-300 font-mono mb-4">
-              01
+        {/* Envelope Container Visual (Frame 00:11 styling) */}
+        <div className="relative mt-12 max-w-lg mx-auto">
+          {/* Envelope Body / Folded Card Design */}
+          <div className="relative bg-white border-2 border-gray-200 rounded-3xl p-6 sm:p-8 shadow-lg text-center transition-all">
+            {/* Reviewer Avatar */}
+            <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 border-2 border-white shadow-md">
+              <img
+                src={TESTIMONIALS[activeTestimonialIndex].avatar}
+                alt={TESTIMONIALS[activeTestimonialIndex].name}
+                className="w-full h-full object-cover"
+              />
             </div>
-            <h3 className="text-base font-bold text-gray-900">Connect Your Social Channels</h3>
-            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Authenticate directly via official OAuth. PostingTube automatically discovers all Facebook Pages, Instagram, and YouTube channels you manage with zero manual token handling.
-            </p>
-          </div>
 
-          <div className="p-7 rounded-3xl bg-gray-50 border border-gray-200/80 relative">
-            <div className="text-4xl font-black text-gray-300 font-mono mb-4">
-              02
-            </div>
-            <h3 className="text-base font-bold text-gray-900">Compose & AI Transform</h3>
-            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Draft your main post in the unified composer. Use one-click AI tones to tailor hooks, bullet lists, and auto-format media for each target network.
+            <h4 className="text-sm font-bold text-gray-900">
+              {TESTIMONIALS[activeTestimonialIndex].name}
+            </h4>
+            <p className="text-[11px] text-gray-500">
+              {TESTIMONIALS[activeTestimonialIndex].role}
             </p>
-          </div>
 
-          <div className="p-7 rounded-3xl bg-gray-50 border border-gray-200/80 relative">
-            <div className="text-4xl font-black text-gray-300 font-mono mb-4">
-              03
+            {/* 5.0 Star Rating */}
+            <div className="flex items-center justify-center space-x-1 mt-2 text-amber-400">
+              {[...Array(5)].map((_, i) => (
+                <span key={i} className="text-sm">★</span>
+              ))}
+              <span className="text-xs font-bold text-gray-700 ml-1">5.0</span>
             </div>
-            <h3 className="text-base font-bold text-gray-900">Schedule & Relax</h3>
-            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-              Hit Schedule or Publish Now. The PostingTube autonomous background worker handles timing, retry queues, idempotency, and live delivery validation automatically.
+
+            {/* Quote */}
+            <p className="mt-4 text-xs sm:text-sm text-gray-600 leading-relaxed italic">
+              &ldquo;{TESTIMONIALS[activeTestimonialIndex].quote}&rdquo;
             </p>
+
+            {/* Envelope Flap Accent Lines */}
+            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-center space-x-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveTestimonialIndex((prev) =>
+                    prev === 0 ? TESTIMONIALS.length - 1 : prev - 1
+                  )
+                }
+                className="w-8 h-8 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
+                title="Previous testimonial"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Indicator dots */}
+              <div className="flex items-center space-x-1.5">
+                {TESTIMONIALS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveTestimonialIndex(i)}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      i === activeTestimonialIndex ? 'w-5 bg-gray-900' : 'w-1.5 bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveTestimonialIndex((prev) => (prev + 1) % TESTIMONIALS.length)
+                }
+                className="w-8 h-8 rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
+                title="Next testimonial"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ================= 8. TRANSPARENT PRICING ================= */}
-      <section id="pricing" className="py-20 px-6 max-w-6xl mx-auto border-t border-gray-100">
+      {/* ================= 7. TRANSPARENT PRICING SECTION ================= */}
+      <section id="pricing" className="py-20 px-6 max-w-6xl mx-auto border-t border-gray-200/80">
         <div className="text-center mb-12">
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
             Simple Pricing
           </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
+          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
             Fair, predictable plans for creators and brands
           </h2>
-          <p className="text-xs sm:text-sm text-gray-600 mt-2 max-w-md mx-auto">
+          <p className="text-xs sm:text-sm text-gray-500 mt-2 max-w-md mx-auto">
             Start completely free, upgrade as your social channels grow.
           </p>
 
@@ -793,7 +765,9 @@ export default function LandingPage() {
               }`}
             >
               <span>Annual</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-white font-bold">Save 25%</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-white font-bold">
+                Save 25%
+              </span>
             </button>
           </div>
         </div>
@@ -801,7 +775,7 @@ export default function LandingPage() {
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {/* Tier 1: Free */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 flex flex-col justify-between">
+          <div className="p-8 rounded-3xl bg-white border border-gray-200/80 flex flex-col justify-between shadow-xs">
             <div>
               <h3 className="text-base font-bold text-gray-900">Free Starter</h3>
               <p className="text-xs text-gray-500 mt-1">For creators testing their first multi-channel workflow.</p>
@@ -821,7 +795,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Direct Facebook Page Publishing</span>
+                  <span>Direct YouTube Studio &amp; Meta Publishing</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
@@ -832,7 +806,7 @@ export default function LandingPage() {
 
             <Link
               href="/login?mode=signup"
-              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
+              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
             >
               Get Started Free
             </Link>
@@ -869,7 +843,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span>AI Hook & Tone Assistant</span>
+                  <span>YouTube Studio &amp; Frame Extraction</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
@@ -888,7 +862,7 @@ export default function LandingPage() {
           </div>
 
           {/* Tier 3: Agency Scale */}
-          <div className="p-8 rounded-3xl bg-gray-50 border border-gray-200/80 flex flex-col justify-between">
+          <div className="p-8 rounded-3xl bg-white border border-gray-200/80 flex flex-col justify-between shadow-xs">
             <div>
               <h3 className="text-base font-bold text-gray-900">Agency Scale</h3>
               <p className="text-xs text-gray-500 mt-1">For marketing agencies managing multiple brands.</p>
@@ -902,7 +876,7 @@ export default function LandingPage() {
               <div className="mt-8 space-y-3 text-xs text-gray-700">
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Unlimited Accounts & Workspaces</span>
+                  <span>Unlimited Accounts &amp; Workspaces</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
@@ -910,7 +884,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Custom Webhooks & REST API</span>
+                  <span>Custom Webhooks &amp; REST API</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Check className="w-4 h-4 text-emerald-600" />
@@ -921,7 +895,7 @@ export default function LandingPage() {
 
             <Link
               href="/login?mode=signup"
-              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
+              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
             >
               Contact Sales
             </Link>
@@ -929,13 +903,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= 9. FAQ ACCORDION ================= */}
-      <section id="faq" className="py-20 px-6 max-w-3xl mx-auto border-t border-gray-100">
+      {/* ================= 8. FAQ ACCORDION ================= */}
+      <section id="faq" className="py-20 px-6 max-w-3xl mx-auto border-t border-gray-200/80">
         <div className="text-center mb-12">
-          <span className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
             Common Questions
           </span>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          <h2 className="text-3xl font-black text-gray-900 tracking-tight">
             Frequently Asked Questions
           </h2>
         </div>
@@ -947,27 +921,27 @@ export default function LandingPage() {
               a: 'No. PostingTube runs an autonomous background scheduling daemon that continuously monitors scheduled queues every 10 seconds. Once scheduled, your post dispatches deterministically to the target networks on time, even if your device is completely powered down.',
             },
             {
-              q: 'How does Facebook and Instagram connection work?',
-              a: 'We integrate with the official Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and PostingTube discovers all verified Facebook Pages and Instagram accounts you manage with official long-lived security tokens.',
+              q: 'How does YouTube, Instagram, and Facebook connection work?',
+              a: 'We integrate with official Google YouTube Data API v3 and Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and PostingTube discovers all verified YouTube channels, Instagram accounts, and Facebook Pages you manage with official long-lived security tokens.',
             },
             {
               q: 'Are my client workspaces isolated from other accounts?',
               a: 'Yes, 100%. Every user account is bound to a dedicated workspace ID in Supabase PostgreSQL with strict Row-Level Security. Connected credentials, drafts, media, and scheduler queues are completely isolated to guarantee zero cross-tenant leakage.',
             },
             {
-              q: 'Can I publish to Facebook Groups?',
-              a: 'Meta deprecated direct third-party API posting to Facebook Groups in Graph API v19+. In compliance with official Meta developer policies, PostingTube focuses exclusively on Facebook Pages (businesses, creators, public figures) where full automated posting is supported.',
+              q: 'How does the YouTube custom thumbnail frame extractor work?',
+              a: 'When you upload a video in the PostingTube YouTube Studio composer, our client-side video processor extracts timestamped video frames across the video and offers an interactive scrubber so you can choose any exact second of your video as the official thumbnail, or upload your own 16:9 image.',
             },
             {
               q: 'Where are my media attachments and images stored?',
-              a: 'Images and videos are stored in dedicated cloud storage with permanent Content-Type headers, ensuring instant previews and flawless delivery to Meta and other social platforms.',
+              a: 'Images and videos are stored in dedicated cloud storage with permanent Content-Type headers, ensuring instant previews and flawless delivery to YouTube, Meta, and LinkedIn.',
             },
           ].map((faq, index) => {
             const isOpen = openFaqIndex === index;
             return (
               <div
                 key={index}
-                className="rounded-2xl bg-gray-50 border border-gray-200/80 overflow-hidden transition-colors"
+                className="rounded-2xl bg-white border border-gray-200/80 overflow-hidden transition-colors shadow-2xs"
               >
                 <button
                   onClick={() => setOpenFaqIndex(isOpen ? null : index)}
@@ -981,7 +955,7 @@ export default function LandingPage() {
                   />
                 </button>
                 {isOpen && (
-                  <div className="px-5 pb-5 text-xs text-gray-600 leading-relaxed border-t border-gray-200/60 pt-3">
+                  <div className="px-5 pb-5 text-xs text-gray-600 leading-relaxed border-t border-gray-100 pt-3">
                     {faq.a}
                   </div>
                 )}
@@ -991,74 +965,97 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= 10. CONVERSION CTA BANNER ================= */}
-      <section className="py-20 px-6 max-w-6xl mx-auto border-t border-gray-100">
-        <div className="p-10 sm:p-16 rounded-3xl bg-gray-900 text-white text-center shadow-xl">
-          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-gray-800 text-gray-300 text-xs font-medium mb-6">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-            <span>Launch Your Workspace in 30 Seconds</span>
-          </span>
+      {/* ================= 9. GIANT WATERMARK BRAND FOOTER (Video Frame 00:15 - 00:17) ================= */}
+      <footer className="px-6 pb-12 pt-8 max-w-6xl mx-auto">
+        <div className="rounded-3xl bg-white border border-gray-200/80 p-8 sm:p-12 shadow-sm relative overflow-hidden">
+          {/* Top Row: Brand Info + Nav Columns + Follow Us */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-16 relative z-10">
+            {/* Column 1: Brand Statement */}
+            <div className="md:col-span-1 space-y-3">
+              <PostingTubeLogo size="sm" />
+              <p className="text-xs text-gray-500 leading-relaxed">
+                PostingTube is the all-in-one social scheduling platform that helps creators and teams build a thriving audience across YouTube, Instagram, Facebook, and LinkedIn.
+              </p>
+            </div>
 
-          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight max-w-2xl mx-auto leading-tight">
-            Ready to automate your cross-posting workflow?
-          </h2>
+            {/* Column 2: Product */}
+            <div className="space-y-2 text-xs">
+              <p className="font-bold text-gray-900">Product</p>
+              <ul className="space-y-1.5 text-gray-500">
+                <li><a href="#features" className="hover:text-black transition-colors">YouTube Studio</a></li>
+                <li><a href="#features" className="hover:text-black transition-colors">Calendar Queue</a></li>
+                <li><a href="#features" className="hover:text-black transition-colors">Frame Extractor</a></li>
+                <li><a href="#features" className="hover:text-black transition-colors">Insights &amp; Analytics</a></li>
+              </ul>
+            </div>
 
-          <p className="mt-4 text-xs sm:text-sm text-gray-400 max-w-xl mx-auto leading-relaxed">
-            Join thousands of creators and growth marketing teams publishing deterministically to Facebook, Instagram, YouTube, and X.
-          </p>
+            {/* Column 3: Resources & Pricing */}
+            <div className="space-y-2 text-xs">
+              <p className="font-bold text-gray-900">Resources</p>
+              <ul className="space-y-1.5 text-gray-500">
+                <li><a href="#pricing" className="hover:text-black transition-colors">Pricing Plans</a></li>
+                <li><a href="#faq" className="hover:text-black transition-colors">Knowledge Base</a></li>
+                <li><Link href="/privacy" className="hover:text-black transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-black transition-colors">Terms of Service</Link></li>
+              </ul>
+            </div>
 
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
-            <Link
-              href="/login?mode=signup"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-full text-sm font-semibold bg-white hover:bg-gray-100 text-gray-900 flex items-center justify-center space-x-2 shadow-sm transition-all cursor-pointer"
-            >
-              <span>Get Started Free</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <Link
-              href="/login"
-              className="w-full sm:w-auto px-6 py-3.5 rounded-full text-sm font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 flex items-center justify-center space-x-2 transition-all cursor-pointer"
-            >
-              <span>Sign in with Google</span>
-            </Link>
+            {/* Column 4: Follow Us */}
+            <div className="space-y-2 text-xs">
+              <p className="font-bold text-gray-900">Follow us</p>
+              <div className="flex items-center space-x-2 pt-1">
+                <a
+                  href="https://youtube.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors"
+                  title="YouTube"
+                >
+                  <PlatformLogo platform="youtube" className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors"
+                  title="Instagram"
+                >
+                  <PlatformLogo platform="instagram" className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://facebook.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors"
+                  title="Facebook"
+                >
+                  <PlatformLogo platform="facebook" className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors"
+                  title="LinkedIn"
+                >
+                  <PlatformLogo platform="linkedin" className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* ================= 11. APPLE-STYLE CLEAN FOOTER ================= */}
-      <footer className="px-6 py-12 max-w-6xl mx-auto border-t border-gray-100 text-xs text-gray-500 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center space-x-3">
-          <PostingTubeLogo size="sm" />
-          <span>•</span>
-          <span>Autonomous Multi-Platform Publishing Engine</span>
-        </div>
+          {/* Giant Blurred Typography Watermark (Directly Recreating Frame 00:15 - 00:17) */}
+          <div className="absolute -bottom-8 left-0 right-0 overflow-hidden pointer-events-none select-none text-center">
+            <span className="font-black text-[76px] sm:text-[130px] md:text-[180px] lg:text-[220px] tracking-tighter text-red-600/10 block leading-none blur-[1px]">
+              PostingTube
+            </span>
+          </div>
 
-        <div className="flex items-center space-x-6 text-gray-600">
-          <a href="#preview" className="hover:text-black transition-colors">
-            Interactive Engine
-          </a>
-          <a href="#channels" className="hover:text-black transition-colors">
-            Channels
-          </a>
-          <a href="#pricing" className="hover:text-black transition-colors">
-            Pricing
-          </a>
-          <Link href="/login" className="hover:text-black transition-colors">
-            Sign In
-          </Link>
-          <a
-            href="https://developers.facebook.com"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-black transition-colors"
-          >
-            Meta Graph API
-          </a>
-        </div>
-
-        <div>
-          &copy; 2026 PostingTube Technologies Inc. All rights reserved.
+          {/* Copyright Bottom Bar */}
+          <div className="relative z-10 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-400 gap-2">
+            <span>&copy; 2026 PostingTube Technologies. All rights reserved.</span>
+            <span>All official trademarks belong to their respective platforms.</span>
+          </div>
         </div>
       </footer>
     </div>
