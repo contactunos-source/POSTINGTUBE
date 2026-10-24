@@ -349,7 +349,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const passwordStrength = getPasswordStrength();
 
   return (
-    <div className="p-8 max-w-4xl mx-auto font-sans space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 max-w-4xl mx-auto font-sans space-y-6">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2.5 text-xs z-50 animate-fade-in border border-gray-800">
@@ -359,15 +359,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       )}
 
       {/* Main Settings Card */}
-      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-8 space-y-8">
+      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-4 sm:p-8 space-y-8">
         {/* Photo Section */}
-        <div className="flex items-center space-x-5">
+        <div className="flex items-center space-x-4 sm:space-x-5">
           <div
-            className="relative group cursor-pointer"
+            className="relative group cursor-pointer shrink-0"
             onClick={() => fileInputRef.current?.click()}
             title="Click to change photo"
           >
-            <div className="w-16 h-16 rounded-xl bg-[#2563EB] text-white flex items-center justify-center overflow-hidden shadow-xs border border-blue-400/30">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-[#2563EB] text-white flex items-center justify-center overflow-hidden shadow-xs border border-blue-400/30">
               {photoUrl ? (
                 <img
                   src={photoUrl}
@@ -376,7 +376,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <User className="w-9 h-9 text-white/90" />
+                <User className="w-8 h-8 sm:w-9 sm:h-9 text-white/90" />
               )}
             </div>
             <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
@@ -384,9 +384,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 min-w-0">
             <h3 className="text-sm font-bold text-gray-900">Photo</h3>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 line-clamp-2 sm:line-clamp-none">
               Please choose a photo that is at least 180×180 pixels in size.
             </p>
             <button
@@ -411,7 +411,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Name Field */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-800 block">Name</label>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <input
                 type="text"
                 value={name}
@@ -423,7 +423,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={handleSaveName}
                 disabled={savingField === 'name'}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center space-x-1"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1 w-full sm:w-auto"
               >
                 {savingField === 'name' ? (
                   <>
@@ -443,7 +443,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Email Field with Alert icon & Supabase Verification */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-800 block">Email</label>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 relative flex items-center">
                 <input
                   type="email"
@@ -458,7 +458,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={handleSaveEmail}
                 disabled={savingField === 'email'}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center space-x-1"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1 w-full sm:w-auto"
               >
                 {savingField === 'email' ? (
                   <>
@@ -482,11 +482,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           {/* Backup Email Field */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-1">
               <label className="text-xs font-bold text-gray-800 block">Backup Email</label>
               <span className="text-[10px] text-gray-400">Security & Recovery notifications only</span>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <input
                 type="email"
                 value={backupEmail}
@@ -498,7 +498,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={handleSaveBackupEmail}
                 disabled={savingField === 'backupEmail'}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center space-x-1"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1 w-full sm:w-auto"
               >
                 {savingField === 'backupEmail' ? (
                   <>
@@ -517,7 +517,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           {/* Password Field */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-1">
               <label className="text-xs font-bold text-gray-800 block">Password</label>
               <button
                 type="button"
@@ -527,7 +527,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Send Password Reset Email
               </button>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 relative flex items-center">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -548,7 +548,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={handleChangePassword}
                 disabled={passwordLoading || !password}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center space-x-1"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors shrink-0 cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1 w-full sm:w-auto"
               >
                 {passwordLoading ? (
                   <>

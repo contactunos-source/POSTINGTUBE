@@ -1,17 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
 import { NewPostLaunchpad } from '@/components/NewPostLaunchpad';
-import { ConnectedAccounts } from '@/components/ConnectedAccounts';
-import { CalendarView } from '@/components/CalendarView';
-import { PostsManager } from '@/components/PostsManager';
-import { AnalyticsView } from '@/components/AnalyticsView';
-import { InsightsView } from '@/components/InsightsView';
-import { SettingsView } from '@/components/SettingsView';
-import { CreatePostDashboard } from '@/components/CreatePostDashboard';
-import { BackgroundWorkerSimulator } from '@/components/BackgroundWorkerSimulator';
 import { AiAssistantModal } from '@/components/AiAssistantModal';
+import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_POSTS,
@@ -23,9 +17,66 @@ import { DatabaseService } from '@/lib/db';
 import { Post, SocialAccount, Workspace, PostMedia, PostType, SocialPlatform } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
 import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
-import { Globe, ArrowLeft, LogOut, ShieldCheck, Sparkles, Loader2, Layers, CheckCircle2, X } from 'lucide-react';
+import {
+  Globe,
+  ArrowLeft,
+  LogOut,
+  ShieldCheck,
+  Sparkles,
+  Loader2,
+  Layers,
+  CheckCircle2,
+  X,
+  Menu,
+  Grid,
+  Calendar,
+  TrendingUp,
+  Plus,
+} from 'lucide-react';
 import Link from 'next/link';
 import { UserAvatar } from '@/components/UserAvatar';
+
+const ViewLoadingSkeleton = () => (
+  <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-4 animate-pulse">
+    <div className="h-9 bg-gray-200/70 rounded-2xl w-44 mb-6" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="h-28 bg-gray-200/60 rounded-2xl" />
+      <div className="h-28 bg-gray-200/60 rounded-2xl" />
+      <div className="h-28 bg-gray-200/60 rounded-2xl" />
+      <div className="h-28 bg-gray-200/60 rounded-2xl" />
+    </div>
+    <div className="h-80 bg-gray-200/50 rounded-2xl mt-6" />
+  </div>
+);
+
+// Code-split heavy views for massive performance & fast initial load on mobile/desktop
+const CalendarView = dynamic(() => import('@/components/CalendarView').then((m) => m.CalendarView), {
+  loading: () => <ViewLoadingSkeleton />,
+});
+const PostsManager = dynamic(() => import('@/components/PostsManager').then((m) => m.PostsManager), {
+  loading: () => <ViewLoadingSkeleton />,
+});
+const InsightsView = dynamic(() => import('@/components/InsightsView').then((m) => m.InsightsView), {
+  loading: () => <ViewLoadingSkeleton />,
+});
+const ConnectedAccounts = dynamic(
+  () => import('@/components/ConnectedAccounts').then((m) => m.ConnectedAccounts),
+  { loading: () => <ViewLoadingSkeleton /> }
+);
+const SettingsView = dynamic(() => import('@/components/SettingsView').then((m) => m.SettingsView), {
+  loading: () => <ViewLoadingSkeleton />,
+});
+const CreatePostDashboard = dynamic(
+  () => import('@/components/CreatePostDashboard').then((m) => m.CreatePostDashboard),
+  { loading: () => <ViewLoadingSkeleton /> }
+);
+const BackgroundWorkerSimulator = dynamic(
+  () => import('@/components/BackgroundWorkerSimulator').then((m) => m.BackgroundWorkerSimulator),
+  { loading: () => <ViewLoadingSkeleton /> }
+);
+const AnalyticsView = dynamic(() => import('@/components/AnalyticsView').then((m) => m.AnalyticsView), {
+  loading: () => <ViewLoadingSkeleton />,
+});
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
@@ -33,6 +84,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [mediaItems, setMediaItems] = useState<PostMedia[]>([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -611,7 +663,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
-      {/* PostingTube Sidebar */}
+      {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -635,73 +687,92 @@ export default function DashboardPage() {
         accounts={accounts}
         selectedInsightsAccountId={selectedInsightsAccountId}
         onSelectInsightsAccount={(accId) => setSelectedInsightsAccountId(accId)}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main View Area */}
-      <main className="flex-1 overflow-y-auto flex flex-col relative">
+      <main className="flex-1 overflow-y-auto flex flex-col relative pb-20 lg:pb-0 min-w-0">
         {/* Dynamic Success Toast Popup */}
         {successToast && (
-          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-5 py-3.5 rounded-2xl bg-white text-gray-900 border border-gray-200 shadow-[0_16px_40px_rgba(0,0,0,0.12)] animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 sm:px-5 py-3 rounded-2xl bg-white text-gray-900 border border-gray-200 shadow-[0_16px_40px_rgba(0,0,0,0.12)] max-w-[92vw] sm:max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
             </div>
-            <span className="text-xs font-bold text-gray-900">{successToast}</span>
+            <span className="text-xs font-bold text-gray-900 truncate">{successToast}</span>
             <button
               onClick={() => setSuccessToast(null)}
-              className="text-gray-400 hover:text-black p-1 transition-colors ml-2 cursor-pointer"
+              className="text-gray-400 hover:text-black p-1 transition-colors ml-2 cursor-pointer shrink-0"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
+
         {/* Top Header Bar */}
-        <div className="bg-white border-b border-gray-200/80 px-6 py-2.5 flex items-center justify-between shrink-0 font-sans">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2">
-              <UserAvatar
-                name={currentWorkspace.name}
-                avatarUrl={currentWorkspace.avatar}
-                size="sm"
-                className="rounded-lg! ring-1 ring-black/5"
-              />
-              <span className="text-xs font-bold text-gray-800">{currentWorkspace.name}</span>
+        <div className="bg-white border-b border-gray-200/80 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 font-sans gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            {/* Hamburger Button on Mobile */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Mobile Brand / Desktop Workspace Avatar */}
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="lg:hidden shrink-0">
+                <PostingTubeLogo size="sm" />
+              </div>
+              <div className="hidden lg:flex items-center space-x-2 min-w-0">
+                <UserAvatar
+                  name={currentWorkspace.name}
+                  avatarUrl={currentWorkspace.avatar}
+                  size="sm"
+                  className="rounded-lg! ring-1 ring-black/5 shrink-0"
+                />
+                <span className="text-xs font-bold text-gray-800 truncate">{currentWorkspace.name}</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
             {authUser ? (
-              <div className="flex items-center space-x-2.5 text-xs bg-gray-50/70 border border-gray-200/80 rounded-xl px-2.5 py-1 shadow-2xs hover:bg-gray-100/60 transition-colors">
+              <div className="flex items-center space-x-2 text-xs bg-gray-50/70 border border-gray-200/80 rounded-xl px-2.5 py-1 shadow-2xs hover:bg-gray-100/60 transition-colors max-w-[170px] sm:max-w-none">
                 <UserAvatar
                   name={authUser.user_metadata?.full_name || authUser.email || 'User'}
                   avatarUrl={authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture}
-                  size="md"
-                  className="ring-1 ring-emerald-500/20"
+                  size="sm"
+                  className="ring-1 ring-emerald-500/20 shrink-0"
                 />
-                <span className="text-gray-800 font-semibold max-w-[150px] truncate">
+                <span className="text-gray-800 font-semibold truncate max-w-[90px] sm:max-w-[150px]">
                   {authUser.user_metadata?.full_name || authUser.email}
                 </span>
-                <div className="h-3.5 w-px bg-gray-200 mx-0.5"></div>
+                <div className="h-3.5 w-px bg-gray-200 mx-0.5 shrink-0"></div>
                 <button
                   onClick={() => signOutUser().then(() => { window.location.href = '/'; })}
-                  className="text-gray-400 hover:text-rose-600 text-[11px] font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                  className="text-gray-400 hover:text-rose-600 text-[11px] font-medium flex items-center space-x-1 cursor-pointer transition-colors shrink-0"
                   title="Sign out"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span>Exit</span>
+                  <span className="hidden sm:inline">Exit</span>
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => signInWithGoogle('/dashboard')}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span>Sign in with Google</span>
+                <span className="hidden sm:inline">Sign in with Google</span>
+                <span className="sm:hidden">Sign In</span>
               </button>
             )}
           </div>
@@ -847,6 +918,89 @@ export default function DashboardPage() {
           />
         )}
         </div>
+        {/* Mobile Native Bottom Navigation Bar */}
+        <nav
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-2 py-1 flex items-center justify-around shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+          aria-label="Mobile Navigation"
+        >
+          <button
+            onClick={() => {
+              setActiveTab('new-post');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+              activeTab === 'new-post' || activeTab === 'create-composer'
+                ? 'text-emerald-600 font-bold'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <div
+              className={`p-1 rounded-lg ${
+                activeTab === 'new-post' || activeTab === 'create-composer' ? 'bg-emerald-50 text-emerald-600' : ''
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+            </div>
+            <span className="mt-0.5 leading-none">Create</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('posts-all');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+              activeTab.startsWith('posts-') ? 'text-emerald-600 font-bold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${activeTab.startsWith('posts-') ? 'bg-emerald-50 text-emerald-600' : ''}`}>
+              <Grid className="w-4 h-4" />
+            </div>
+            <span className="mt-0.5 leading-none">Posts</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('calendar');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+              activeTab === 'calendar' ? 'text-emerald-600 font-bold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${activeTab === 'calendar' ? 'bg-emerald-50 text-emerald-600' : ''}`}>
+              <Calendar className="w-4 h-4" />
+            </div>
+            <span className="mt-0.5 leading-none">Calendar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('insights');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+              activeTab === 'insights' ? 'text-emerald-600 font-bold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${activeTab === 'insights' ? 'bg-emerald-50 text-emerald-600' : ''}`}>
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <span className="mt-0.5 leading-none">Insights</span>
+          </button>
+
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
+              isMobileMenuOpen ? 'text-emerald-600 font-bold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${isMobileMenuOpen ? 'bg-emerald-50 text-emerald-600' : ''}`}>
+              <Menu className="w-4 h-4" />
+            </div>
+            <span className="mt-0.5 leading-none">Menu</span>
+          </button>
+        </nav>
       </main>
 
       {/* AI Assistant Modal */}

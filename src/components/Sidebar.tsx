@@ -18,6 +18,7 @@ import {
   Cpu,
   BarChart3,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import { Workspace, SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
@@ -54,6 +55,8 @@ interface SidebarProps {
   accounts?: SocialAccount[];
   selectedInsightsAccountId?: string;
   onSelectInsightsAccount?: (accountId: string) => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -71,6 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   accounts = [],
   selectedInsightsAccountId = 'all',
   onSelectInsightsAccount,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const connectedAccounts = accounts.filter((a) => a.status === 'connected' || !a.status);
   const displayName =
@@ -96,12 +101,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
     enabled: showWorkspaceMenu,
   });
 
+  const handleTabClick = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    onCloseMobile?.();
+  };
+
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans">
-      {/* Brand Header */}
-      <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-        <PostingTubeLogo size="md" />
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-xs transition-opacity animate-in fade-in"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <PostingTubeLogo size="md" />
+          <button
+            onClick={onCloseMobile}
+            className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
       {/* Workspace Switcher */}
       <div ref={workspaceRef} className="px-3 pt-3 pb-2 relative">
@@ -157,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <nav className="space-y-0.5">
             <button
-              onClick={() => setActiveTab('new-post')}
+              onClick={() => handleTabClick('new-post')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'new-post' || activeTab === 'create-composer'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -177,7 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <nav className="space-y-0.5">
             <button
-              onClick={() => setActiveTab('posts-all')}
+              onClick={() => handleTabClick('posts-all')}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab.startsWith('posts-')
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -195,7 +226,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
             <button
-              onClick={() => setActiveTab('calendar')}
+              onClick={() => handleTabClick('calendar')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'calendar'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -221,7 +252,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <nav className="space-y-0.5">
             <button
               onClick={() => {
-                setActiveTab('insights');
+                handleTabClick('insights');
                 if (onSelectInsightsAccount) onSelectInsightsAccount('all');
               }}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
@@ -243,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={acc.id}
                   onClick={() => {
-                    setActiveTab('insights');
+                    handleTabClick('insights');
                     if (onSelectInsightsAccount) onSelectInsightsAccount(acc.id);
                   }}
                   className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 pl-4 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
@@ -270,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <nav className="space-y-0.5">
             <button
-              onClick={() => setActiveTab('connections')}
+              onClick={() => handleTabClick('connections')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'connections'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -281,7 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Connections</span>
             </button>
             <button
-              onClick={() => setActiveTab('analytics')}
+              onClick={() => handleTabClick('analytics')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'analytics'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -292,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Analytics</span>
             </button>
             <button
-              onClick={() => setActiveTab('worker-console')}
+              onClick={() => handleTabClick('worker-console')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'worker-console'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -303,7 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Worker Engine</span>
             </button>
             <button
-              onClick={() => setActiveTab('settings')}
+              onClick={() => handleTabClick('settings')}
               className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'settings'
                   ? 'bg-emerald-50 text-emerald-700 font-semibold'
@@ -340,5 +371,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     </aside>
+    </>
   );
 };

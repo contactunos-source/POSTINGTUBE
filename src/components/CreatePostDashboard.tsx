@@ -637,7 +637,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const mainHashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
 
   return (
-    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-6 md:p-8 font-sans">
+    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-3 sm:p-6 md:p-8 font-sans">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs z-50 animate-fade-in border border-white/10">
@@ -668,8 +668,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               <span className="text-gray-500 font-medium">PostingTube Studio</span>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
                 {currentPostType === 'video'
                   ? 'Create Video & Reel'
                   : currentPostType === 'image'
@@ -769,7 +769,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 {mediaList.length > 0 ? (
                   /* Attached Media Preview Card */
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
                           {currentPostType === 'video' ? (
@@ -1318,7 +1318,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
             {/* Advanced Configurations Tabbed Strip */}
             <div className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-xs space-y-3">
-              <div className="flex items-center space-x-2 border-b border-gray-100 pb-2">
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 pb-2">
                 <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                   Post Features:
                 </span>

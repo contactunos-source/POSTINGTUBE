@@ -443,32 +443,32 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   };
 
   return (
-    <div className="min-h-full bg-slate-50/60 text-gray-900 p-6 md:p-8 font-sans">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-full bg-slate-50/60 text-gray-900 p-3 sm:p-6 md:p-8 font-sans">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Posts Management</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Posts Management</h1>
             <p className="text-xs text-gray-500 mt-1">
               Publish, schedule, and track real-time analytics across all your social channels.
             </p>
           </div>
 
-          <div className="flex items-center space-x-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:space-x-2.5">
             {/* Real-time Analytics Refresh Button */}
             <button
               onClick={handleRefreshAllAnalytics}
               disabled={isRefreshingAll}
-              className="bg-white border border-gray-200/90 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-3.5 rounded-xl text-xs shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              className="bg-white border border-gray-200/90 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-3 rounded-xl text-xs shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
               title="Fetch real-time analytics from official platform APIs"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
-              <span>{isRefreshingAll ? 'Refreshing Analytics...' : 'Refresh Analytics'}</span>
+              <span>{isRefreshingAll ? 'Refreshing...' : 'Refresh Analytics'}</span>
             </button>
 
             <button
               onClick={openCreateModal}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-3.5 rounded-xl text-xs shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
             >
               <span>+ Create Post</span>
             </button>
@@ -614,13 +614,13 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                     const isPostRefreshing = refreshingPostId === post.id || isRefreshingAll;
 
                     return (
-                      <div key={post.id} className="flex items-start gap-4 md:gap-6">
-                        {/* Left Time Column */}
-                        <div className="w-24 md:w-28 shrink-0 pt-2 text-right space-y-1">
+                      <div key={post.id} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-4 md:gap-6">
+                        {/* Left Time Column (Horizontal status bar on mobile, vertical timestamp on sm+) */}
+                        <div className="w-full sm:w-24 md:w-28 shrink-0 pt-0 sm:pt-2 flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1.5 sm:space-y-1">
                           <div className="text-xs md:text-sm font-bold text-gray-900 tracking-tight">
                             {timeStr}
                           </div>
-                          <div className="text-[10px] text-gray-400 flex items-center justify-end space-x-1 mt-0.5">
+                          <div className="text-[10px] text-gray-400 flex items-center justify-end space-x-1">
                             {post.status === 'scheduled' ? (
                               <span className="text-sky-600 font-semibold flex items-center space-x-0.5">
                                 <Clock className="w-2.5 h-2.5 inline" />
@@ -643,7 +643,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
                           {/* Dynamic Relative Creation Timestamp */}
                           <div
-                            className="text-[10px] text-gray-500 font-medium hover:text-gray-900 transition-colors cursor-help pt-1 flex items-center justify-end space-x-1"
+                            className="hidden sm:flex text-[10px] text-gray-500 font-medium hover:text-gray-900 transition-colors cursor-help pt-1 items-center justify-end space-x-1"
                             title={`Database Creation Time: ${formatDateTimeWithSeconds(post.createdAt)}`}
                           >
                             <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
@@ -652,7 +652,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                         </div>
 
                         {/* Right Post Card */}
-                        <div className="flex-1 bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs text-gray-900 transition-all hover:border-gray-300 space-y-4">
+                        <div className="flex-1 min-w-0 bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs text-gray-900 transition-all hover:border-gray-300 space-y-4">
                           {/* Upper Section: Target Platforms List & Status */}
                           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-100">
                             {/* All Selected Platforms with individual Status pills */}
@@ -724,8 +724,8 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                           </div>
 
                           {/* Middle Section: Caption & Media Preview */}
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
+                          <div className="flex flex-col-reverse sm:flex-row items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0 w-full">
                               <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed break-words font-normal">
                                 {isLongContent && !isExpanded
                                   ? `${post.content.slice(0, 180)}...`
@@ -757,11 +757,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               )}
                             </div>
 
-                            {/* Right Media Preview */}
+                            {/* Right Media Preview (Full width banner on mobile, thumbnail on sm+) */}
                             {mediaItem && (
                               <div
                                 onClick={() => setSelectedPostForDetails(post)}
-                                className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50 cursor-pointer group shadow-2xs"
+                                className="relative w-full sm:w-28 sm:h-28 md:w-32 md:h-32 h-44 sm:h-auto rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50 cursor-pointer group shadow-2xs"
                               >
                                 {mediaItem.type === 'video' ? (
                                   <div className="w-full h-full relative">

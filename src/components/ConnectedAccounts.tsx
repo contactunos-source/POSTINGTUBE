@@ -756,16 +756,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto font-sans">
+    <div className="p-3 sm:p-6 md:p-8 max-w-6xl mx-auto font-sans">
       {/* Toast Success Popup */}
       {toastMessage && (
-        <div className="fixed top-8 right-8 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs z-50 animate-in fade-in slide-in-from-top-4 border border-gray-800">
-          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:right-8 sm:top-8 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs z-50 animate-in fade-in slide-in-from-top-4 border border-gray-800">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
             ✓
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="font-bold text-emerald-400">Successful!</div>
-            <div className="text-gray-200 mt-0.5">{toastMessage}</div>
+            <div className="text-gray-200 mt-0.5 break-words">{toastMessage}</div>
           </div>
         </div>
       )}
@@ -933,7 +933,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       </div>
 
       {/* Rows of Platforms */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl p-6 shadow-xs space-y-5">
+      <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
         {platforms.map((platform) => {
           const config = PLATFORM_CONFIGS[platform];
           const platformAccounts = accounts.filter((a) => a.platform === platform);
@@ -941,10 +941,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           return (
             <div
               key={platform}
-              className="flex flex-col md:flex-row md:items-center gap-3 pb-4 border-b border-gray-100 last:border-b-0 last:pb-0"
+              className="flex flex-col sm:flex-row sm:items-center gap-3 pb-4 border-b border-gray-100 last:border-b-0 last:pb-0"
             >
               {/* Left: Platform Logo + Connect Button */}
-              <div className="flex items-center space-x-3 w-56 shrink-0">
+              <div className="flex items-center space-x-3 w-full sm:w-60 shrink-0">
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
                   style={{ backgroundColor: config.color }}
@@ -953,7 +953,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 </div>
                 <button
                   onClick={() => handleStartConnect(platform)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-900 hover:bg-gray-800 active:bg-black text-white transition-colors flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-900 hover:bg-gray-800 active:bg-black text-white transition-colors flex items-center space-x-1.5 cursor-pointer shadow-xs whitespace-nowrap"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Connect {config.name}</span>

@@ -744,110 +744,115 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* ========================================================================= */}
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-          {/* Header Row: 7 Days Columns with highlighted today */}
-          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/70 text-center text-xs">
-            {weekDays.map((day) => {
-              const isCurrentDay = isToday(day);
-              const dayPosts = getPostsForDay(day);
+          <div className="overflow-x-auto">
+            <div className="min-w-[700px]">
+              {/* Header Row: 7 Days Columns with highlighted today */}
+              <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/70 text-center text-xs">
+                {weekDays.map((day) => {
+                  const isCurrentDay = isToday(day);
+                  const dayPosts = getPostsForDay(day);
 
-              return (
-                <div
-                  key={day.toISOString()}
-                  className={`py-3 px-2 border-r last:border-r-0 border-gray-200/80 transition-colors ${
-                    isCurrentDay
-                      ? 'bg-emerald-50/50 border-t-2 border-t-emerald-600'
-                      : 'hover:bg-gray-100/50'
-                  }`}
-                >
-                  <div
-                    className={`text-[11px] font-bold uppercase tracking-wider ${
-                      isCurrentDay ? 'text-emerald-700' : 'text-gray-500'
-                    }`}
-                  >
-                    {format(day, 'EEEE')}
-                  </div>
-                  <div
-                    className={`text-sm font-extrabold mt-0.5 ${
-                      isCurrentDay ? 'text-emerald-800' : 'text-gray-900'
-                    }`}
-                  >
-                    {format(day, 'd')}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Week Timeline Body: Time Grid & Post Cards */}
-          <div className="relative min-h-[720px] max-h-[820px] overflow-y-auto">
-            {/* Background Hourly Grid Lines with Time Markers on Left */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col justify-between divide-y divide-gray-100">
-              {timeSlots.map((slot) => (
-                <div key={slot.hour} className="h-16 relative flex items-start">
-                  <span className="text-[10px] font-semibold text-gray-400 pl-2 pt-1 select-none w-14 shrink-0">
-                    {slot.label}
-                  </span>
-                  <div className="w-full border-t border-gray-100/80 mt-2.5" />
-                </div>
-              ))}
-            </div>
-
-            {/* 7 Columns Container */}
-            <div className="grid grid-cols-7 divide-x divide-gray-200/80 relative z-10 min-h-[720px]">
-              {weekDays.map((day) => {
-                const dayPosts = getPostsForDay(day);
-                const isCurrentDay = isToday(day);
-                const isDropTarget = dragOverDayIso === day.toISOString();
-
-                return (
-                  <div
-                    key={day.toISOString()}
-                    onDragOver={(e) => handleDragOverDay(e, day)}
-                    onDragLeave={() => handleDragLeaveDay(day)}
-                    onDrop={(e) => handleDropOnDay(e, day)}
-                    onClick={() => {
-                      // Click on empty space creates post for this day
-                      onCreateAtDate(day);
-                    }}
-                    className={`p-2 transition-all flex flex-col min-h-[720px] cursor-pointer ${
-                      isDropTarget
-                        ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
-                        : isCurrentDay
-                        ? 'bg-emerald-50/10'
-                        : 'hover:bg-gray-50/40'
-                    }`}
-                  >
-                    {/* Posts for this day stacked chronologically */}
-                    <div className="space-y-2.5 mt-auto pb-4">
-                      {dayPosts.map((post) => (
-                        <div
-                          key={post.id}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {renderPostCard(post)}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Empty Day Add Post Hint */}
-                    {dayPosts.length === 0 && (
-                      <div className="flex-1 flex items-center justify-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onCreateAtDate(day);
-                          }}
-                          className="opacity-0 hover:opacity-100 p-2 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 transition-all flex items-center space-x-1 text-[11px]"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Schedule</span>
-                        </button>
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={`py-3 px-2 border-r last:border-r-0 border-gray-200/80 transition-colors ${
+                        isCurrentDay
+                          ? 'bg-emerald-50/50 border-t-2 border-t-emerald-600'
+                          : 'hover:bg-gray-100/50'
+                      }`}
+                    >
+                      <div
+                        className={`text-[11px] font-bold uppercase tracking-wider ${
+                          isCurrentDay ? 'text-emerald-700' : 'text-gray-500'
+                        }`}
+                      >
+                        <span className="hidden sm:inline">{format(day, 'EEEE')}</span>
+                        <span className="sm:hidden">{format(day, 'EEE')}</span>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                      <div
+                        className={`text-sm font-extrabold mt-0.5 ${
+                          isCurrentDay ? 'text-emerald-800' : 'text-gray-900'
+                        }`}
+                      >
+                        {format(day, 'd')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Week Timeline Body: Time Grid & Post Cards */}
+              <div className="relative min-h-[720px] max-h-[820px] overflow-y-auto">
+                {/* Background Hourly Grid Lines with Time Markers on Left */}
+                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between divide-y divide-gray-100">
+                  {timeSlots.map((slot) => (
+                    <div key={slot.hour} className="h-16 relative flex items-start">
+                      <span className="text-[10px] font-semibold text-gray-400 pl-2 pt-1 select-none w-14 shrink-0">
+                        {slot.label}
+                      </span>
+                      <div className="w-full border-t border-gray-100/80 mt-2.5" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* 7 Columns Container */}
+                <div className="grid grid-cols-7 divide-x divide-gray-200/80 relative z-10 min-h-[720px]">
+                  {weekDays.map((day) => {
+                    const dayPosts = getPostsForDay(day);
+                    const isCurrentDay = isToday(day);
+                    const isDropTarget = dragOverDayIso === day.toISOString();
+
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        onDragOver={(e) => handleDragOverDay(e, day)}
+                        onDragLeave={() => handleDragLeaveDay(day)}
+                        onDrop={(e) => handleDropOnDay(e, day)}
+                        onClick={() => {
+                          // Click on empty space creates post for this day
+                          onCreateAtDate(day);
+                        }}
+                        className={`p-2 transition-all flex flex-col min-h-[720px] cursor-pointer ${
+                          isDropTarget
+                            ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
+                            : isCurrentDay
+                            ? 'bg-emerald-50/10'
+                            : 'hover:bg-gray-50/40'
+                        }`}
+                      >
+                        {/* Posts for this day stacked chronologically */}
+                        <div className="space-y-2.5 mt-auto pb-4">
+                          {dayPosts.map((post) => (
+                            <div
+                              key={post.id}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {renderPostCard(post)}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Empty Day Add Post Hint */}
+                        {dayPosts.length === 0 && (
+                          <div className="flex-1 flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onCreateAtDate(day);
+                              }}
+                              className="opacity-0 hover:opacity-100 p-2 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 transition-all flex items-center space-x-1 text-[11px]"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Schedule</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -906,9 +911,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {label}
                   </span>
 
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-2 min-w-0">
                     {hourPosts.map((post) => (
-                      <div key={post.id} onClick={(e) => e.stopPropagation()} className="max-w-md">
+                      <div key={post.id} onClick={(e) => e.stopPropagation()} className="w-full max-w-xl">
                         {renderPostCard(post)}
                       </div>
                     ))}
@@ -932,83 +937,87 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* ========================================================================= */}
       {viewMode === 'month' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-          {/* Days of week header */}
-          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90 text-center py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">
-            <div>Sunday</div>
-            <div>Monday</div>
-            <div>Tuesday</div>
-            <div>Wednesday</div>
-            <div>Thursday</div>
-            <div>Friday</div>
-            <div>Saturday</div>
-          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[620px]">
+              {/* Days of week header */}
+              <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90 text-center py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div><span className="hidden sm:inline">Sunday</span><span className="sm:hidden">Sun</span></div>
+                <div><span className="hidden sm:inline">Monday</span><span className="sm:hidden">Mon</span></div>
+                <div><span className="hidden sm:inline">Tuesday</span><span className="sm:hidden">Tue</span></div>
+                <div><span className="hidden sm:inline">Wednesday</span><span className="sm:hidden">Wed</span></div>
+                <div><span className="hidden sm:inline">Thursday</span><span className="sm:hidden">Thu</span></div>
+                <div><span className="hidden sm:inline">Friday</span><span className="sm:hidden">Fri</span></div>
+                <div><span className="hidden sm:inline">Saturday</span><span className="sm:hidden">Sat</span></div>
+              </div>
 
-          {/* Days matrix */}
-          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[720px]">
-            {monthDays.map((day) => {
-              const dayPosts = getPostsForDay(day);
-              const isCurrMonth = isSameMonth(day, currentDate);
-              const isCurrentDay = isToday(day);
-              const isDropTarget = dragOverDayIso === day.toISOString();
+              {/* Days matrix */}
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[620px] sm:min-h-[720px]">
+                {monthDays.map((day) => {
+                  const dayPosts = getPostsForDay(day);
+                  const isCurrMonth = isSameMonth(day, currentDate);
+                  const isCurrentDay = isToday(day);
+                  const isDropTarget = dragOverDayIso === day.toISOString();
 
-              return (
-                <div
-                  key={day.toISOString()}
-                  onDragOver={(e) => handleDragOverDay(e, day)}
-                  onDragLeave={() => handleDragLeaveDay(day)}
-                  onDrop={(e) => handleDropOnDay(e, day)}
-                  onClick={() => setSelectedDayForModal(day)}
-                  className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[135px] cursor-pointer ${
-                    isDropTarget
-                      ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
-                      : isCurrMonth
-                      ? 'bg-white hover:bg-emerald-50/15'
-                      : 'bg-gray-50/40 text-gray-400'
-                  }`}
-                >
-                  {/* Day Header Row */}
-                  <div className="flex items-center justify-between mb-2">
-                    <span
-                      className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
-                        isCurrentDay
-                          ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      onDragOver={(e) => handleDragOverDay(e, day)}
+                      onDragLeave={() => handleDragLeaveDay(day)}
+                      onDrop={(e) => handleDropOnDay(e, day)}
+                      onClick={() => setSelectedDayForModal(day)}
+                      className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[120px] sm:min-h-[135px] cursor-pointer ${
+                        isDropTarget
+                          ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
                           : isCurrMonth
-                          ? 'text-gray-900'
-                          : 'text-gray-400'
+                          ? 'bg-white hover:bg-emerald-50/15'
+                          : 'bg-gray-50/40 text-gray-400'
                       }`}
                     >
-                      {format(day, 'd')}
-                    </span>
+                      {/* Day Header Row */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span
+                          className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                            isCurrentDay
+                              ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
+                              : isCurrMonth
+                              ? 'text-gray-900'
+                              : 'text-gray-400'
+                          }`}
+                        >
+                          {format(day, 'd')}
+                        </span>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCreateAtDate(day);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-emerald-100 text-emerald-700 transition-opacity cursor-pointer"
-                      title="Schedule post for this date"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Day's scheduled posts */}
-                  <div className="flex-1 space-y-2 overflow-y-auto max-h-36 scrollbar-none">
-                    {dayPosts.slice(0, 3).map((post) => (
-                      <div key={post.id} onClick={(e) => e.stopPropagation()}>
-                        {renderPostCard(post, { compact: true })}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCreateAtDate(day);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-emerald-100 text-emerald-700 transition-opacity cursor-pointer"
+                          title="Schedule post for this date"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    ))}
 
-                    {dayPosts.length > 3 && (
-                      <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50/90 rounded-md py-1 text-center border border-emerald-200">
-                        +{dayPosts.length - 3} more posts
+                      {/* Day's scheduled posts */}
+                      <div className="flex-1 space-y-2 overflow-y-auto max-h-36 scrollbar-none">
+                        {dayPosts.slice(0, 3).map((post) => (
+                          <div key={post.id} onClick={(e) => e.stopPropagation()}>
+                            {renderPostCard(post, { compact: true })}
+                          </div>
+                        ))}
+
+                        {dayPosts.length > 3 && (
+                          <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50/90 rounded-md py-1 text-center border border-emerald-200">
+                            +{dayPosts.length - 3} more posts
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1232,7 +1241,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div
             ref={postModalRef}
-            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">

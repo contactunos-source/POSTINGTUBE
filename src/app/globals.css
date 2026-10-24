@@ -19,8 +19,40 @@
   }
 }
 
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* Touch targets and mobile scrollbars */
+@layer utilities {
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+  .tap-highlight-transparent {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Prevent awkward word splits like Whats-App while allowing URL / hash wrapping */
+  .safe-wrap {
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: manual;
+  }
 }

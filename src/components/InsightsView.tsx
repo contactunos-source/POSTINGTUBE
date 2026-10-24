@@ -509,16 +509,16 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
   }, [selectedAccountId, accounts]);
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto font-sans space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto font-sans space-y-6">
       {/* Top Header: Title, Real Time Indicator & Refresh */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
         <div>
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 tracking-tight truncate">
                 Insights &amp; Performance
               </h1>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -529,8 +529,8 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
         </div>
 
         {/* Right Side: Refresh Button & Last Updated Time */}
-        <div className="flex items-center space-x-3">
-          <div className="text-right">
+        <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+          <div className="text-left sm:text-right">
             <span className="text-[11px] font-medium text-gray-400 block">Last Synced</span>
             <span className="text-xs font-semibold text-gray-700">
               {formatRelativeTime(lastRefreshedAt)}
@@ -540,10 +540,10 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           <button
             onClick={handleRefreshAnalytics}
             disabled={isRefreshing}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-900 hover:bg-black text-white transition-all shadow-xs flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-900 hover:bg-black text-white transition-all shadow-xs flex items-center space-x-2 cursor-pointer disabled:opacity-50 shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
-            <span>{isRefreshing ? 'Fetching Official APIs...' : 'Refresh Insights'}</span>
+            <span>{isRefreshing ? 'Fetching...' : 'Refresh Insights'}</span>
           </button>
         </div>
       </div>
@@ -590,7 +590,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
       {/* Date Range Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200/90 rounded-2xl p-3 shadow-2xs">
-        <div className="flex items-center space-x-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
           {[
             { id: '7d', label: 'Last 7 Days' },
             { id: '30d', label: 'Last 30 Days' },
@@ -612,7 +612,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
         </div>
 
         {dateRange === 'custom' && (
-          <div className="flex items-center space-x-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs w-full sm:w-auto">
             <span className="text-gray-400 font-medium">From</span>
             <input
               type="date"
@@ -630,9 +630,9 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           </div>
         )}
 
-        <div className="text-xs text-gray-500 font-medium flex items-center space-x-1.5">
-          <CalendarRange className="w-3.5 h-3.5 text-gray-400" />
-          <span>
+        <div className="text-xs text-gray-500 font-medium flex items-center space-x-1.5 ml-auto sm:ml-0">
+          <CalendarRange className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span className="truncate">
             {format(currentInterval.start, 'MMM d, yyyy')} – {format(currentInterval.end, 'MMM d, yyyy')}
           </span>
         </div>
@@ -743,7 +743,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           </div>
 
           {/* Metric Selector for Chart */}
-          <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+          <div className="flex flex-wrap items-center gap-1 bg-gray-100 p-1 rounded-xl text-xs font-semibold">
             <button
               onClick={() => setChartMetric('views')}
               className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
@@ -899,7 +899,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
       </div>
 
       {/* POST PERFORMANCE TABLE */}
-      <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-xs space-y-4">
+      <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
         {/* Table Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -909,16 +909,16 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative flex-1 sm:w-48">
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search caption..."
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 text-gray-800 focus:outline-hidden focus:border-emerald-500 w-48"
+                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 text-gray-800 focus:outline-hidden focus:border-emerald-500 w-full"
               />
             </div>
 
@@ -937,8 +937,8 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
         </div>
 
         {/* Table Content */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <table className="w-full text-left text-xs min-w-[760px]">
             <thead>
               <tr className="border-b border-gray-100 text-gray-400 uppercase font-semibold text-[11px]">
                 <th className="pb-3 pl-2">Post</th>
@@ -1068,10 +1068,10 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
       {/* INSPECT POST DETAILS MODAL */}
       {inspectedPost && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div
             ref={inspectedModalRef}
-            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center space-x-2">
