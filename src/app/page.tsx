@@ -874,7 +874,7 @@ export default function LandingPage() {
       <footer className="px-6 pb-12 pt-8 max-w-6xl mx-auto">
         <div className="rounded-3xl bg-white border border-gray-200/80 p-8 sm:p-12 shadow-sm relative overflow-hidden">
           {/* Top Row: Brand Info + Nav Columns + Follow Us */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-16 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-6 relative z-10">
             {/* Column 1: Brand Statement */}
             <div className="md:col-span-1 space-y-3">
               <PostingTubeLogo size="sm" />
@@ -949,15 +949,23 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Giant Blurred Typography Watermark (Directly Recreating Frame 00:15 - 00:17) */}
-          <div className="absolute -bottom-8 left-0 right-0 overflow-hidden pointer-events-none select-none text-center">
-            <span className="font-black text-[76px] sm:text-[130px] md:text-[180px] lg:text-[220px] tracking-tighter text-red-600/10 block leading-none blur-[1px]">
-              PostingTube
-            </span>
+          {/* Watermark Brand Wordmark (Cleanly fitted on one line, scaled & responsive) */}
+          <div className="w-full py-4 overflow-hidden pointer-events-none select-none flex items-center justify-center">
+            <svg viewBox="0 0 900 110" className="w-full max-w-2xl h-auto opacity-15" aria-hidden="true">
+              <text
+                x="50%"
+                y="50%"
+                dominantBaseline="central"
+                textAnchor="middle"
+                className="font-black text-[84px] fill-red-600 tracking-tight select-none"
+              >
+                PostingTube
+              </text>
+            </svg>
           </div>
 
           {/* Copyright Bottom Bar */}
-          <div className="relative z-10 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-400 gap-2">
+          <div className="relative z-10 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-400 gap-2">
             <span>&copy; 2026 PostingTube Technologies. All rights reserved.</span>
             <span>All official trademarks belong to their respective platforms.</span>
           </div>
