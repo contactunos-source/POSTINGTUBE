@@ -1071,12 +1071,34 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                       {/* Platform */}
                       <td className="py-3">
-                        <div className="flex items-center space-x-1.5">
-                          <PlatformLogo platform={primaryAcc?.platform || 'facebook'} className="w-3.5 h-3.5" />
-                          <span className="font-semibold text-gray-700 capitalize">
-                            {primaryAcc?.displayName || primaryAcc?.username || 'Channel'}
-                          </span>
-                        </div>
+                        {activeAccount ? (
+                          <div className="flex items-center space-x-1.5">
+                            <PlatformLogo platform={activeAccount.platform} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="font-semibold text-gray-700 capitalize truncate max-w-[140px]">
+                              {activeAccount.displayName || activeAccount.username}
+                            </span>
+                          </div>
+                        ) : targetAccounts.length > 1 ? (
+                          <div className="flex items-center space-x-1 flex-wrap gap-y-1">
+                            {targetAccounts.map((acc) => (
+                              <span
+                                key={acc.id}
+                                className="inline-flex items-center space-x-1 bg-gray-100 hover:bg-gray-200/80 px-2 py-0.5 rounded-md text-[11px] font-medium text-gray-700 transition-colors"
+                                title={acc.displayName || acc.username}
+                              >
+                                <PlatformLogo platform={acc.platform} className="w-3 h-3" />
+                                <span className="capitalize">{acc.platform}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-1.5">
+                            <PlatformLogo platform={primaryAcc?.platform || 'facebook'} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="font-semibold text-gray-700 capitalize truncate max-w-[140px]">
+                              {primaryAcc?.displayName || primaryAcc?.username || 'Channel'}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Published At */}
