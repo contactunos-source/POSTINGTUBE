@@ -13,7 +13,7 @@ import {
   INITIAL_MEDIA,
   StorageService,
 } from '@/lib/storage';
-import { DatabaseService, DEFAULT_WORKSPACE_ID } from '@/lib/db';
+import { DatabaseService, DEFAULT_WORKSPACE_ID, getUserWorkspaceId } from '@/lib/db';
 import { Post, SocialAccount, Workspace, PostMedia, PostType, SocialPlatform } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
 import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [mediaItems, setMediaItems] = useState<PostMedia[]>([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
@@ -104,9 +105,12 @@ export default function DashboardPage() {
     syncUserProfile(user).catch(() => {});
     setIsLoaded(false);
     try {
+      const userWs = await getUserWorkspaceId(user.id);
+      setCurrentWorkspaceId(userWs);
+
       const [dbAccounts, dbPosts] = await Promise.all([
-        DatabaseService.getAccounts(user.id),
-        DatabaseService.getPosts(user.id),
+        DatabaseService.getAccounts(user.id, userWs),
+        DatabaseService.getPosts(user.id, userWs),
       ]);
 
       setAccounts(dbAccounts);
@@ -985,7 +989,7 @@ export default function DashboardPage() {
         {activeTab === 'connections' && (
           <ConnectedAccounts
             accounts={accounts}
-            currentWorkspaceId={DEFAULT_WORKSPACE_ID}
+            currentWorkspaceId={currentWorkspaceId}
             onAddAccount={handleAddAccount}
             onRemoveAccount={handleRemoveAccount}
             onRefreshAccount={handleRefreshAccount}
@@ -1048,7 +1052,7 @@ export default function DashboardPage() {
           <PostsManager
             posts={posts}
             accounts={accounts}
-            workspaceId={DEFAULT_WORKSPACE_ID}
+            workspaceId={currentWorkspaceId}
             onPostsUpdated={(updated) => {
               queueMicrotask(() => setPosts(updated));
             }}
@@ -1077,7 +1081,7 @@ export default function DashboardPage() {
           <InsightsView
             posts={posts}
             accounts={accounts}
-            workspaceId={DEFAULT_WORKSPACE_ID}
+            workspaceId={currentWorkspaceId}
             initialSelectedAccountId={selectedInsightsAccountId}
             onPostsUpdated={(updated) => {
               queueMicrotask(() => setPosts(updated));

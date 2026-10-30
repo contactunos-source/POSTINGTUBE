@@ -234,9 +234,8 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       });
       const data = await res.json();
       if (data.success && data.analytics) {
-        let updatedPosts: Post[] = [];
         setLocalPosts((prev) => {
-          updatedPosts = prev.map((p) => {
+          const next = prev.map((p) => {
             if (p.id !== post.id) return p;
             const updatedResults = { ...(p.results || {}) };
             for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
@@ -251,21 +250,40 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 };
               }
             }
-            const postObj: Post = {
+            return {
               ...p,
               results: updatedResults,
               analytics: data.analytics,
             };
-            if (selectedPostForDetails && selectedPostForDetails.id === p.id) {
-              setSelectedPostForDetails(postObj);
-            }
-            return postObj;
           });
-          return updatedPosts;
+
+          if (onPostsUpdated) {
+            setTimeout(() => onPostsUpdated(next), 0);
+          }
+          return next;
         });
-        if (updatedPosts.length > 0 && onPostsUpdated) {
-          queueMicrotask(() => onPostsUpdated(updatedPosts));
-        }
+
+        setSelectedPostForDetails((prev) => {
+          if (!prev || prev.id !== post.id) return prev;
+          const updatedResults = { ...(prev.results || {}) };
+          for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
+            if (updatedResults[accId]) {
+              updatedResults[accId].analytics = metrics;
+            } else {
+              updatedResults[accId] = {
+                status: 'success',
+                platform: metrics.platform,
+                externalPostId: metrics.externalPostId,
+                analytics: metrics,
+              };
+            }
+          }
+          return {
+            ...prev,
+            results: updatedResults,
+            analytics: data.analytics,
+          };
+        });
       }
     } catch (err) {
       console.error('Failed to refresh analytics for post:', err);
@@ -286,9 +304,8 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       const data = await res.json();
       if (data.success && data.analytics) {
         setLastAnalyticsRefresh(new Date());
-        let updatedPosts: Post[] = [];
         setLocalPosts((prev) => {
-          updatedPosts = prev.map((p) => {
+          const next = prev.map((p) => {
             const postAnalytics = data.analytics[p.id];
             if (!postAnalytics) return p;
             const updatedResults = { ...(p.results || {}) };
@@ -304,21 +321,41 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 };
               }
             }
-            const postObj: Post = {
+            return {
               ...p,
               results: updatedResults,
               analytics: postAnalytics,
             };
-            if (selectedPostForDetails && selectedPostForDetails.id === p.id) {
-              setSelectedPostForDetails(postObj);
-            }
-            return postObj;
           });
-          return updatedPosts;
+
+          if (onPostsUpdated) {
+            setTimeout(() => onPostsUpdated(next), 0);
+          }
+          return next;
         });
-        if (updatedPosts.length > 0 && onPostsUpdated) {
-          queueMicrotask(() => onPostsUpdated(updatedPosts));
-        }
+
+        setSelectedPostForDetails((prev) => {
+          if (!prev || !data.analytics[prev.id]) return prev;
+          const postAnalytics = data.analytics[prev.id];
+          const updatedResults = { ...(prev.results || {}) };
+          for (const [accId, metrics] of Object.entries(postAnalytics as Record<string, PlatformPostMetrics>)) {
+            if (updatedResults[accId]) {
+              updatedResults[accId].analytics = metrics;
+            } else {
+              updatedResults[accId] = {
+                status: 'success',
+                platform: metrics.platform,
+                externalPostId: metrics.externalPostId,
+                analytics: metrics,
+              };
+            }
+          }
+          return {
+            ...prev,
+            results: updatedResults,
+            analytics: postAnalytics,
+          };
+        });
       }
     } catch (err) {
       console.error('Failed to refresh all analytics:', err);

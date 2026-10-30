@@ -210,7 +210,21 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
 
   if (supabase) {
     try {
-      // 1. Check if user already has an assigned workspace in database
+      // 1. Check if user owns or is associated with DEFAULT_WORKSPACE_ID
+      const { data: defWs } = await supabase
+        .from('workspaces')
+        .select('id, user_id')
+        .eq('id', DEFAULT_WORKSPACE_ID)
+        .maybeSingle();
+
+      if (defWs && (!defWs.user_id || defWs.user_id === resolvedUser)) {
+        if (!defWs.user_id && UUID_REGEX.test(resolvedUser)) {
+          await supabase.from('workspaces').update({ user_id: resolvedUser }).eq('id', DEFAULT_WORKSPACE_ID);
+        }
+        return DEFAULT_WORKSPACE_ID;
+      }
+
+      // 2. Check if user already has an assigned workspace in database
       const { data: wsRows, error: wsErr } = await supabase
         .from('workspaces')
         .select('id, user_id, role')
@@ -245,6 +259,7 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
 
       const ownerEmails = [
         'onmansonu@gmail.com',
+        'noobsonu001@gmail.com',
         'admin@postingtube.com',
         ...(process.env.OWNER_EMAILS ? process.env.OWNER_EMAILS.split(',') : []),
         ...(process.env.NEXT_PUBLIC_OWNER_EMAIL ? [process.env.NEXT_PUBLIC_OWNER_EMAIL] : []),
@@ -254,7 +269,7 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
         return DEFAULT_WORKSPACE_ID;
       }
 
-      // 2. If user is a valid UUID, provision a new isolated workspace
+      // 3. If user is a valid UUID, provision a new isolated workspace
       if (UUID_REGEX.test(resolvedUser)) {
         const newWsId = crypto.randomUUID();
         const { data: newWs, error: insertErr } = await supabase
@@ -515,7 +530,7 @@ export const DatabaseService = {
 
     await this.ensureDefaultWorkspace();
 
-    // 1. Backend duplicate prevention: query database strictly scoped to this workspace
+    // 1. Backend duplicate & reconnect management: query database strictly scoped to this workspace
     if (supabase) {
       try {
         const { data: existingRows, error: checkErr } = await supabase
@@ -525,7 +540,7 @@ export const DatabaseService = {
           .eq('platform', account.platform);
 
         if (!checkErr && Array.isArray(existingRows)) {
-          const isDbDuplicate = existingRows.some((row) => {
+          const existingMatch = existingRows.find((row) => {
             const sameId = row.id === account.id;
             const samePageId = Boolean(row.page_id && account.pageId && row.page_id === account.pageId);
             const sameUsername = Boolean(
@@ -536,12 +551,29 @@ export const DatabaseService = {
             return sameId || samePageId || sameUsername;
           });
 
-          if (isDbDuplicate) {
-            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected to workspace.`);
+          if (existingMatch) {
+            console.log(`[Account Refresh] Updating existing ${account.platform} account "${account.username}" (${existingMatch.id}) with fresh credentials.`);
+            const updatedAccount: SocialAccount = {
+              ...account,
+              id: existingMatch.id,
+              status: 'connected',
+            };
+            const dbAcc = mapAccountToDbAccount(updatedAccount, targetWsId);
+            await supabase.from('connected_accounts').upsert(dbAcc);
+
+            if (resolvedUser) {
+              const currentAccounts = StorageService.getAccounts(resolvedUser);
+              const updatedAccounts = currentAccounts.map((a) => (a.id === existingMatch.id ? updatedAccount : a));
+              if (!updatedAccounts.some((a) => a.id === existingMatch.id)) {
+                updatedAccounts.push(updatedAccount);
+              }
+              StorageService.saveAccounts(updatedAccounts, resolvedUser);
+            }
+
             return {
-              success: false,
-              isDuplicate: true,
-              message: 'This account is already connected to your profile.',
+              success: true,
+              isDuplicate: false,
+              message: 'Account connection refreshed and saved successfully!',
             };
           }
         }
@@ -550,28 +582,14 @@ export const DatabaseService = {
       }
     }
 
-    // 2. User-scoped storage cache duplicate check
+    // 2. User-scoped storage cache sync preparation
     if (resolvedUser) {
       const currentAccounts = StorageService.getAccounts(resolvedUser);
-      const isCacheDuplicate = currentAccounts.some((existing) => {
-        if (existing.platform !== account.platform) return false;
-        const sameId = existing.id === account.id;
-        const samePageId = Boolean(existing.pageId && account.pageId && existing.pageId === account.pageId);
-        const sameUsername = Boolean(
-          existing.username &&
-          account.username &&
-          existing.username.trim().toLowerCase() === account.username.trim().toLowerCase()
-        );
-        return sameId || samePageId || sameUsername;
-      });
-
-      if (isCacheDuplicate) {
-        return {
-          success: false,
-          isDuplicate: true,
-          message: 'This account is already connected to your profile.',
-        };
+      const updated = currentAccounts.map((a) => (a.id === account.id || (a.pageId && a.pageId === account.pageId) ? account : a));
+      if (!updated.some((a) => a.id === account.id)) {
+        updated.push(account);
       }
+      StorageService.saveAccounts(updated, resolvedUser);
     }
 
     // 3. Save new account to Supabase with targetWsId
