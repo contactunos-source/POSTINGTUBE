@@ -11,6 +11,7 @@ import {
   getGuestUser,
   supabase,
 } from '@/lib/supabase';
+import { syncUserProfile } from '@/lib/userSync';
 import {
   Sparkles,
   ArrowRight,
@@ -62,6 +63,7 @@ function LoginContent() {
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
+          syncUserProfile(session.user);
           router.push(redirectTo);
         }
       });
@@ -94,12 +96,19 @@ function LoginContent() {
       if (mode === 'signin') {
         const { data, error } = await signInWithEmail(email.trim(), password);
         if (error) throw error;
-        if (data.session) {
+        if (data.session?.user) {
+          await syncUserProfile(data.session.user);
           router.push(redirectTo);
         }
       } else {
         const { data, error } = await signUpWithEmail(email.trim(), password);
         if (error) throw error;
+        if (data.user) {
+          await syncUserProfile({
+            ...data.user,
+            fullName: fullName.trim() || data.user.email?.split('@')[0],
+          });
+        }
         if (data.session) {
           router.push(redirectTo);
         } else {

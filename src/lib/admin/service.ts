@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { getSyncedUsersFromFile } from '@/app/api/user/sync/route';
 import { Post, SocialAccount, Workspace } from '@/types/social';
 import { DatabaseService, DEFAULT_WORKSPACE_ID } from '@/lib/db';
 
@@ -120,6 +122,155 @@ export interface AdminCustomerProfile {
   }>;
 }
 
+
+/**
+ * Aggregates all registered users from Supabase Auth, public.user_profiles,
+ * server-side sync store, and workspaces without duplicates.
+ */
+async function fetchAggregatedUserProfiles(): Promise<any[]> {
+  const profileMap = new Map<string, any>();
+  const emailMap = new Map<string, any>();
+
+  // 1. Query Supabase Auth Admin API if service role key is configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (supabaseUrl && serviceKey) {
+    try {
+      const adminClient = createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false },
+      });
+      const { data: authData } = await adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+      if (authData?.users) {
+        for (const u of authData.users) {
+          const email = (u.email || '').toLowerCase().trim();
+          const fullName =
+            u.user_metadata?.full_name ||
+            u.user_metadata?.name ||
+            (email ? email.split('@')[0] : 'Customer');
+          const avatarUrl =
+            u.user_metadata?.avatar_url ||
+            u.user_metadata?.picture ||
+            '';
+          const record = {
+            id: u.id,
+            email: u.email || '',
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            role: email === (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase() ? 'owner' : 'customer',
+            status: u.banned_until ? 'suspended' : 'active',
+            plan: 'free',
+            billing_cycle: 'monthly',
+            payment_status: 'free',
+            country: 'India',
+            device_category: 'desktop',
+            browser: 'Chrome',
+            os: 'Windows',
+            created_at: u.created_at || new Date().toISOString(),
+            last_active_at: u.last_sign_in_at || u.created_at || new Date().toISOString(),
+          };
+          profileMap.set(u.id, record);
+          if (email) emailMap.set(email, record);
+        }
+      }
+    } catch (e) {
+      console.warn('[AdminDataService] Notice querying auth.admin.listUsers:', e);
+    }
+  }
+
+  // 2. Query Supabase public.user_profiles table
+  if (supabase) {
+    try {
+      const { data: dbProfiles } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (dbProfiles && Array.isArray(dbProfiles)) {
+        for (const p of dbProfiles) {
+          const email = (p.email || '').toLowerCase().trim();
+          const existing = profileMap.get(p.id) || (email ? emailMap.get(email) : null);
+          const merged = {
+            ...(existing || {}),
+            ...p,
+            id: p.id,
+            email: p.email,
+            full_name: p.full_name || existing?.full_name || (p.email ? p.email.split('@')[0] : 'Customer'),
+            status: p.status || existing?.status || 'active',
+            plan: p.plan || existing?.plan || 'free',
+            created_at: p.created_at || existing?.created_at || new Date().toISOString(),
+            last_active_at: p.last_active_at || existing?.last_active_at || new Date().toISOString(),
+          };
+          profileMap.set(p.id, merged);
+          if (email) emailMap.set(email, merged);
+        }
+      }
+    } catch (e) {
+      console.warn('[AdminDataService] Notice querying user_profiles:', e);
+    }
+  }
+
+  // 3. Query server-side synced users backup store
+  try {
+    const syncedUsers = getSyncedUsersFromFile();
+    if (Array.isArray(syncedUsers)) {
+      for (const s of syncedUsers) {
+        const email = (s.email || '').toLowerCase().trim();
+        const existing = profileMap.get(s.id) || (email ? emailMap.get(email) : null);
+        const merged = {
+          ...(existing || {}),
+          ...s,
+          id: s.id,
+          email: s.email,
+          full_name: s.full_name || existing?.full_name || (s.email ? s.email.split('@')[0] : 'Customer'),
+          status: s.status || existing?.status || 'active',
+          plan: s.plan || existing?.plan || 'free',
+          created_at: s.created_at || existing?.created_at || new Date().toISOString(),
+          last_active_at: s.last_active_at || existing?.last_active_at || new Date().toISOString(),
+        };
+        profileMap.set(s.id, merged);
+        if (email) emailMap.set(email, merged);
+      }
+    }
+  } catch (e) {
+    console.warn('[AdminDataService] Notice querying synced users file:', e);
+  }
+
+  // 4. Query workspaces for any additional registered user IDs
+  if (supabase) {
+    try {
+      const { data: wsData } = await supabase.from('workspaces').select('*');
+      if (wsData && Array.isArray(wsData)) {
+        for (const w of wsData) {
+          if (w.user_id && !profileMap.has(w.user_id)) {
+            const placeholder = {
+              id: w.user_id,
+              email: `${w.slug || 'customer'}@postingtube.com`,
+              full_name: w.name || 'PostingTube Customer',
+              avatar_url: '',
+              role: 'customer',
+              status: 'active',
+              plan: 'free',
+              billing_cycle: 'monthly',
+              payment_status: 'free',
+              country: 'India',
+              created_at: w.created_at || new Date().toISOString(),
+              last_active_at: new Date().toISOString(),
+            };
+            profileMap.set(w.user_id, placeholder);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  return Array.from(profileMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+}
+
 export const AdminDataService = {
   /**
    * Fetches the complete operational overview for the Owner Dashboard.
@@ -162,7 +313,6 @@ export const AdminDataService = {
         rawAccounts = accs || [];
         rawPosts = posts || [];
         rawJobs = jobs || [];
-        rawProfiles = profiles || [];
         rawSubscriptions = subs || [];
         rawTransactions = txns || [];
         rawActivityLogs = logs || [];
@@ -171,9 +321,12 @@ export const AdminDataService = {
       }
     }
 
+    // Accurately aggregate real registered users across Supabase Auth & user_profiles
+    rawProfiles = await fetchAggregatedUserProfiles();
+
     // 2. Synthesize baseline counts
-    const totalUsers = Math.max(1, rawProfiles.length);
-    const activeUsers = rawProfiles.filter((p) => p.status === 'active').length || totalUsers;
+    const totalUsers = rawProfiles.length;
+    const activeUsers = rawProfiles.filter((p) => p.status === 'active').length;
 
     const newUsersToday = rawProfiles.filter((p) => p.created_at >= startOfToday).length;
     const newUsersThisWeek = rawProfiles.filter((p) => p.created_at >= sevenDaysAgo).length;
@@ -418,56 +571,31 @@ export const AdminDataService = {
     const page = params.page || 1;
     const limit = params.limit || 20;
 
-    let profiles: any[] = [];
     let accounts: any[] = [];
     let posts: any[] = [];
     let subscriptions: any[] = [];
 
+    // Real Supabase Auth & user profiles aggregation
+    const profiles: any[] = await fetchAggregatedUserProfiles();
+
     if (supabase) {
       try {
         const [
-          { data: pData },
           { data: aData },
           { data: postData },
           { data: subData },
         ] = await Promise.all([
-          supabase.from('user_profiles').select('*').order('created_at', { ascending: false }),
           supabase.from('connected_accounts').select('*'),
           supabase.from('posts').select('*'),
           supabase.from('subscriptions').select('*'),
         ]);
 
-        profiles = pData || [];
         accounts = aData || [];
         posts = postData || [];
         subscriptions = subData || [];
       } catch (e) {
         console.warn('[AdminDataService] getUsers warning:', e);
       }
-    }
-
-    // If no user_profiles exist yet in database, construct baseline owner profile
-    if (profiles.length === 0) {
-      profiles = [
-        {
-          id: 'usr_owner_primary',
-          email: process.env.OWNER_EMAIL || 'onmansonu@gmail.com',
-          full_name: 'Platform Owner',
-          avatar_url: '',
-          status: 'active',
-          role: 'owner',
-          plan: 'agency_scale',
-          billing_cycle: 'annual',
-          payment_status: 'paid',
-          country: 'India',
-          city: 'Bengaluru',
-          device_category: 'desktop',
-          browser: 'Chrome',
-          os: 'Windows',
-          created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          last_active_at: new Date().toISOString(),
-        },
-      ];
     }
 
     // Filters

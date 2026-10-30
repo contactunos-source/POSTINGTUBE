@@ -17,6 +17,7 @@ import { DatabaseService, DEFAULT_WORKSPACE_ID } from '@/lib/db';
 import { Post, SocialAccount, Workspace, PostMedia, PostType, SocialPlatform } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
 import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
+import { syncUserProfile } from '@/lib/userSync';
 import {
   Globe,
   ArrowLeft,
@@ -99,6 +100,8 @@ export default function DashboardPage() {
     }
 
     currentUserIdRef.current = user.id;
+    // Automatically synchronize user with Supabase user_profiles & server directory
+    syncUserProfile(user).catch(() => {});
     setIsLoaded(false);
     try {
       const [dbAccounts, dbPosts] = await Promise.all([

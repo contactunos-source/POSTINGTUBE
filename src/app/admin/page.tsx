@@ -5,8 +5,6 @@ import { AdminSidebar, AdminTab } from '@/components/admin/AdminSidebar';
 import { AdminLoginGate } from '@/components/admin/AdminLoginGate';
 import { OverviewView } from '@/components/admin/OverviewView';
 import { UsersView } from '@/components/admin/UsersView';
-import { ConnectedAccountsView } from '@/components/admin/ConnectedAccountsView';
-import { PostsView } from '@/components/admin/PostsView';
 import { BillingView } from '@/components/admin/BillingView';
 import { DevicesView } from '@/components/admin/DevicesView';
 import { ActivityLogsView } from '@/components/admin/ActivityLogsView';
@@ -29,8 +27,6 @@ export default function AdminPage() {
       const valid: AdminTab[] = [
         'overview',
         'users',
-        'accounts',
-        'posts',
         'billing',
         'devices',
         'activity',
@@ -72,8 +68,6 @@ export default function AdminPage() {
       const valid: AdminTab[] = [
         'overview',
         'users',
-        'accounts',
-        'posts',
         'billing',
         'devices',
         'activity',
@@ -359,9 +353,11 @@ export default function AdminPage() {
     if (!isAuthenticated) return;
 
     if (activeTab === 'overview') fetchOverview();
-    else if (activeTab === 'users') fetchUsers();
-    else if (activeTab === 'accounts') fetchAccounts();
-    else if (activeTab === 'posts') fetchPosts();
+    else if (activeTab === 'users') {
+      fetchUsers();
+      fetchAccounts();
+      fetchPosts();
+    }
     else if (activeTab === 'billing') fetchBilling();
     else if (activeTab === 'devices') fetchDevices();
     else if (activeTab === 'activity') fetchActivity();
@@ -476,36 +472,7 @@ export default function AdminPage() {
               onStatusFilterChange={setUserStatusFilter}
               onPlanFilterChange={setUserPlanFilter}
               onUpdateUserStatus={handleUpdateUserStatus}
-            />
-          )}
-
-          {activeTab === 'accounts' && (
-            <ConnectedAccountsView
-              accounts={accounts}
-              isLoading={isAccountsLoading}
-              onRefresh={fetchAccounts}
-              onPlatformFilter={setAccountPlatformFilter}
-              onStatusFilter={setAccountStatusFilter}
-              onSearch={setAccountSearch}
-              onDisconnectAccount={handleDisconnectAccount}
-              onOpenUserProfile={handleOpenUserProfile}
-              users={users}
-            />
-          )}
-
-          {activeTab === 'posts' && (
-            <PostsView
-              posts={posts}
-              total={postsTotal}
-              page={postsPage}
-              limit={20}
-              isLoading={isPostsLoading}
-              onPageChange={setPostsPage}
-              onStatusFilter={setPostStatusFilter}
-              onSearch={setPostSearch}
-              onRetryPost={handleRetryPost}
-              onOpenUserProfile={handleOpenUserProfile}
-              users={users}
+              onRefresh={fetchUsers}
             />
           )}
 

@@ -15,6 +15,7 @@ import {
   Calendar,
   Clock,
   Download,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminCustomerProfile } from '@/lib/admin/service';
 import { UserDetailModal } from './UserDetailModal';
@@ -30,6 +31,7 @@ interface UsersViewProps {
   onStatusFilterChange: (status: string) => void;
   onPlanFilterChange: (plan: string) => void;
   onUpdateUserStatus: (userId: string, newStatus: 'active' | 'suspended') => Promise<void>;
+  onRefresh?: () => void;
 }
 
 export const UsersView: React.FC<UsersViewProps> = ({
@@ -43,6 +45,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
   onStatusFilterChange,
   onPlanFilterChange,
   onUpdateUserStatus,
+  onRefresh,
 }) => {
   const [searchInput, setSearchInput] = useState('');
   const [selectedUser, setSelectedUser] = useState<AdminCustomerProfile | null>(null);
@@ -65,14 +68,28 @@ export const UsersView: React.FC<UsersViewProps> = ({
           </p>
         </div>
 
-        <a
-          href="/api/admin/export?type=users"
-          download
-          className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
-        >
-          <Download className="w-3.5 h-3.5 text-gray-500" />
-          <span>Export Customer CSV</span>
-        </a>
+        <div className="flex items-center space-x-2">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
+              title="Refresh customer profiles directly from Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh Customers</span>
+            </button>
+          )}
+
+          <a
+            href="/api/admin/export?type=users"
+            download
+            className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
+          >
+            <Download className="w-3.5 h-3.5 text-gray-500" />
+            <span>Export Customer CSV</span>
+          </a>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

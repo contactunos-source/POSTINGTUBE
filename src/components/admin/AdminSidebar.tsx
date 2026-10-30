@@ -5,8 +5,6 @@ import Link from 'next/link';
 import {
   LayoutDashboard,
   Users,
-  Share2,
-  Send,
   CreditCard,
   Smartphone,
   History,
@@ -22,8 +20,6 @@ import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 export type AdminTab =
   | 'overview'
   | 'users'
-  | 'accounts'
-  | 'posts'
   | 'billing'
   | 'devices'
   | 'activity'
@@ -54,8 +50,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   }> = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
-    { id: 'accounts', label: 'Connected Accounts', icon: Share2 },
-    { id: 'posts', label: 'Posts & Publishing', icon: Send },
     { id: 'billing', label: 'Subscriptions & Billing', icon: CreditCard },
     { id: 'devices', label: 'Analytics & Devices', icon: Smartphone },
     { id: 'activity', label: 'Activity Logs', icon: History },

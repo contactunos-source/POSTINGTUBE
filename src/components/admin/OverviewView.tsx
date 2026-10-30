@@ -88,7 +88,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       icon: Share2,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
-      actionTab: 'accounts',
+      actionTab: 'users',
     },
     {
       title: 'Total Published Posts',
@@ -98,7 +98,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       icon: Send,
       color: 'text-rose-600',
       bgColor: 'bg-rose-50',
-      actionTab: 'posts',
+      actionTab: 'users',
     },
   ];
 
