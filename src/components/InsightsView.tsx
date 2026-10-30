@@ -51,6 +51,7 @@ interface InsightsViewProps {
   accounts: SocialAccount[];
   workspaceId?: string;
   initialSelectedAccountId?: string;
+  onRefreshData?: () => Promise<void> | void;
   onPostsUpdated?: (updated: Post[]) => void;
   onSelectPost?: (post: Post) => void;
 }
@@ -155,6 +156,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
   accounts,
   workspaceId,
   initialSelectedAccountId = 'all',
+  onRefreshData,
   onPostsUpdated,
   onSelectPost,
 }) => {
@@ -429,12 +431,16 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
     });
   }, [currentInterval, publishedPosts, selectedAccountId]);
 
-  // Refresh Analytics Directly from Official Platform APIs
+  // Refresh Analytics Directly from Official Platform APIs & Supabase
   const handleRefreshAnalytics = async () => {
     setIsRefreshing(true);
     setRefreshError(null);
 
     try {
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+
       const res = await fetch('/api/analytics/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -525,7 +531,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
   }, [selectedAccountId, accounts]);
 
   return (
-    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto font-sans space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto font-sans space-y-6 w-full overflow-hidden">
       {/* Top Header: Title, Real Time Indicator & Refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
         <div>

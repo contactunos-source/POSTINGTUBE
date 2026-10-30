@@ -1125,7 +1125,19 @@ export default function DashboardPage() {
           />
         )}
 
-        {activeTab === 'analytics' && <AnalyticsView accounts={accounts} posts={posts} />}
+        {activeTab === 'analytics' && (
+          <AnalyticsView
+            accounts={accounts}
+            posts={posts}
+            workspaceId={currentWorkspaceId}
+            onRefreshData={handleRefreshUserData}
+            onPostsUpdated={(updated) => {
+              setTimeout(() => {
+                setPosts(updated);
+              }, 0);
+            }}
+          />
+        )}
 
         {activeTab === 'insights' && (
           <InsightsView
@@ -1133,6 +1145,7 @@ export default function DashboardPage() {
             accounts={accounts}
             workspaceId={currentWorkspaceId}
             initialSelectedAccountId={selectedInsightsAccountId}
+            onRefreshData={handleRefreshUserData}
             onPostsUpdated={(updated) => {
               queueMicrotask(() => setPosts(updated));
             }}
