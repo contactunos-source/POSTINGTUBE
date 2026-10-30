@@ -28,15 +28,20 @@ interface UserDetailModalProps {
   user: AdminCustomerProfile | null;
   onClose: () => void;
   onUpdateStatus: (userId: string, newStatus: 'active' | 'suspended') => Promise<void>;
+  onUpdatePlan?: (userId: string, newPlan: 'free' | 'creator_pro' | 'agency_scale') => Promise<void>;
 }
 
 export const UserDetailModal: React.FC<UserDetailModalProps> = ({
   user,
   onClose,
   onUpdateStatus,
+  onUpdatePlan,
 }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'accounts' | 'posts' | 'billing'>('info');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'creator_pro' | 'agency_scale'>(user?.plan || 'free');
+  const [isPlanUpdating, setIsPlanUpdating] = useState(false);
+  const [planSuccessMsg, setPlanSuccessMsg] = useState('');
 
   if (!user) return null;
 
@@ -315,7 +320,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-black text-gray-900">
-                      {user.subscription ? `$${user.subscription.amount}` : '$0'}
+                      {user.subscription ? `$${user.subscription.amount}` : (user.plan === 'agency_scale' ? '$79' : user.plan === 'creator_pro' ? '$29' : '$0')}
                       <span className="text-xs font-normal text-gray-500">/{user.billingCycle}</span>
                     </div>
                     <span className="text-[10px] font-semibold text-emerald-600 capitalize">{user.paymentStatus}</span>
@@ -329,6 +334,67 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Manage Customer Plan & Subscription Level */}
+              {onUpdatePlan && (
+                <div className="p-5 rounded-2xl border border-gray-200/90 bg-white shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900">Change Pricing Plan</h4>
+                      <p className="text-[11px] text-gray-500">Assign or upgrade this customer's plan in Supabase.</p>
+                    </div>
+                    {planSuccessMsg && (
+                      <span className="text-xs font-semibold text-emerald-600 animate-fade-in">{planSuccessMsg}</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[
+                      { id: 'free', name: 'Free', price: '$0/mo', desc: '1 social account' },
+                      { id: 'creator_pro', name: 'Creator Pro', price: '$29/mo', desc: '5 social accounts' },
+                      { id: 'agency_scale', name: 'Agency Scale', price: '$79/mo', desc: 'Unlimited accounts' },
+                    ].map((planOption) => (
+                      <button
+                        key={planOption.id}
+                        type="button"
+                        onClick={() => setSelectedPlan(planOption.id as any)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedPlan === planOption.id
+                            ? 'border-gray-900 bg-gray-50/80 shadow-2xs'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-900">{planOption.name}</span>
+                          <span className="text-[10px] font-mono text-gray-500">{planOption.price}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 block mt-1">{planOption.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      disabled={isPlanUpdating || selectedPlan === user.plan}
+                      onClick={async () => {
+                        setIsPlanUpdating(true);
+                        setPlanSuccessMsg('');
+                        try {
+                          await onUpdatePlan(user.id, selectedPlan);
+                          setPlanSuccessMsg('Plan updated successfully!');
+                          setTimeout(() => setPlanSuccessMsg(''), 3000);
+                        } finally {
+                          setIsPlanUpdating(false);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {isPlanUpdating ? 'Updating Plan...' : 'Save Plan Changes'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

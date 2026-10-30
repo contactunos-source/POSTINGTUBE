@@ -391,7 +391,47 @@ export default function AdminPage() {
       body: JSON.stringify({ status: newStatus }),
     });
     if (res.ok) {
+      if (selectedUserForModal && selectedUserForModal.id === userId) {
+        setSelectedUserForModal((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
       fetchUsers();
+    }
+  };
+
+  const handleUpdateUserPlan = async (userId: string, newPlan: 'free' | 'creator_pro' | 'agency_scale') => {
+    const res = await fetch(`/api/admin/users/${userId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        plan: newPlan,
+        paymentStatus: newPlan === 'free' ? 'free' : 'paid',
+      }),
+    });
+    if (res.ok) {
+      if (selectedUserForModal && selectedUserForModal.id === userId) {
+        setSelectedUserForModal((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            plan: newPlan,
+            paymentStatus: newPlan === 'free' ? 'free' : 'paid',
+            subscription: {
+              id: `sub_${userId}`,
+              planName: newPlan === 'creator_pro' ? 'Creator Pro Plan' : (newPlan === 'agency_scale' ? 'Agency Scale Plan' : 'Free Plan'),
+              amount: newPlan === 'creator_pro' ? 29 : (newPlan === 'agency_scale' ? 79 : 0),
+              currency: 'USD',
+              billingInterval: 'monthly',
+              status: 'active',
+              provider: 'stripe',
+              currentPeriodStart: new Date().toISOString(),
+              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              cancelAtPeriodEnd: false,
+            },
+          };
+        });
+      }
+      fetchUsers();
+      fetchOverview();
     }
   };
 
@@ -525,6 +565,7 @@ export default function AdminPage() {
           user={selectedUserForModal}
           onClose={() => setSelectedUserForModal(null)}
           onUpdateStatus={handleUpdateUserStatus}
+          onUpdatePlan={handleUpdateUserPlan}
         />
       )}
     </div>

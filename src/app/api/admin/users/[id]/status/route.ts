@@ -14,20 +14,29 @@ export async function POST(
   const { id } = await params;
   try {
     const body = await req.json().catch(() => ({}));
-    const { status } = body;
+    const { status, plan, billingCycle, paymentStatus } = body;
 
-    if (status !== 'active' && status !== 'suspended') {
+    if (status && status !== 'active' && status !== 'suspended') {
       return NextResponse.json({ success: false, error: 'Invalid status. Must be active or suspended.' }, { status: 400 });
     }
 
-    const res = await AdminDataService.updateUserStatus(id, status);
+    if (plan && !['free', 'creator_pro', 'agency_scale'].includes(plan)) {
+      return NextResponse.json({ success: false, error: 'Invalid plan. Must be free, creator_pro, or agency_scale.' }, { status: 400 });
+    }
+
+    const res = await AdminDataService.updateUserStatus(id, {
+      status,
+      plan,
+      billingCycle,
+      paymentStatus,
+    });
 
     await logAdminAudit({
-      eventType: status === 'suspended' ? 'USER_ACCOUNT_SUSPENDED' : 'USER_ACCOUNT_REACTIVATED',
+      eventType: plan ? 'USER_PLAN_UPDATED' : (status === 'suspended' ? 'USER_ACCOUNT_SUSPENDED' : 'USER_ACCOUNT_REACTIVATED'),
       actorEmail: auth.email,
       targetType: 'USER',
       targetId: id,
-      details: { newStatus: status },
+      details: { newStatus: status, newPlan: plan },
       status: 'success',
     });
 

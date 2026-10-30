@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
-import { getSyncedUsersFromFile } from '@/app/api/user/sync/route';
+import { getSyncedUsersFromFile, saveSyncedUserToFile } from '@/app/api/user/sync/route';
 import { Post, SocialAccount, Workspace } from '@/types/social';
 import { DatabaseService, DEFAULT_WORKSPACE_ID } from '@/lib/db';
 
@@ -292,30 +292,55 @@ export const AdminDataService = {
 
     if (supabase) {
       try {
-        const [
-          { data: accs },
-          { data: posts },
-          { data: jobs },
-          { data: profiles },
-          { data: subs },
-          { data: txns },
-          { data: logs },
-        ] = await Promise.all([
-          supabase.from('connected_accounts').select('*'),
-          supabase.from('posts').select('*').order('created_at', { ascending: false }),
-          supabase.from('scheduled_jobs').select('*'),
-          supabase.from('user_profiles').select('*'),
-          supabase.from('subscriptions').select('*'),
-          supabase.from('payment_transactions').select('*').order('created_at', { ascending: false }),
-          supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(20),
-        ]);
+        let accs: any[] = [];
+        let posts: any[] = [];
+        let jobs: any[] = [];
+        let subs: any[] = [];
+        let txns: any[] = [];
+        let logs: any[] = [];
+        let workspaces: any[] = [];
 
-        rawAccounts = accs || [];
-        rawPosts = posts || [];
-        rawJobs = jobs || [];
-        rawSubscriptions = subs || [];
-        rawTransactions = txns || [];
-        rawActivityLogs = logs || [];
+        try {
+          const res = await supabase.from('connected_accounts').select('*');
+          accs = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+          posts = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('scheduled_jobs').select('*');
+          jobs = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('subscriptions').select('*');
+          subs = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('payment_transactions').select('*').order('created_at', { ascending: false });
+          txns = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(20);
+          logs = res.data || [];
+        } catch (_) {}
+
+        try {
+          const res = await supabase.from('workspaces').select('*');
+          workspaces = res.data || [];
+        } catch (_) {}
+
+        rawAccounts = accs;
+        rawPosts = posts;
+        rawJobs = jobs;
+        rawSubscriptions = subs;
+        rawTransactions = txns;
+        rawActivityLogs = logs;
       } catch (err) {
         console.warn('[AdminDataService] Error querying Supabase overview tables:', err);
       }
@@ -574,6 +599,7 @@ export const AdminDataService = {
     let accounts: any[] = [];
     let posts: any[] = [];
     let subscriptions: any[] = [];
+    let workspaces: any[] = [];
 
     // Real Supabase Auth & user profiles aggregation
     const profiles: any[] = await fetchAggregatedUserProfiles();
@@ -584,17 +610,34 @@ export const AdminDataService = {
           { data: aData },
           { data: postData },
           { data: subData },
+          { data: wsData },
         ] = await Promise.all([
           supabase.from('connected_accounts').select('*'),
           supabase.from('posts').select('*'),
           supabase.from('subscriptions').select('*'),
+          supabase.from('workspaces').select('*'),
         ]);
 
         accounts = aData || [];
         posts = postData || [];
         subscriptions = subData || [];
+        workspaces = wsData || [];
       } catch (e) {
         console.warn('[AdminDataService] getUsers warning:', e);
+      }
+    }
+
+    // Build user -> workspace mapping
+    const userWorkspaceMap = new Map<string, Set<string>>();
+    for (const w of workspaces) {
+      if (w.user_id) {
+        const uid = String(w.user_id).trim();
+        let set = userWorkspaceMap.get(uid);
+        if (!set) {
+          set = new Set();
+          userWorkspaceMap.set(uid, set);
+        }
+        set.add(w.id);
       }
     }
 
@@ -625,10 +668,27 @@ export const AdminDataService = {
 
     // Build rich profile view models
     const users: AdminCustomerProfile[] = paginated.map((p) => {
+      const userWsSet = userWorkspaceMap.get(p.id) || new Set();
+      const userEmailWsSet = p.email ? (userWorkspaceMap.get(p.email.toLowerCase()) || new Set()) : new Set();
+
       // Match connected accounts strictly belonging to this customer
-      const userAccounts = accounts.filter((a) => a.user_id === p.id || a.user_id === p.email);
+      const userAccounts = accounts.filter((a) => {
+        return (
+          a.user_id === p.id ||
+          a.user_id === p.email ||
+          (a.workspace_id && (userWsSet.has(a.workspace_id) || userEmailWsSet.has(a.workspace_id)))
+        );
+      });
+
       // Match posts strictly belonging to this customer
-      const userPosts = posts.filter((post) => post.user_id === p.id || post.user_id === p.email);
+      const userPosts = posts.filter((post) => {
+        return (
+          post.user_id === p.id ||
+          post.user_id === p.email ||
+          (post.workspace_id && (userWsSet.has(post.workspace_id) || userEmailWsSet.has(post.workspace_id)))
+        );
+      });
+
       // Match subscription strictly belonging to this customer
       const userSub = subscriptions.find((s) => s.user_id === p.id || s.user_id === p.email);
 
@@ -704,7 +764,18 @@ export const AdminDataService = {
               currentPeriodEnd: userSub.current_period_end,
               cancelAtPeriodEnd: Boolean(userSub.cancel_at_period_end),
             }
-          : undefined,
+          : {
+              id: `sub_${p.id}`,
+              planName: p.plan === 'creator_pro' ? 'Creator Pro Plan' : (p.plan === 'agency_scale' ? 'Agency Scale Plan' : 'Free Plan'),
+              amount: p.plan === 'creator_pro' ? 29 : (p.plan === 'agency_scale' ? 79 : 0),
+              currency: 'USD',
+              billingInterval: p.billing_cycle || 'monthly',
+              status: p.status === 'active' ? 'active' : 'inactive',
+              provider: 'stripe',
+              currentPeriodStart: p.created_at,
+              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              cancelAtPeriodEnd: false,
+            },
         billingHistory: [],
       };
     });
@@ -715,12 +786,33 @@ export const AdminDataService = {
   /**
    * Updates customer account status (e.g. suspend or reactivate).
    */
-  async updateUserStatus(userId: string, newStatus: 'active' | 'suspended'): Promise<{ success: boolean; message?: string }> {
+  async updateUserStatus(
+    userId: string,
+    updatesOrStatus: { status?: 'active' | 'suspended'; plan?: string; billingCycle?: string; paymentStatus?: string } | 'active' | 'suspended'
+  ): Promise<{ success: boolean; message?: string }> {
+    const updates = typeof updatesOrStatus === 'string' ? { status: updatesOrStatus } : updatesOrStatus;
+
+    // 1. Update in server backup store immediately
+    saveSyncedUserToFile({
+      id: userId,
+      ...(updates.status ? { status: updates.status } : {}),
+      ...(updates.plan ? { plan: updates.plan } : {}),
+      ...(updates.billingCycle ? { billingCycle: updates.billingCycle } : {}),
+      ...(updates.paymentStatus ? { paymentStatus: updates.paymentStatus } : {}),
+    });
+
+    // 2. Update in Supabase public.user_profiles
     if (supabase) {
       try {
+        const dbUpdate: any = { updated_at: new Date().toISOString() };
+        if (updates.status) dbUpdate.status = updates.status;
+        if (updates.plan) dbUpdate.plan = updates.plan;
+        if (updates.billingCycle) dbUpdate.billing_cycle = updates.billingCycle;
+        if (updates.paymentStatus) dbUpdate.payment_status = updates.paymentStatus;
+
         const { error } = await supabase
           .from('user_profiles')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .update(dbUpdate)
           .eq('id', userId);
 
         if (error) {
@@ -730,7 +822,7 @@ export const AdminDataService = {
         console.warn('Update user status error:', err);
       }
     }
-    return { success: true, message: `User status successfully updated to ${newStatus}.` };
+    return { success: true, message: `Customer ${userId} updated successfully.` };
   },
 
   /**
@@ -744,6 +836,8 @@ export const AdminDataService = {
   }): Promise<Array<any>> {
     let accounts: any[] = [];
     let profiles: any[] = [];
+    let workspaces: any[] = [];
+
     if (supabase) {
       try {
         let query = supabase.from('connected_accounts').select('*').order('created_at', { ascending: false });
@@ -753,42 +847,45 @@ export const AdminDataService = {
         if (params.status && params.status !== 'all') {
           query = query.eq('status', params.status);
         }
-        if (params.userId && params.userId !== 'all') {
-          query = query.eq('user_id', params.userId);
-        }
-        const [{ data: accData }, { data: pData }] = await Promise.all([
+
+        const [{ data: accData }, pData, { data: wsData }] = await Promise.all([
           query,
-          supabase.from('user_profiles').select('id, email, full_name'),
+          fetchAggregatedUserProfiles(),
+          supabase.from('workspaces').select('*'),
         ]);
         accounts = accData || [];
         profiles = pData || [];
+        workspaces = wsData || [];
       } catch (e) {
         console.warn('getConnectedAccounts error:', e);
       }
     }
 
-    if (params.search) {
-      const q = params.search.toLowerCase();
-      accounts = accounts.filter(
-        (a) =>
-          a.display_name?.toLowerCase().includes(q) ||
-          a.username?.toLowerCase().includes(q) ||
-          a.id?.toLowerCase().includes(q)
-      );
+    const wsToUserMap = new Map<string, string>();
+    for (const w of workspaces) {
+      if (w.id && w.user_id) {
+        wsToUserMap.set(w.id, String(w.user_id));
+      }
     }
 
     const profileMap = new Map<string, { email: string; name: string }>();
     for (const pr of profiles) {
       profileMap.set(pr.id, { email: pr.email, name: pr.full_name || pr.email });
-      profileMap.set(pr.email, { email: pr.email, name: pr.full_name || pr.email });
+      if (pr.email) {
+        profileMap.set(pr.email.toLowerCase(), { email: pr.email, name: pr.full_name || pr.email });
+      }
     }
 
     // Never return raw access_token or refresh_token to client
-    return accounts.map((a) => {
-      const owner = (a.user_id && profileMap.get(a.user_id)) || { email: 'onmansonu@gmail.com', name: 'PostingTube Owner' };
+    const mapped = accounts.map((a) => {
+      const ownerUserId = a.user_id || (a.workspace_id ? wsToUserMap.get(a.workspace_id) : null);
+      const owner = (ownerUserId && profileMap.get(ownerUserId)) ||
+        (a.user_id && profileMap.get(a.user_id)) ||
+        { email: 'onmansonu@gmail.com', name: 'PostingTube Owner' };
+
       return {
         id: a.id,
-        userId: a.user_id || 'usr_owner_primary',
+        userId: ownerUserId || a.user_id || 'usr_owner_primary',
         platform: a.platform,
         username: a.username,
         displayName: a.display_name,
@@ -804,6 +901,27 @@ export const AdminDataService = {
         ownerName: owner.name,
       };
     });
+
+    let result = mapped;
+    if (params.userId && params.userId !== 'all') {
+      const target = params.userId.toLowerCase();
+      result = result.filter(
+        (a) => a.userId === params.userId || a.ownerEmail.toLowerCase() === target
+      );
+    }
+
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      result = result.filter(
+        (a) =>
+          a.displayName?.toLowerCase().includes(q) ||
+          a.username?.toLowerCase().includes(q) ||
+          a.id?.toLowerCase().includes(q) ||
+          a.ownerEmail?.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
   },
 
   /**
@@ -837,58 +955,59 @@ export const AdminDataService = {
 
     let allPosts: any[] = [];
     let profiles: any[] = [];
+    let workspaces: any[] = [];
+
     if (supabase) {
       try {
         let query = supabase.from('posts').select('*').order('created_at', { ascending: false });
         if (params.status && params.status !== 'all') {
           query = query.eq('status', params.status);
         }
-        if (params.userId && params.userId !== 'all') {
-          query = query.eq('user_id', params.userId);
-        }
-        const [{ data: postsData }, { data: pData }] = await Promise.all([
+
+        const [{ data: postsData }, pData, { data: wsData }] = await Promise.all([
           query,
-          supabase.from('user_profiles').select('id, email, full_name'),
+          fetchAggregatedUserProfiles(),
+          supabase.from('workspaces').select('*'),
         ]);
         allPosts = postsData || [];
         profiles = pData || [];
+        workspaces = wsData || [];
       } catch (e) {
         console.warn('getPosts error:', e);
+      }
+    }
+
+    const wsToUserMap = new Map<string, string>();
+    for (const w of workspaces) {
+      if (w.id && w.user_id) {
+        wsToUserMap.set(w.id, String(w.user_id));
       }
     }
 
     const profileMap = new Map<string, { email: string; name: string }>();
     for (const pr of profiles) {
       profileMap.set(pr.id, { email: pr.email, name: pr.full_name || pr.email });
-      profileMap.set(pr.email, { email: pr.email, name: pr.full_name || pr.email });
+      if (pr.email) {
+        profileMap.set(pr.email.toLowerCase(), { email: pr.email, name: pr.full_name || pr.email });
+      }
     }
 
-    if (params.search) {
-      const q = params.search.toLowerCase();
-      allPosts = allPosts.filter(
-        (p) =>
-          p.content?.toLowerCase().includes(q) ||
-          p.id?.toLowerCase().includes(q)
-      );
-    }
-
-    const total = allPosts.length;
-    const startIndex = (page - 1) * limit;
-    const paginated = allPosts.slice(startIndex, startIndex + limit);
-
-    const posts = paginated.map((p) => {
+    const mappedPosts = allPosts.map((p) => {
       const errorObj = p.results
         ? Object.values(p.results).find((r: any) => r?.errorMessage)
         : null;
 
-      const owner = (p.user_id && profileMap.get(p.user_id)) || {
-        email: 'onmansonu@gmail.com',
-        name: 'PostingTube Customer',
-      };
+      const customerUserId = p.user_id || (p.workspace_id ? wsToUserMap.get(p.workspace_id) : null);
+      const owner = (customerUserId && profileMap.get(customerUserId)) ||
+        (p.user_id && profileMap.get(p.user_id)) ||
+        {
+          email: 'onmansonu@gmail.com',
+          name: 'PostingTube Customer',
+        };
 
       return {
         id: p.id,
-        userId: p.user_id || 'usr_owner_primary',
+        userId: customerUserId || p.user_id || 'usr_owner_primary',
         content: p.content,
         media: p.media || [],
         targetAccountIds: p.target_account_ids || [],
@@ -906,7 +1025,30 @@ export const AdminDataService = {
       };
     });
 
-    return { posts, total, page, limit };
+    let filtered = mappedPosts;
+    if (params.userId && params.userId !== 'all') {
+      const target = params.userId.toLowerCase();
+      filtered = filtered.filter(
+        (p) => p.userId === params.userId || p.customerEmail.toLowerCase() === target
+      );
+    }
+
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.content?.toLowerCase().includes(q) ||
+          p.id?.toLowerCase().includes(q) ||
+          p.customerEmail?.toLowerCase().includes(q) ||
+          p.customerName?.toLowerCase().includes(q)
+      );
+    }
+
+    const total = filtered.length;
+    const startIndex = (page - 1) * limit;
+    const paginated = filtered.slice(startIndex, startIndex + limit);
+
+    return { posts: paginated, total, page, limit };
   },
 
   /**
