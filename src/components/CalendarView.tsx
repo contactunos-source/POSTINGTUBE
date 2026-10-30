@@ -58,6 +58,10 @@ import {
   formatDateFullSafe,
   formatToDateTimeLocal,
   formatDateTimeWithSeconds,
+  getIstTimeParts,
+  getIstDateString,
+  formatLocalToUtcIso,
+  IST_TIMEZONE,
 } from '@/lib/dateUtils';
 
 interface CalendarViewProps {
@@ -129,14 +133,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [rescheduleDateInput, setRescheduleDateInput] = useState<string>('');
   const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
 
-  // Detect local timezone
+  // Timezone: Fixed to India Standard Time (IST – Asia/Kolkata, UTC+5:30)
   const userTimezone = useMemo(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      return tz.split('/')[1] || tz;
-    } catch {
-      return 'Kolkata';
-    }
+    return 'IST (Asia/Kolkata • UTC+5:30)';
   }, []);
 
   // Navigation handlers
@@ -224,16 +223,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return posts.filter((p) => p.status === 'draft' && !p.scheduledFor && !p.publishedAt);
   }, [posts]);
 
-  // Retrieve posts for a specific day sorted chronologically by exact time
+  // Retrieve posts for a specific day sorted chronologically by exact IST time
   const getPostsForDay = (day: Date) => {
     const matched = filteredPosts.filter((p) => postMatchesDay(p, day));
     return matched.sort((a, b) => {
       const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
       const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
-      const dateA = parseDateSafe(timeA);
-      const dateB = parseDateSafe(timeB);
-      const minsA = dateA ? dateA.getHours() * 60 + dateA.getMinutes() : 0;
-      const minsB = dateB ? dateB.getHours() * 60 + dateB.getMinutes() : 0;
+      const partsA = getIstTimeParts(timeA);
+      const partsB = getIstTimeParts(timeB);
+      const minsA = partsA.hour24 * 60 + partsA.minute;
+      const minsB = partsB.hour24 * 60 + partsB.minute;
       return minsA - minsB;
     });
   };
@@ -281,14 +280,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const post = posts.find((p) => p.id === postId);
     if (!post || post.status === 'published') return;
 
-    // Preserve original minutes or set target hour
-    const originalDate = post.scheduledFor ? new Date(post.scheduledFor) : new Date();
-    const hours = typeof targetHour === 'number' ? targetHour : originalDate.getHours();
-    const minutes = originalDate.getMinutes();
+    // Extract current IST time parts to preserve minutes
+    const originalParts = getIstTimeParts(post.scheduledFor || post.publishedAt || post.createdAt);
+    const hours = typeof targetHour === 'number' ? targetHour : originalParts.hour24;
+    const minutes = originalParts.minute;
 
-    const newTarget = new Date(targetDay);
-    newTarget.setHours(hours, minutes, 0, 0);
-    const newScheduledIso = newTarget.toISOString();
+    const targetDayStr = getIstDateString(targetDay);
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const newScheduledIso = formatLocalToUtcIso(targetDayStr, `${hh}:${mm}`);
 
     setIsRescheduling(true);
     try {
@@ -298,20 +298,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Hours array for week and day timeline (12 AM, 2 AM, ... 10 PM)
+  // Hours array for week and day timeline with unambiguous morning/afternoon/evening/night labels
   const timeSlots = [
-    { hour: 0, label: '12 AM' },
-    { hour: 2, label: '2 AM' },
-    { hour: 4, label: '4 AM' },
-    { hour: 6, label: '6 AM' },
-    { hour: 8, label: '8 AM' },
-    { hour: 10, label: '10 AM' },
-    { hour: 12, label: '12 PM' },
-    { hour: 14, label: '2 PM' },
-    { hour: 16, label: '4 PM' },
-    { hour: 18, label: '6 PM' },
-    { hour: 20, label: '8 PM' },
-    { hour: 22, label: '10 PM' },
+    { hour: 0, label: '12 AM', periodLabel: 'Midnight', phase: 'night' as const },
+    { hour: 2, label: '2 AM', periodLabel: 'Late Night', phase: 'night' as const },
+    { hour: 4, label: '4 AM', periodLabel: 'Early Morning', phase: 'night' as const },
+    { hour: 6, label: '6 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 8, label: '8 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 10, label: '10 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 12, label: '12 PM', periodLabel: 'Noon', phase: 'afternoon' as const },
+    { hour: 14, label: '2 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
+    { hour: 16, label: '4 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
+    { hour: 18, label: '6 PM', periodLabel: 'Evening', phase: 'evening' as const },
+    { hour: 20, label: '8 PM', periodLabel: 'Night', phase: 'night' as const },
+    { hour: 22, label: '10 PM', periodLabel: 'Night', phase: 'night' as const },
   ];
 
   // Helper for rendering post card (matches the reference image layout in our clean brand theme)
@@ -319,7 +319,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const postAccounts = getAccountsForPost(post);
     const primaryAccount = postAccounts[0];
     const platforms = Array.from(new Set(postAccounts.map((a) => a.platform)));
-    const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt);
+    const istParts = getIstTimeParts(post.scheduledFor || post.publishedAt || post.createdAt);
+    const timeStr = istParts.timeStr;
     const media = post.media && post.media.length > 0 ? post.media[0] : null;
     const isDraggable = post.status !== 'published';
 
@@ -373,10 +374,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <PlatformLogo platform={primaryAccount?.platform || 'facebook'} className="w-3 h-3" />
             </div>
 
-            {/* Exact Time Display */}
-            <span className="text-[11px] font-bold text-gray-900 tracking-tight shrink-0">
-              {timeStr}
-            </span>
+            {/* Exact Time Display with Period Phase */}
+            <div className="flex items-center space-x-1 shrink-0">
+              <span className="text-[11px] font-bold text-gray-900 tracking-tight">
+                {timeStr}
+              </span>
+              <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
+                {istParts.periodLabel}
+              </span>
+            </div>
 
             {/* Additional platform chips cleanly separated without overlapping */}
             {platforms.length > 1 && (
@@ -740,17 +746,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* VIEW 1: WEEK VIEW (Closest match to the reference image in our white theme) */}
+      {/* VIEW 1: WEEK VIEW (High-Precision India Standard Time Timeline Grid) */}
       {/* ========================================================================= */}
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[700px]">
-              {/* Header Row: 7 Days Columns with highlighted today */}
-              <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/70 text-center text-xs">
+            <div className="min-w-[840px]">
+              {/* Header Row: Left Gutter Corner + 7 Day Headers */}
+              <div className="grid grid-cols-[68px_repeat(7,1fr)] border-b border-gray-200 bg-gray-50/70 text-center text-xs">
+                {/* Timezone corner header */}
+                <div className="py-3 px-1 border-r border-gray-200/80 flex flex-col items-center justify-center text-[10px] font-extrabold text-emerald-800 bg-emerald-50/50 select-none">
+                  <span className="leading-tight">IST</span>
+                  <span className="text-[8px] text-emerald-600 font-semibold mt-0.5">UTC+5:30</span>
+                </div>
+
+                {/* 7 Days Columns with highlighted today */}
                 {weekDays.map((day) => {
                   const isCurrentDay = isToday(day);
-                  const dayPosts = getPostsForDay(day);
 
                   return (
                     <div
@@ -781,73 +793,109 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
               </div>
 
-              {/* Week Timeline Body: Time Grid & Post Cards */}
-              <div className="relative min-h-[720px] max-h-[820px] overflow-y-auto">
-                {/* Background Hourly Grid Lines with Time Markers on Left */}
-                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between divide-y divide-gray-100">
-                  {timeSlots.map((slot) => (
-                    <div key={slot.hour} className="h-16 relative flex items-start">
-                      <span className="text-[10px] font-semibold text-gray-400 pl-2 pt-1 select-none w-14 shrink-0">
-                        {slot.label}
-                      </span>
-                      <div className="w-full border-t border-gray-100/80 mt-2.5" />
-                    </div>
-                  ))}
-                </div>
+              {/* Week Timeline Body: Aligned Time Gutter & 12 Accurate Time Slot Rows */}
+              <div className="max-h-[780px] overflow-y-auto">
+                <div className="grid grid-cols-[68px_repeat(7,1fr)] divide-x divide-gray-200/80 relative min-h-[768px]">
+                  {/* Left Column: Fixed Time Gutter with Clear Phase Labels */}
+                  <div className="divide-y divide-gray-100/90 bg-gray-50/50">
+                    {timeSlots.map((slot) => (
+                      <div
+                        key={slot.hour}
+                        className="h-18 min-h-[72px] flex flex-col justify-start items-end pr-2.5 pt-2 select-none"
+                      >
+                        <span className="text-[11px] font-bold text-gray-900 leading-tight">
+                          {slot.label}
+                        </span>
+                        <span
+                          className={`text-[9px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
+                            slot.phase === 'morning'
+                              ? 'text-amber-700 bg-amber-50/80'
+                              : slot.phase === 'afternoon'
+                              ? 'text-sky-700 bg-sky-50/80'
+                              : slot.phase === 'evening'
+                              ? 'text-purple-700 bg-purple-50/80'
+                              : 'text-indigo-700 bg-indigo-50/80'
+                          }`}
+                        >
+                          {slot.periodLabel}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
 
-                {/* 7 Columns Container */}
-                <div className="grid grid-cols-7 divide-x divide-gray-200/80 relative z-10 min-h-[720px]">
+                  {/* 7 Columns: Each Day Divided into the Exact Matching 12 Time Slots */}
                   {weekDays.map((day) => {
                     const dayPosts = getPostsForDay(day);
                     const isCurrentDay = isToday(day);
-                    const isDropTarget = dragOverDayIso === day.toISOString();
 
                     return (
                       <div
                         key={day.toISOString()}
-                        onDragOver={(e) => handleDragOverDay(e, day)}
-                        onDragLeave={() => handleDragLeaveDay(day)}
-                        onDrop={(e) => handleDropOnDay(e, day)}
-                        onClick={() => {
-                          // Click on empty space creates post for this day
-                          onCreateAtDate(day);
-                        }}
-                        className={`p-2 transition-all flex flex-col min-h-[720px] cursor-pointer ${
-                          isDropTarget
-                            ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
-                            : isCurrentDay
-                            ? 'bg-emerald-50/10'
-                            : 'hover:bg-gray-50/40'
+                        className={`divide-y divide-gray-100/90 flex flex-col ${
+                          isCurrentDay ? 'bg-emerald-50/10' : ''
                         }`}
                       >
-                        {/* Posts for this day stacked chronologically */}
-                        <div className="space-y-2.5 mt-auto pb-4">
-                          {dayPosts.map((post) => (
-                            <div
-                              key={post.id}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {renderPostCard(post)}
-                            </div>
-                          ))}
-                        </div>
+                        {timeSlots.map((slot) => {
+                          // Filter posts scheduled specifically in this 2-hour slot window (e.g. 14:00 - 15:59 for 2 PM)
+                          const slotPosts = dayPosts.filter((post) => {
+                            const time = post.scheduledFor || post.publishedAt || post.createdAt;
+                            const parts = getIstTimeParts(time);
+                            return parts.hour24 >= slot.hour && parts.hour24 < slot.hour + 2;
+                          });
 
-                        {/* Empty Day Add Post Hint */}
-                        {dayPosts.length === 0 && (
-                          <div className="flex-1 flex items-center justify-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
+                          const slotDropKey = `${day.toISOString()}_${slot.hour}`;
+                          const isSlotDropTarget = dragOverDayIso === slotDropKey;
+
+                          return (
+                            <div
+                              key={slot.hour}
+                              onDragOver={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
-                                onCreateAtDate(day);
+                                setDragOverDayIso(slotDropKey);
                               }}
-                              className="opacity-0 hover:opacity-100 p-2 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 transition-all flex items-center space-x-1 text-[11px]"
+                              onDragLeave={() => setDragOverDayIso(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDragOverDayIso(null);
+                                handleDropOnDay(e, day, slot.hour);
+                              }}
+                              onClick={() => {
+                                const target = new Date(day);
+                                target.setHours(slot.hour, 0, 0, 0);
+                                onCreateAtDate(target);
+                              }}
+                              className={`h-18 min-h-[72px] p-1.5 relative transition-all group cursor-pointer overflow-visible ${
+                                isSlotDropTarget
+                                  ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
+                                  : 'hover:bg-gray-50/70'
+                              }`}
                             >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Schedule</span>
-                            </button>
-                          </div>
-                        )}
+                              {/* Post Cards scheduled in this exact slot */}
+                              {slotPosts.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {slotPosts.map((post) => (
+                                    <div
+                                      key={post.id}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {renderPostCard(post, { compact: true })}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                /* Clean interactive hover to schedule at this slot */
+                                <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity">
+                                  <span className="text-[10px] font-semibold text-gray-400 group-hover:text-emerald-700 flex items-center space-x-1">
+                                    <Plus className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span>{slot.label}</span>
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -885,17 +933,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
-          {/* Hourly Timeline */}
+          {/* Hourly Timeline with IST Phase Information */}
           <div className="divide-y divide-gray-100 max-h-[750px] overflow-y-auto">
             {Array.from({ length: 24 }).map((_, hour) => {
               const hourPosts = getPostsForDay(currentDate).filter((p) => {
                 const ts = p.scheduledFor || p.publishedAt || p.createdAt;
-                const d = parseDateSafe(ts);
-                return d ? d.getHours() === hour : false;
+                const parts = getIstTimeParts(ts);
+                return parts.hour24 === hour;
               });
 
-              const label =
-                hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`;
+              const isPm = hour >= 12;
+              let h12 = hour % 12;
+              if (h12 === 0) h12 = 12;
+              const period = isPm ? 'PM' : 'AM';
+              const label = `${h12} ${period}`;
+
+              let periodLabel = 'Night';
+              if (hour === 0) periodLabel = 'Midnight';
+              else if (hour < 4) periodLabel = 'Late Night';
+              else if (hour < 6) periodLabel = 'Early Morning';
+              else if (hour < 12) periodLabel = 'Morning';
+              else if (hour === 12) periodLabel = 'Noon';
+              else if (hour < 17) periodLabel = 'Afternoon';
+              else if (hour < 21) periodLabel = 'Evening';
+              else periodLabel = 'Night';
 
               return (
                 <div
@@ -907,9 +968,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   }}
                   className="flex items-start p-3 hover:bg-gray-50/50 transition-colors group cursor-pointer min-h-[64px]"
                 >
-                  <span className="w-16 text-xs font-semibold text-gray-400 select-none shrink-0 pt-0.5">
-                    {label}
-                  </span>
+                  <div className="w-20 pr-3 flex flex-col items-end select-none shrink-0 pt-0.5">
+                    <span className="text-xs font-bold text-gray-800 leading-tight">
+                      {label}
+                    </span>
+                    <span className="text-[9px] font-semibold text-gray-400 mt-0.5">
+                      {periodLabel}
+                    </span>
+                  </div>
 
                   <div className="flex-1 space-y-2 min-w-0">
                     {hourPosts.map((post) => (
@@ -921,7 +987,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {hourPosts.length === 0 && (
                       <div className="opacity-0 group-hover:opacity-100 text-[11px] text-gray-400 flex items-center space-x-1 pt-1">
                         <Plus className="w-3 h-3 text-emerald-600" />
-                        <span>Click to schedule at {label}</span>
+                        <span>Click to schedule at {label} ({periodLabel})</span>
                       </div>
                     )}
                   </div>
@@ -1336,10 +1402,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <button
                     onClick={async () => {
                       if (!rescheduleDateInput) return;
-                      const newIso = new Date(rescheduleDateInput).toISOString();
+                      const [datePart, timePart] = rescheduleDateInput.split('T');
+                      const newIso = formatLocalToUtcIso(datePart, timePart || '12:00');
                       const ok = await onReschedulePost(inspectedPost.id, newIso);
                       if (ok) {
-                        setRescheduleSuccessMsg('Successfully rescheduled!');
+                        setRescheduleSuccessMsg('Successfully rescheduled in IST!');
                         setTimeout(() => setRescheduleSuccessMsg(null), 3000);
                       }
                     }}

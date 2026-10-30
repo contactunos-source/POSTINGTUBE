@@ -1,5 +1,6 @@
 'use client';
 
+import { getIstTimeParts, formatDateFullSafe, IST_TIMEZONE } from '@/lib/dateUtils';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import {
@@ -61,16 +62,9 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }, []);
 
-  // Timezone detection
+  // Timezone detection: Fixed to India Standard Time (IST - Asia/Kolkata, UTC+5:30)
   const detectedTimezone = useMemo(() => {
-    try {
-      const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(new Date());
-      const abbr = parts.find((p) => p.type === 'timeZoneName')?.value || '';
-      return { tzName, abbr: abbr ? `${abbr}` : tzName };
-    } catch {
-      return { tzName: 'UTC', abbr: 'UTC' };
-    }
+    return { tzName: 'Asia/Kolkata', abbr: 'IST (UTC+5:30)' };
   }, []);
 
   // Parse 24-hr scheduledTime into 12-hr format
@@ -111,11 +105,19 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     }
   }, [scheduledDate, scheduledTime]);
 
-  // Is schedule strictly in the past? Leeway of 30 seconds for immediate scheduling
+  // Is schedule strictly in the past? Calculated using India Standard Time (+05:30)
   const isPast = useMemo(() => {
-    if (!scheduledDateTimeObj || isNaN(scheduledDateTimeObj.getTime())) return false;
-    return scheduledDateTimeObj.getTime() < Date.now() - 30 * 1000;
-  }, [scheduledDateTimeObj]);
+    try {
+      const [y, m, d] = scheduledDate.split('-').map(Number);
+      const [hh, mm] = scheduledTime.split(':').map(Number);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const istIso = `${y}-${pad(m || 1)}-${pad(d || 1)}T${pad(hh || 0)}:${pad(mm || 0)}:00+05:30`;
+      const scheduledTimeMs = new Date(istIso).getTime();
+      return scheduledTimeMs < Date.now() - 30 * 1000;
+    } catch {
+      return false;
+    }
+  }, [scheduledDate, scheduledTime]);
 
   useEffect(() => {
     if (onValidationChange) {
@@ -123,20 +125,20 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     }
   }, [isPast, onValidationChange]);
 
-  // Scheduling summary formatted string
+  // Scheduling summary formatted string with phase description (morning / afternoon / evening / night)
   const summaryString = useMemo(() => {
-    if (!scheduledDateTimeObj || isNaN(scheduledDateTimeObj.getTime())) return '';
-    const dayOfWeek = scheduledDateTimeObj.toLocaleDateString('en-US', { weekday: 'long' });
-    const day = scheduledDateTimeObj.getDate();
-    const month = scheduledDateTimeObj.toLocaleDateString('en-US', { month: 'long' });
-    const year = scheduledDateTimeObj.getFullYear();
-    const timeStr = scheduledDateTimeObj.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${dayOfWeek}, ${day} ${month} ${year} · ${timeStr} ${detectedTimezone.abbr}`;
-  }, [scheduledDateTimeObj, detectedTimezone]);
+    try {
+      const [y, m, d] = scheduledDate.split('-').map(Number);
+      const [hh, mm] = scheduledTime.split(':').map(Number);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const istIso = `${y}-${pad(m || 1)}-${pad(d || 1)}T${pad(hh || 0)}:${pad(mm || 0)}:00+05:30`;
+      const parts = getIstTimeParts(istIso);
+      const dateFormatted = formatDateFullSafe(istIso);
+      return `${dateFormatted} · ${parts.timeStr} (${parts.periodLabel} • IST)`;
+    } catch {
+      return `${scheduledDate} · ${scheduledTime} IST`;
+    }
+  }, [scheduledDate, scheduledTime]);
 
   // Calendar calculations
   const monthNames = [
@@ -353,29 +355,31 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
               ))}
             </select>
 
-            {/* AM / PM Segmented Control */}
+            {/* AM / PM Segmented Control with clear phase guidance */}
             <div className="flex items-center bg-gray-200/70 p-0.5 rounded-lg text-xs font-bold ml-auto">
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'AM')}
-                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                   period === 'AM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
+                title="AM: Morning / Midnight"
               >
-                AM
+                AM (Morning)
               </button>
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'PM')}
-                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                   period === 'PM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
+                title="PM: Afternoon / Evening / Night"
               >
-                PM
+                PM (Afternoon / Evening)
               </button>
             </div>
           </div>
@@ -384,9 +388,9 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
 
       {/* 2. Detected Timezone Badge */}
       <div className="flex items-center space-x-1.5 text-[11px] text-gray-500 px-1">
-        <Globe className="w-3.5 h-3.5 text-gray-400" />
+        <Globe className="w-3.5 h-3.5 text-emerald-600" />
         <span>Timezone:</span>
-        <strong className="text-gray-700 font-semibold">{detectedTimezone.tzName} ({detectedTimezone.abbr})</strong>
+        <strong className="text-gray-700 font-semibold">India Standard Time (IST – Asia/Kolkata, UTC+5:30)</strong>
       </div>
 
       {/* 3. Scheduling Summary Preview Card */}

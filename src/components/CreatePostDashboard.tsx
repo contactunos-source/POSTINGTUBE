@@ -55,7 +55,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseDateSafe, formatLocalToUtcIso } from '@/lib/dateUtils';
+import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
 
 interface CreatePostDashboardProps {
   postType: 'text' | 'image' | 'video';
@@ -208,17 +208,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [scheduleMode, setScheduleMode] = useState<'schedule' | 'instant'>('schedule');
   const [scheduledDate, setScheduledDate] = useState(() => {
     if (initialPost?.scheduledFor) {
-      const d = parseDateSafe(initialPost.scheduledFor);
-      if (d) return format(d, 'yyyy-MM-dd');
+      const { date } = extractLocalDateAndTime(initialPost.scheduledFor);
+      if (date) return date;
     }
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return format(d, 'yyyy-MM-dd');
+    return getIstDateString(d);
   });
   const [scheduledTime, setScheduledTime] = useState(() => {
     if (initialPost?.scheduledFor) {
-      const d = parseDateSafe(initialPost.scheduledFor);
-      if (d) return format(d, 'HH:mm');
+      const { time } = extractLocalDateAndTime(initialPost.scheduledFor);
+      if (time) return time;
     }
     return '14:00';
   });
