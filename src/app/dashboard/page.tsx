@@ -1049,7 +1049,9 @@ export default function DashboardPage() {
             posts={posts}
             accounts={accounts}
             workspaceId={DEFAULT_WORKSPACE_ID}
-            onPostsUpdated={(updated) => setPosts(updated)}
+            onPostsUpdated={(updated) => {
+              queueMicrotask(() => setPosts(updated));
+            }}
             initialStatusFilter={
               activeTab === 'posts-scheduled'
                 ? 'scheduled'
@@ -1077,7 +1079,9 @@ export default function DashboardPage() {
             accounts={accounts}
             workspaceId={DEFAULT_WORKSPACE_ID}
             initialSelectedAccountId={selectedInsightsAccountId}
-            onPostsUpdated={(updated) => setPosts(updated)}
+            onPostsUpdated={(updated) => {
+              queueMicrotask(() => setPosts(updated));
+            }}
             onSelectPost={handleEditExistingPost}
           />
         )}

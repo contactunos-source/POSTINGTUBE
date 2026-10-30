@@ -234,8 +234,9 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       });
       const data = await res.json();
       if (data.success && data.analytics) {
+        let updatedPosts: Post[] = [];
         setLocalPosts((prev) => {
-          const updated = prev.map((p) => {
+          updatedPosts = prev.map((p) => {
             if (p.id !== post.id) return p;
             const updatedResults = { ...(p.results || {}) };
             for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
@@ -260,9 +261,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
             }
             return postObj;
           });
-          onPostsUpdated?.(updated);
-          return updated;
+          return updatedPosts;
         });
+        if (updatedPosts.length > 0 && onPostsUpdated) {
+          queueMicrotask(() => onPostsUpdated(updatedPosts));
+        }
       }
     } catch (err) {
       console.error('Failed to refresh analytics for post:', err);
@@ -283,8 +286,9 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       const data = await res.json();
       if (data.success && data.analytics) {
         setLastAnalyticsRefresh(new Date());
+        let updatedPosts: Post[] = [];
         setLocalPosts((prev) => {
-          const updated = prev.map((p) => {
+          updatedPosts = prev.map((p) => {
             const postAnalytics = data.analytics[p.id];
             if (!postAnalytics) return p;
             const updatedResults = { ...(p.results || {}) };
@@ -310,9 +314,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
             }
             return postObj;
           });
-          onPostsUpdated?.(updated);
-          return updated;
+          return updatedPosts;
         });
+        if (updatedPosts.length > 0 && onPostsUpdated) {
+          queueMicrotask(() => onPostsUpdated(updatedPosts));
+        }
       }
     } catch (err) {
       console.error('Failed to refresh all analytics:', err);
