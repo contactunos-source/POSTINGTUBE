@@ -355,11 +355,63 @@ export const DatabaseService = {
 
     if (supabase) {
       try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('workspace_id', targetWsId)
-          .order('created_at', { ascending: false });
+        const wsIdSet = new Set<string>();
+        if (targetWsId) wsIdSet.add(targetWsId);
+
+        const { data: userWsList } = await supabase
+          .from('workspaces')
+          .select('id')
+          .eq('user_id', resolvedUser);
+
+        if (userWsList && Array.isArray(userWsList)) {
+          for (const w of userWsList) {
+            if (w.id) wsIdSet.add(w.id);
+          }
+        }
+
+        // For owner accounts, also include DEFAULT_WORKSPACE_ID
+        const ownerEmails = [
+          (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase().trim(),
+          'onmansonu@gmail.com',
+          'noobsonu001@gmail.com',
+          'admin@postingtube.com',
+        ];
+
+        let isOwner = false;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id === resolvedUser && ownerEmails.includes((session.user.email || '').toLowerCase())) {
+            isOwner = true;
+          }
+        } catch {}
+
+        if (!isOwner) {
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('email')
+              .eq('id', resolvedUser)
+              .maybeSingle();
+            if (profile?.email && ownerEmails.includes(profile.email.toLowerCase())) {
+              isOwner = true;
+            }
+          } catch {}
+        }
+
+        if (isOwner) {
+          wsIdSet.add(DEFAULT_WORKSPACE_ID);
+        }
+
+        const wsIds = Array.from(wsIdSet);
+        let query = supabase.from('posts').select('*').order('created_at', { ascending: false });
+
+        if (wsIds.length === 1) {
+          query = query.eq('workspace_id', wsIds[0]);
+        } else if (wsIds.length > 1) {
+          query = query.in('workspace_id', wsIds);
+        }
+
+        const { data, error } = await query;
 
         if (!error && Array.isArray(data)) {
           const loadedPosts = data.map(mapDbPostToPost);
@@ -386,7 +438,7 @@ export const DatabaseService = {
 
     const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
       ? workspaceId
-      : ((post.workspaceId && UUID_REGEX.test(post.workspaceId))
+      : ((post.workspaceId && UUID_REGEX.test(post.workspaceId) && post.workspaceId !== DEFAULT_WORKSPACE_ID)
         ? post.workspaceId
         : await getUserWorkspaceId(resolvedUser || undefined));
 
@@ -491,11 +543,62 @@ export const DatabaseService = {
 
     if (supabase) {
       try {
-        const { data, error } = await supabase
-          .from('connected_accounts')
-          .select('*')
-          .eq('workspace_id', targetWsId)
-          .order('created_at', { ascending: false });
+        const wsIdSet = new Set<string>();
+        if (targetWsId) wsIdSet.add(targetWsId);
+
+        const { data: userWsList } = await supabase
+          .from('workspaces')
+          .select('id')
+          .eq('user_id', resolvedUser);
+
+        if (userWsList && Array.isArray(userWsList)) {
+          for (const w of userWsList) {
+            if (w.id) wsIdSet.add(w.id);
+          }
+        }
+
+        const ownerEmails = [
+          (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase().trim(),
+          'onmansonu@gmail.com',
+          'noobsonu001@gmail.com',
+          'admin@postingtube.com',
+        ];
+
+        let isOwner = false;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id === resolvedUser && ownerEmails.includes((session.user.email || '').toLowerCase())) {
+            isOwner = true;
+          }
+        } catch {}
+
+        if (!isOwner) {
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('email')
+              .eq('id', resolvedUser)
+              .maybeSingle();
+            if (profile?.email && ownerEmails.includes(profile.email.toLowerCase())) {
+              isOwner = true;
+            }
+          } catch {}
+        }
+
+        if (isOwner) {
+          wsIdSet.add(DEFAULT_WORKSPACE_ID);
+        }
+
+        const wsIds = Array.from(wsIdSet);
+        let query = supabase.from('connected_accounts').select('*').order('created_at', { ascending: false });
+
+        if (wsIds.length === 1) {
+          query = query.eq('workspace_id', wsIds[0]);
+        } else if (wsIds.length > 1) {
+          query = query.in('workspace_id', wsIds);
+        }
+
+        const { data, error } = await query;
 
         if (!error && Array.isArray(data)) {
           const loadedAccounts = data.map(mapDbAccountToAccount);

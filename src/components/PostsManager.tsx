@@ -192,6 +192,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
     setLocalPosts(posts);
   }, [posts]);
 
+  // Sync initial status filter changes when user navigates via sidebar tabs
+  useEffect(() => {
+    setActiveTab(initialStatusFilter);
+  }, [initialStatusFilter]);
+
   // Auto-tick every 30 seconds to dynamically update relative creation timestamps
   const [, setCreationTimestampTick] = useState(0);
   useEffect(() => {

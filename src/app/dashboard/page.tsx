@@ -581,7 +581,7 @@ export default function DashboardPage() {
       const tempPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
         userId: authUser?.id,
-        workspaceId: DEFAULT_WORKSPACE_ID,
+        workspaceId: currentWorkspaceId,
         content: postData.content || '',
         media: postData.media || [],
         targetAccountIds: postData.targetAccountIds || [],
@@ -618,16 +618,16 @@ export default function DashboardPage() {
       } else {
         setPosts((prev) => [finalPost, ...prev]);
       }
-      await DatabaseService.savePost(finalPost, authUser?.id);
+      await DatabaseService.savePost(finalPost, authUser?.id, currentWorkspaceId);
       if (authUser?.id) {
-        const refreshed = await DatabaseService.getPosts(authUser.id);
+        const refreshed = await DatabaseService.getPosts(authUser.id, currentWorkspaceId);
         setPosts(refreshed);
       }
     } else {
       const newPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
         userId: authUser?.id,
-        workspaceId: DEFAULT_WORKSPACE_ID,
+        workspaceId: currentWorkspaceId,
         content: postData.content || '',
         media: postData.media || [],
         targetAccountIds: postData.targetAccountIds || [],
@@ -657,9 +657,9 @@ export default function DashboardPage() {
       } else {
         setPosts((prev) => [newPost, ...prev]);
       }
-      await DatabaseService.savePost(newPost, authUser?.id);
+      await DatabaseService.savePost(newPost, authUser?.id, currentWorkspaceId);
       if (authUser?.id) {
-        const refreshed = await DatabaseService.getPosts(authUser.id);
+        const refreshed = await DatabaseService.getPosts(authUser.id, currentWorkspaceId);
         setPosts(refreshed);
       }
     }
@@ -732,7 +732,7 @@ export default function DashboardPage() {
       updatedAt: new Date().toISOString(),
     };
     setPosts((prev) => prev.map((p) => (p.id === post.id ? inProgressPost : p)));
-    await DatabaseService.savePost(inProgressPost);
+    await DatabaseService.savePost(inProgressPost, authUser?.id, currentWorkspaceId);
 
     try {
       const summary = await executePostPublish(post, accounts);
@@ -744,7 +744,7 @@ export default function DashboardPage() {
         updatedAt: new Date().toISOString(),
       };
       setPosts((prev) => prev.map((p) => (p.id === post.id ? updated : p)));
-      await DatabaseService.savePost(updated);
+      await DatabaseService.savePost(updated, authUser?.id, currentWorkspaceId);
     } catch (err) {
       console.error('[Publish Error]', err);
       const failedPost: Post = {
@@ -753,7 +753,7 @@ export default function DashboardPage() {
         updatedAt: new Date().toISOString(),
       };
       setPosts((prev) => prev.map((p) => (p.id === post.id ? failedPost : p)));
-      await DatabaseService.savePost(failedPost);
+      await DatabaseService.savePost(failedPost, authUser?.id, currentWorkspaceId);
     } finally {
       publishingPostIdsRef.current.delete(post.id);
     }
@@ -774,7 +774,7 @@ export default function DashboardPage() {
       };
 
       setPosts((prev) => prev.map((p) => (p.id === postId ? updated : p)));
-      await DatabaseService.savePost(updated);
+      await DatabaseService.savePost(updated, authUser?.id, currentWorkspaceId);
       setSuccessToast(`Post successfully rescheduled to ${new Date(newScheduledFor).toLocaleDateString()}`);
       return true;
     } catch (err) {
