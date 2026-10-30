@@ -12,7 +12,7 @@ import {
   INITIAL_MEDIA,
   StorageService,
 } from '@/lib/storage';
-import { DatabaseService } from '@/lib/db';
+import { DatabaseService, DEFAULT_WORKSPACE_ID } from '@/lib/db';
 import { Post, SocialAccount, Workspace, PostMedia, PostType, SocialPlatform } from '@/types/social';
 import { executePostPublish } from '@/lib/publisher';
 import { supabase, signInWithGoogle, signOutUser, getGuestUser, signInAsGuest } from '@/lib/supabase';
@@ -31,6 +31,7 @@ import {
   Calendar,
   TrendingUp,
   Plus,
+  PanelLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -78,8 +79,20 @@ const AnalyticsView = dynamic(() => import('@/components/AnalyticsView').then((m
 });
 
 export default function DashboardPage() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(INITIAL_WORKSPACES[0]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return StorageService.getSidebarCollapsed();
+    }
+    return false;
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      StorageService.setSidebarCollapsed(next);
+      return next;
+    });
+  };
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [mediaItems, setMediaItems] = useState<PostMedia[]>([]);
@@ -88,29 +101,13 @@ export default function DashboardPage() {
   const [authUser, setAuthUser] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
 
-  // User & Workspace Initialization with complete multi-tenant isolation
+  // User Initialization: automatically loads unified user data
   const initUserData = async (user: any) => {
     setIsLoaded(false);
     try {
-      // 1. Get or provision all workspaces for this user
-      const userWorkspaces = await DatabaseService.getUserWorkspaces(user);
-      setWorkspaces(userWorkspaces);
-
-      // 2. Resolve active workspace from query param or persistent storage
-      const urlWsId = typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('workspace_id')
-        : null;
-      const savedWsId = StorageService.getActiveWorkspaceId();
-      const targetId = urlWsId || savedWsId;
-
-      const activeWs = (targetId && userWorkspaces.find((w) => w.id === targetId)) || userWorkspaces[0];
-      setCurrentWorkspace(activeWs);
-      StorageService.setActiveWorkspaceId(activeWs.id);
-
-      // 3. Fetch posts and connected accounts strictly isolated to this active workspace
       const [dbAccounts, dbPosts] = await Promise.all([
-        DatabaseService.getAccounts(activeWs.id),
-        DatabaseService.getPosts(activeWs.id),
+        DatabaseService.getAccounts(),
+        DatabaseService.getPosts(),
       ]);
 
       setAccounts(dbAccounts);
@@ -118,49 +115,6 @@ export default function DashboardPage() {
       setMediaItems(StorageService.getMedia());
     } catch (err) {
       console.error('Failed to initialize user data:', err);
-    } finally {
-      setIsLoaded(true);
-    }
-  };
-
-  // Switch workspace with complete data re-fetching & strict multi-tenant isolation
-  const handleSelectWorkspace = async (ws: Workspace) => {
-    if (ws.id === currentWorkspace.id) return;
-    setIsLoaded(false);
-    setCurrentWorkspace(ws);
-    StorageService.setActiveWorkspaceId(ws.id);
-    try {
-      const [dbAccounts, dbPosts] = await Promise.all([
-        DatabaseService.getAccounts(ws.id),
-        DatabaseService.getPosts(ws.id),
-      ]);
-      setAccounts(dbAccounts);
-      setPosts(dbPosts);
-      setEditingPost(null);
-    } catch (err) {
-      console.error('Failed to load workspace data:', err);
-    } finally {
-      setIsLoaded(true);
-    }
-  };
-
-  // Create brand new workspace with fresh empty state
-  const handleCreateWorkspace = async (name: string) => {
-    setIsLoaded(false);
-    try {
-      const newWs = await DatabaseService.createWorkspace(authUser, name);
-      const updatedList = [...workspaces, newWs];
-      setWorkspaces(updatedList);
-      setCurrentWorkspace(newWs);
-      StorageService.setActiveWorkspaceId(newWs.id);
-
-      // Fresh empty state - 0 posts, 0 accounts
-      setAccounts([]);
-      setPosts([]);
-      setEditingPost(null);
-      setSuccessToast(`Workspace "${newWs.name}" created!`);
-    } catch (err) {
-      console.error('Failed to create workspace:', err);
     } finally {
       setIsLoaded(true);
     }
@@ -454,7 +408,7 @@ export default function DashboardPage() {
     if (action === 'publish-now') {
       const tempPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
-        workspaceId: currentWorkspace.id,
+        workspaceId: DEFAULT_WORKSPACE_ID,
         content: postData.content || '',
         media: postData.media || [],
         targetAccountIds: postData.targetAccountIds || [],
@@ -473,7 +427,7 @@ export default function DashboardPage() {
         updatedAt: new Date().toISOString(),
         author: {
           id: 'usr_admin',
-          name: 'Workspace Admin',
+          name: 'PostingTube Admin',
           avatar: '',
         },
       };
@@ -495,7 +449,7 @@ export default function DashboardPage() {
     } else {
       const newPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
-        workspaceId: currentWorkspace.id,
+        workspaceId: DEFAULT_WORKSPACE_ID,
         content: postData.content || '',
         media: postData.media || [],
         targetAccountIds: postData.targetAccountIds || [],
@@ -541,7 +495,7 @@ export default function DashboardPage() {
 
   const handleDeletePost = async (id: string) => {
     setPosts((prev) => prev.filter((p) => p.id !== id));
-    await DatabaseService.deletePost(id, currentWorkspace.id);
+    await DatabaseService.deletePost(id);
   };
 
   const handlePublishNow = async (post: Post) => {
@@ -637,7 +591,7 @@ export default function DashboardPage() {
 
   const handleAddAccount = async (account: SocialAccount): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> => {
     // 1. Enforce backend / database duplicate protection
-    const result = await DatabaseService.saveAccount(account, currentWorkspace.id);
+    const result = await DatabaseService.saveAccount(account);
 
     if (result.isDuplicate) {
       setSuccessToast(result.message || 'This account is already connected.');
@@ -645,7 +599,7 @@ export default function DashboardPage() {
     }
 
     // 2. Immediately refresh Connected Accounts list from database and update state
-    const refreshed = await DatabaseService.getAccounts(currentWorkspace.id);
+    const refreshed = await DatabaseService.getAccounts();
     setAccounts(refreshed);
 
     // 3. Keep user on Connections page & display clear success message
@@ -656,7 +610,7 @@ export default function DashboardPage() {
 
   const handleRemoveAccount = async (id: string) => {
     setAccounts(accounts.filter((a) => a.id !== id));
-    await DatabaseService.deleteAccount(id, currentWorkspace.id);
+    await DatabaseService.deleteAccount(id);
   };
 
   const handleRefreshAccount = async (id: string) => {
@@ -666,7 +620,7 @@ export default function DashboardPage() {
     setAccounts(updatedAccounts);
     const updatedAcc = updatedAccounts.find((a) => a.id === id);
     if (updatedAcc) {
-      await DatabaseService.saveAccount(updatedAcc, currentWorkspace.id);
+      await DatabaseService.saveAccount(updatedAcc);
     }
   };
 
@@ -680,7 +634,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center space-x-2 text-xs text-gray-500 font-medium">
             <Loader2 className="w-4 h-4 animate-spin text-black" />
-            <span>Verifying secure workspace session...</span>
+            <span>Loading your PostingTube session...</span>
           </div>
         </div>
       </div>
@@ -689,17 +643,13 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
-      {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
+      {/* PostingTube Sidebar (Collapsible on Desktop, Responsive Drawer on Mobile) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
           if (activeTab !== tab) setPreviousTab(activeTab);
           setActiveTab(tab);
         }}
-        currentWorkspace={currentWorkspace}
-        workspaces={workspaces}
-        onSelectWorkspace={handleSelectWorkspace}
-        onCreateWorkspace={handleCreateWorkspace}
         openCreateModal={() => {
           setPreviousTab(activeTab);
           setEditingPost(null);
@@ -716,6 +666,8 @@ export default function DashboardPage() {
         onSelectInsightsAccount={(accId) => setSelectedInsightsAccountId(accId)}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapse}
       />
 
       {/* Main View Area */}
@@ -738,30 +690,35 @@ export default function DashboardPage() {
 
         {/* Top Header Bar */}
         <div className="bg-white border-b border-gray-200/80 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 font-sans gap-2">
-          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-            {/* Hamburger Button on Mobile */}
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-
-            {/* Mobile Brand / Desktop Workspace Avatar */}
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="lg:hidden shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            {/* Desktop: When sidebar is collapsed, show PostingTube logo and toggle button to reappear */}
+            {isSidebarCollapsed && (
+              <div className="hidden lg:flex items-center space-x-2.5 min-w-0">
                 <PostingTubeLogo size="sm" />
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapse}
+                  className="w-8 h-8 rounded-full bg-[#27272a] hover:bg-black text-white flex items-center justify-center shrink-0 transition-colors shadow-xs cursor-pointer"
+                  title="Show sidebar"
+                  aria-label="Show sidebar"
+                >
+                  <PanelLeft className="w-4 h-4 text-white" strokeWidth={2} />
+                </button>
               </div>
-              <div className="hidden lg:flex items-center space-x-2 min-w-0">
-                <UserAvatar
-                  name={currentWorkspace.name}
-                  avatarUrl={currentWorkspace.avatar}
-                  size="sm"
-                  className="rounded-lg! ring-1 ring-black/5 shrink-0"
-                />
-                <span className="text-xs font-bold text-gray-800 truncate">{currentWorkspace.name}</span>
-              </div>
+            )}
+
+            {/* Mobile: Logo + Sidebar Toggle Button */}
+            <div className="lg:hidden flex items-center space-x-2 min-w-0">
+              <PostingTubeLogo size="sm" />
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="w-8 h-8 rounded-full bg-[#27272a] hover:bg-black text-white flex items-center justify-center shrink-0 transition-colors shadow-xs cursor-pointer"
+                title="Toggle menu"
+                aria-label="Toggle menu"
+              >
+                <PanelLeft className="w-4 h-4 text-white" strokeWidth={2} />
+              </button>
             </div>
           </div>
 
@@ -831,7 +788,7 @@ export default function DashboardPage() {
         {activeTab === 'connections' && (
           <ConnectedAccounts
             accounts={accounts}
-            currentWorkspaceId={currentWorkspace.id}
+            currentWorkspaceId={DEFAULT_WORKSPACE_ID}
             onAddAccount={handleAddAccount}
             onRemoveAccount={handleRemoveAccount}
             onRefreshAccount={handleRefreshAccount}
@@ -844,7 +801,7 @@ export default function DashboardPage() {
           <CalendarView
             posts={posts}
             accounts={accounts}
-            workspaceName={currentWorkspace?.name || 'U NOS Digital marketing'}
+            workspaceName="PostingTube"
             onSelectPost={handleEditExistingPost}
             onReschedulePost={handleReschedulePost}
             onNavigateToTab={(tab) => setActiveTab(tab as any)}
@@ -882,7 +839,7 @@ export default function DashboardPage() {
           <PostsManager
             posts={posts}
             accounts={accounts}
-            workspaceId={currentWorkspace.id}
+            workspaceId={DEFAULT_WORKSPACE_ID}
             onPostsUpdated={(updated) => setPosts(updated)}
             initialStatusFilter={
               activeTab === 'posts-scheduled'
@@ -914,7 +871,7 @@ export default function DashboardPage() {
           <InsightsView
             posts={posts}
             accounts={accounts}
-            workspaceId={currentWorkspace.id}
+            workspaceId={DEFAULT_WORKSPACE_ID}
             initialSelectedAccountId={selectedInsightsAccountId}
             onPostsUpdated={(updated) => setPosts(updated)}
             onSelectPost={handleEditExistingPost}
@@ -933,15 +890,11 @@ export default function DashboardPage() {
 
         {activeTab === 'settings' && (
           <SettingsView
-            currentWorkspace={currentWorkspace}
+            currentWorkspace={INITIAL_WORKSPACES[0]}
             authUser={authUser}
             accounts={accounts}
             onRemoveAccount={handleRemoveAccount}
-            onUpdateWorkspace={async (ws) => {
-              setCurrentWorkspace(ws);
-              setWorkspaces(workspaces.map((w) => (w.id === ws.id ? ws : w)));
-              await DatabaseService.updateWorkspace(ws, authUser);
-            }}
+            onUpdateWorkspace={() => {}}
           />
         )}
         </div>

@@ -108,7 +108,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
             <ul className="text-[11px] text-red-700/90 space-y-1 list-disc list-inside leading-relaxed pl-1">
               <li>All connected Facebook Pages & Instagram accounts will be revoked and disconnected.</li>
               <li>All scheduled posts and draft queues will be permanently purged.</li>
-              <li>Your isolated workspace, media files, and analytics will be permanently destroyed.</li>
+              <li>Your account, connected platforms, media files, and analytics will be permanently destroyed.</li>
               <li>Your login credentials and Supabase authentication identity will be deleted.</li>
             </ul>
           </div>

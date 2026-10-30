@@ -457,20 +457,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto font-sans space-y-4">
-      {/* TOP HEADER ROW: Workspace Title & Actions (matching reference layout in our white theme) */}
+      {/* TOP HEADER ROW: Calendar Title & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
         <div className="flex items-center space-x-3">
-          {/* Workspace Avatar / Logo */}
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-xs relative">
-            <span>{workspaceName.substring(0, 2).toUpperCase()}</span>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center border-2 border-white shadow-xs">
-              <PlatformLogo platform="facebook" className="w-2.5 h-2.5" />
-            </div>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+            <CalendarIcon className="w-5 h-5 text-white" />
           </div>
 
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-base font-bold text-gray-900 tracking-tight">{workspaceName}</h2>
+              <h2 className="text-base font-bold text-gray-900 tracking-tight">Content Calendar</h2>
             </div>
             <p className="text-[11px] text-gray-500 font-medium">
               Multi-platform scheduling &amp; visual content pipeline

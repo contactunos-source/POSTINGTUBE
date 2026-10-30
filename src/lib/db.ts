@@ -169,82 +169,9 @@ export const DatabaseService = {
    * Fetch all workspaces belonging to the user (or available locally).
    * Ensures at least one valid workspace exists.
    */
-  async getUserWorkspaces(user: any): Promise<Workspace[]> {
-    const userId = user?.id || 'guest';
-    const cached = StorageService.getWorkspaces(userId);
-
-    if (supabase && user && user.id) {
-      try {
-        const { data: dbWorkspaces, error } = await supabase
-          .from('workspaces')
-          .select('*')
-          .or(`user_id.eq.${user.id},id.eq.${DEFAULT_WORKSPACE_ID}`)
-          .order('created_at', { ascending: true });
-
-        if (!error && Array.isArray(dbWorkspaces) && dbWorkspaces.length > 0) {
-          const mapped: Workspace[] = dbWorkspaces.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug,
-            role: row.role || 'owner',
-            connectedAccounts: [],
-          }));
-
-          // Merge any locally created workspaces that may not yet be in the database
-          const existingIds = new Set(mapped.map((w) => w.id));
-          const merged = [...mapped];
-          for (const c of cached) {
-            if (!existingIds.has(c.id)) {
-              merged.push(c);
-            }
-          }
-
-          StorageService.saveWorkspaces(merged, userId);
-          return merged;
-        }
-
-        // If no workspace exists in DB for this user, provision an initial one
-        const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'My';
-        const userSlug = `${(user.email?.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
-        const workspaceName = `${userName}'s Workspace`;
-
-        const { data: created, error: createErr } = await supabase
-          .from('workspaces')
-          .insert({
-            user_id: user.id,
-            name: workspaceName,
-            slug: userSlug,
-            role: 'owner',
-          })
-          .select()
-          .single();
-
-        if (!createErr && created) {
-          const initialWs: Workspace = {
-            id: created.id,
-            name: created.name,
-            slug: created.slug,
-            role: created.role || 'owner',
-            connectedAccounts: [],
-          };
-          StorageService.saveWorkspaces([initialWs], userId);
-          return [initialWs];
-        }
-      } catch (err) {
-        console.warn('Error fetching user workspaces from Supabase:', err);
-      }
-    }
-
-    if (cached && cached.length > 0) {
-      return cached;
-    }
-
+  async getUserWorkspaces(user?: any): Promise<Workspace[]> {
     return INITIAL_WORKSPACES;
   },
-
-  /**
-   * Provision or fetch the primary workspace belonging to the user.
-   */
   async getUserWorkspace(user: any): Promise<Workspace> {
     const list = await this.getUserWorkspaces(user);
     const activeId = StorageService.getActiveWorkspaceId();
@@ -342,19 +269,24 @@ export const DatabaseService = {
    * Fetch posts isolated to the active workspace
    */
   async getPosts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<Post[]> {
-    const cachedPosts = StorageService.getPosts(workspaceId);
+    const cachedPosts = StorageService.getPosts();
 
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('posts')
           .select('*')
-          .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
           const loadedPosts = data.map(mapDbPostToPost);
-          StorageService.savePosts(loadedPosts, workspaceId);
+          const seenIds = new Set(loadedPosts.map((p) => p.id));
+          for (const c of cachedPosts) {
+            if (!seenIds.has(c.id)) {
+              loadedPosts.push(c);
+            }
+          }
+          StorageService.savePosts(loadedPosts);
           return loadedPosts;
         }
       } catch (e) {
@@ -451,24 +383,31 @@ export const DatabaseService = {
    * Fetch accounts isolated to the active workspace
    */
   async getAccounts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<SocialAccount[]> {
+    const cachedAccounts = StorageService.getAccounts();
+
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('connected_accounts')
           .select('*')
-          .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
           const loadedAccounts = data.map(mapDbAccountToAccount);
-          StorageService.saveAccounts(loadedAccounts, workspaceId);
+          const seenIds = new Set(loadedAccounts.map((a) => a.id));
+          for (const c of cachedAccounts) {
+            if (!seenIds.has(c.id)) {
+              loadedAccounts.push(c);
+            }
+          }
+          StorageService.saveAccounts(loadedAccounts);
           return loadedAccounts;
         }
       } catch (e) {
         console.warn('Could not fetch accounts from Supabase:', e);
       }
     }
-    return StorageService.getAccounts(workspaceId);
+    return cachedAccounts;
   },
 
   /**

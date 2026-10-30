@@ -1688,7 +1688,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           <span>Instagram Connection &amp; Publishing Guide</span>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
-                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, PostingTube will save your Instagram profile directly into your workspace. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
+                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, PostingTube will save your Instagram profile directly into your account. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
                         </p>
                       </div>
                     )}
@@ -2011,7 +2011,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </div>
                       <h2 className="text-xl font-bold text-white tracking-tight">Confirm YouTube Channel</h2>
                       <p className="text-xs text-gray-400 mt-1">
-                        Select the YouTube channel you want to connect to this workspace.
+                        Select the YouTube channel you want to connect to your account.
                       </p>
                     </div>
 
