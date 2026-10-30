@@ -49,8 +49,8 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
     (activeAccount && post.platformOverrides?.[activeAccount.id]) ||
     post.platformOverrides?.[selectedPlatform];
   const caption = override?.caption || post.content || '';
-  const firstComment = override?.firstComment || post.firstComment;
-  const isAiGenerated = override?.isAiGenerated ?? post.isAiGenerated;
+  const isAiGenerated = Boolean(override?.isAiGenerated ?? post.isAiGenerated);
+  const collaborator = override?.collaborator || post.collaborators;
   const media = post.media && post.media.length > 0 ? post.media[0] : null;
 
   const username = activeAccount?.username || 'your_channel';
@@ -153,7 +153,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             <div className="relative z-10 p-3.5 space-y-2">
               <div className="flex items-center space-x-2">
                 <img src={avatar} alt={username} className="w-7 h-7 rounded-full object-cover ring-2 ring-white/60" />
-                <span className="text-xs font-bold text-white">@{username}</span>
+                <span className="text-xs font-bold text-white">@{username}{collaborator ? ` & @${collaborator.replace(/^@/, '')}` : ''}</span>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-white bg-black/50 border border-white/20 px-1.5 py-0.5 rounded-full backdrop-blur-xs"><Sparkles className="w-2.5 h-2.5 text-purple-300" />AI info</span>)}
                 <button type="button" className="text-[10px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
                   Follow
                 </button>
@@ -175,7 +175,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               <div className="flex items-center space-x-2.5">
                 <img src={avatar} alt={username} className="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200" />
                 <div>
-                  <div className="text-xs font-bold text-gray-900 leading-tight">{username}</div>
+                  <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{collaborator ? `${username} and @${collaborator.replace(/^@/, '')}` : username}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
                   <div className="text-[10px] text-gray-400">Sponsored • Original Audio</div>
                 </div>
               </div>
@@ -223,12 +223,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 <span className="whitespace-pre-line">{caption || 'Write your Instagram caption in the composer...'}</span>
               </div>
 
-              {firstComment && (
-                <div className="mt-2 pt-2 border-t border-gray-100 text-[11px] text-gray-600">
-                  <span className="font-semibold text-gray-800 mr-1.5">{username}</span>
-                  <span className="text-gray-400">[First Comment]</span> {firstComment}
-                </div>
-              )}
+              
 
               <div className="text-[10px] text-gray-400 mt-2 uppercase tracking-wider">Just now</div>
             </div>
@@ -244,7 +239,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             <div className="flex items-center space-x-2.5">
               <img src={avatar} alt={displayName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
               <div>
-                <div className="text-xs font-bold text-gray-900 leading-tight">{displayName}</div>
+                <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{displayName}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
                 <div className="text-[11px] text-gray-500 flex items-center space-x-1 mt-0.5">
                   <span>Just now</span>
                   <span>·</span>
@@ -385,6 +380,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                   Subscribe
                 </span>
               </div>
+              {isAiGenerated && (<div className="mb-1 inline-flex items-center gap-1 text-[9px] font-semibold text-white bg-black/60 border border-white/20 px-2 py-0.5 rounded-full backdrop-blur-xs"><Sparkles className="w-2.5 h-2.5 text-blue-300" />Altered content</div>)}
               <h4 className="text-xs font-bold text-white leading-snug line-clamp-2">
                 {override?.title || post.platformOverrides?.youtube?.title || caption.split('\n')[0] || 'Shorts Video Title'}
               </h4>
@@ -408,6 +404,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             </div>
 
             {/* Post Caption */}
+            {isAiGenerated && (<div className="mx-3.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center space-x-1.5 text-[11px] text-gray-600"><Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>Altered or synthetic content disclosed</span></div>)}
             <div className="px-3.5 pt-3 pb-2 text-xs text-gray-800 leading-relaxed whitespace-pre-line">
               {caption || 'Enter your post caption in the composer...'}
             </div>

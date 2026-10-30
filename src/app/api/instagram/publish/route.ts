@@ -17,7 +17,7 @@ const recentInstagramPublishes = new Map<string, { timestamp: number; result: an
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    let { igUserId, accessToken, caption, mediaUrl, postType } = body;
+    let { igUserId, accessToken, caption, mediaUrl, postType, isAiGenerated, collaborators } = body;
 
     const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
@@ -99,6 +99,24 @@ export async function POST(req: NextRequest) {
         media_type: 'REELS',
       });
       if (caption) initParams.append('caption', caption);
+      if (isAiGenerated) initParams.append('is_ai_generated', 'true');
+      if (collaborators) {
+        const list = Array.isArray(collaborators)
+          ? collaborators.map((c) => String(c).trim().replace(/^@/, '')).filter(Boolean)
+          : String(collaborators).split(',').map((c) => c.trim().replace(/^@/, '')).filter(Boolean);
+        if (list.length > 0) {
+          initParams.append('collaborators', JSON.stringify(list.slice(0, 5)));
+        }
+      }
+      if (isAiGenerated) initParams.append('is_ai_generated', 'true');
+      if (collaborators) {
+        const list = Array.isArray(collaborators)
+          ? collaborators.map((c) => String(c).trim().replace(/^@/, '')).filter(Boolean)
+          : String(collaborators).split(',').map((c) => c.trim().replace(/^@/, '')).filter(Boolean);
+        if (list.length > 0) {
+          initParams.append('collaborators', JSON.stringify(list.slice(0, 5)));
+        }
+      }
 
       const initRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
         method: 'POST',
@@ -196,6 +214,24 @@ export async function POST(req: NextRequest) {
       const containerParams = new URLSearchParams();
       containerParams.append('access_token', cleanToken);
       if (caption) containerParams.append('caption', caption);
+      if (isAiGenerated) containerParams.append('is_ai_generated', 'true');
+      if (collaborators) {
+        const list = Array.isArray(collaborators)
+          ? collaborators.map((c) => String(c).trim().replace(/^@/, '')).filter(Boolean)
+          : String(collaborators).split(',').map((c) => c.trim().replace(/^@/, '')).filter(Boolean);
+        if (list.length > 0) {
+          containerParams.append('collaborators', JSON.stringify(list.slice(0, 5)));
+        }
+      }
+      if (isAiGenerated) containerParams.append('is_ai_generated', 'true');
+      if (collaborators) {
+        const list = Array.isArray(collaborators)
+          ? collaborators.map((c) => String(c).trim().replace(/^@/, '')).filter(Boolean)
+          : String(collaborators).split(',').map((c) => c.trim().replace(/^@/, '')).filter(Boolean);
+        if (list.length > 0) {
+          containerParams.append('collaborators', JSON.stringify(list.slice(0, 5)));
+        }
+      }
 
       if (isVideo) {
         containerParams.append('media_type', 'REELS');

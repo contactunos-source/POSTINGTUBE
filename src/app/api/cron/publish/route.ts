@@ -121,6 +121,7 @@ async function handlePublishCron(req: NextRequest) {
                     message: accountOverride.caption || post.content,
                     mediaUrl,
                     postType: post.post_type,
+                    isAiGenerated: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
                   }),
                 });
                 const data = await res.json();
@@ -162,6 +163,8 @@ async function handlePublishCron(req: NextRequest) {
                     caption: accountOverride.caption || post.content,
                     mediaUrl,
                     postType: post.post_type,
+                    isAiGenerated: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
+                    collaborators: accountOverride.collaborator ?? post.collaborators,
                   }),
                 });
                 const data = await res.json();
@@ -214,6 +217,8 @@ async function handlePublishCron(req: NextRequest) {
                     playlistId: accountOverride.playlistId || post.platform_overrides?.youtube?.playlistId,
                     recordingDate: accountOverride.recordingDate || post.platform_overrides?.youtube?.recordingDate,
                     videoLocation: accountOverride.videoLocation || post.platform_overrides?.youtube?.videoLocation,
+                    containsSyntheticMedia: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
+                    isAiGenerated: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
                   }),
                 });
                 const data = await res.json();

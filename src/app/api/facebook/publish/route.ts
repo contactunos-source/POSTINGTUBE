@@ -15,7 +15,7 @@ const recentFacebookPublishes = new Map<string, { timestamp: number; result: any
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    let { pageId, accessToken, message, mediaUrl, postType, scheduledTimestamp } = body;
+    let { pageId, accessToken, message, mediaUrl, postType, scheduledTimestamp, isAiGenerated } = body;
 
     // Fallback to server env variables if set
     if (!accessToken && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         const params = new URLSearchParams();
         params.append('access_token', token);
         params.append('message', message || '');
+        if (isAiGenerated) params.append('is_ai_generated', 'true');
         if (scheduledTimestamp) {
           const unixTime = Math.floor(new Date(scheduledTimestamp).getTime() / 1000);
           if (unixTime >= Math.floor(Date.now() / 1000) + 600) {
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
           const form = new FormData();
           form.append('access_token', token);
           if (message) form.append('description', message);
+          if (isAiGenerated) form.append('is_ai_generated', 'true');
           form.append('source', new Blob([fileBuffer], { type: 'video/mp4' }), path.basename(mediaUrl));
           const res = await fetch(videoUrl, { method: 'POST', body: form });
           return await res.json();
@@ -103,6 +105,7 @@ export async function POST(req: NextRequest) {
           params.append('access_token', token);
           params.append('file_url', mediaUrl);
           if (message) params.append('description', message);
+          if (isAiGenerated) params.append('is_ai_generated', 'true');
           const res = await fetch(videoUrl, { method: 'POST', body: params });
           return await res.json();
         }

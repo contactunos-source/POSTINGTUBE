@@ -48,6 +48,7 @@ export const facebookAdapter: PlatformAdapter = {
             mediaUrl,
             postType: post.postType,
             scheduledTimestamp: post.scheduledFor,
+            isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
           }),
         });
 
@@ -114,6 +115,8 @@ export const instagramAdapter: PlatformAdapter = {
             caption: text,
             mediaUrl,
             postType: post.postType,
+            isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
+            collaborators: override?.collaborator ?? post.collaborators,
           }),
         });
 
@@ -148,7 +151,8 @@ export const instagramAdapter: PlatformAdapter = {
       details: {
         type: isReel ? 'reel' : 'feed_post',
         containerId: `container_${simulatedMediaId}`,
-        firstCommentSent: !!(override?.firstComment || post.firstComment),
+        isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
+        collaborators: override?.collaborator ?? post.collaborators ?? null,
         publishedAt: new Date().toISOString(),
       },
     };
@@ -341,6 +345,8 @@ export const youtubeAdapter: PlatformAdapter = {
           playlistId: override?.playlistId,
           recordingDate: override?.recordingDate,
           videoLocation: override?.videoLocation,
+          containsSyntheticMedia: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
+          isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
         }),
       });
 

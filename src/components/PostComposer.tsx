@@ -78,7 +78,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   >(initialPost?.platformOverrides || {});
 
   // Extra settings from screenshot
-  const [firstComment, setFirstComment] = useState(initialPost?.firstComment || '');
+  
   const [collaborators, setCollaborators] = useState(initialPost?.collaborators || '');
   const [isAiGenerated, setIsAiGenerated] = useState(initialPost?.isAiGenerated || false);
   const [tags, setTags] = useState<string[]>(initialPost?.tags || ['general']);
@@ -214,16 +214,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   // AI First Comment Generator
-  const generateAiFirstComment = () => {
-    const suggestions = [
-      'Drop a ❤️ if you agree! Let us know your thoughts in the comments.',
-      'Check the link in bio for more details! ✨ #viral #trending',
-      'What do you think about this? Save this post for later reference! 📌',
-      'Double tap if this resonates with your journey! 🚀',
-    ];
-    const picked = suggestions[Math.floor(Math.random() * suggestions.length)];
-    setFirstComment(picked);
-  };
+  
 
   // Quick Templates
   const applyTemplate = (templateType: string) => {
@@ -256,8 +247,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
         media: mediaList,
         postType,
         platformOverrides,
-        firstComment,
-        collaborators,
+                collaborators,
         isAiGenerated,
         tags,
         musicTitle,
@@ -713,28 +703,6 @@ export const PostComposer: React.FC<PostComposerProps> = ({
               </div>
             )}
 
-            {/* Setting Row 2: First Comment (with purple AI lightning button inside) */}
-            <div className="flex items-center space-x-4 text-xs">
-              <span className="w-24 shrink-0 font-medium text-gray-400">First Comment</span>
-              <div className="flex-1 relative flex items-center">
-                <input
-                  type="text"
-                  value={firstComment}
-                  onChange={(e) => setFirstComment(e.target.value)}
-                  placeholder="Your comment"
-                  className="w-full bg-[#202226] border border-[#2e3138] rounded-xl px-3.5 py-2 pr-9 text-xs text-gray-200 placeholder:text-gray-500 focus:outline-hidden focus:border-gray-400"
-                />
-                <button
-                  type="button"
-                  onClick={generateAiFirstComment}
-                  className="absolute right-2 w-6 h-6 rounded-full bg-[#6366f1] hover:bg-[#4f46e5] text-white flex items-center justify-center transition-colors shadow-2xs"
-                  title="Generate engaging first comment"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
             {/* Setting Row 3: Collaborators (with New badge and @ input) */}
             <div className="flex items-center space-x-4 text-xs">
               <div className="w-24 shrink-0 flex items-center space-x-1.5">
@@ -846,12 +814,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
                 <span>{mainCaption || 'HEELO'}</span>
               </div>
 
-              {firstComment && (
-                <div className="text-[11px] text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                  <span className="font-semibold text-gray-700">First comment: </span>
-                  {firstComment}
-                </div>
-              )}
+              
             </div>
           </div>
         </div>

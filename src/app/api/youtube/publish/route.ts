@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
       playlistId,
       recordingDate,
       videoLocation,
+      containsSyntheticMedia,
+      isAiGenerated,
     } = body;
 
     // 1. Content Validation: YouTube ONLY supports video files
@@ -163,6 +165,7 @@ export async function POST(req: NextRequest) {
         status: {
           privacyStatus: isScheduled ? 'private' : (privacyStatus || 'public'),
           selfDeclaredMadeForKids: Boolean(madeForKids),
+          containsSyntheticMedia: Boolean(containsSyntheticMedia ?? isAiGenerated),
         },
       };
 

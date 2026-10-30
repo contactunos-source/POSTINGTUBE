@@ -32,7 +32,6 @@ export interface SocialAccount {
 export interface PlatformCaptionOverride {
   caption: string;
   title?: string; // For YouTube
-  firstComment?: string; // For IG, LinkedIn
   collaborator?: string; // For IG
   isAiGenerated?: boolean;
   // YouTube Studio specific metadata
@@ -86,7 +85,6 @@ export interface Post {
   platformOverrides: Record<string, PlatformCaptionOverride>;
   accountOverrides?: Record<string, PlatformCaptionOverride>;
   tags: string[];
-  firstComment?: string;
   collaborators?: string;
   isAiGenerated?: boolean;
   musicTitle?: string;
@@ -144,7 +142,6 @@ export interface PlatformConfig {
   charLimit: number;
   supportsVideo: boolean;
   supportsImages: boolean;
-  supportsFirstComment: boolean;
   supportsReels: boolean;
   supportsStories: boolean;
   aspectRatioGuidelines: string;
