@@ -166,35 +166,44 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
 
 export const DatabaseService = {
   /**
-   * Provision or fetch the workspace belonging to the authenticated user.
-   * If user has no workspace, creates a brand new one isolated to them.
+   * Fetch all workspaces belonging to the user (or available locally).
+   * Ensures at least one valid workspace exists.
    */
-  async getUserWorkspace(user: any): Promise<Workspace> {
-    if (!user || !user.id) {
-      return INITIAL_WORKSPACES[0];
-    }
+  async getUserWorkspaces(user: any): Promise<Workspace[]> {
+    const userId = user?.id || 'guest';
+    const cached = StorageService.getWorkspaces(userId);
 
-    if (supabase) {
+    if (supabase && user && user.id) {
       try {
-        // 1. Try to find an existing workspace for this user
-        const { data: existing, error } = await supabase
+        const { data: dbWorkspaces, error } = await supabase
           .from('workspaces')
           .select('*')
-          .eq('user_id', user.id)
-          .limit(1);
+          .or(`user_id.eq.${user.id},id.eq.${DEFAULT_WORKSPACE_ID}`)
+          .order('created_at', { ascending: true });
 
-        if (!error && existing && existing.length > 0) {
-          const wsRow = existing[0];
-          return {
-            id: wsRow.id,
-            name: wsRow.name,
-            slug: wsRow.slug,
-            role: wsRow.role || 'owner',
+        if (!error && Array.isArray(dbWorkspaces) && dbWorkspaces.length > 0) {
+          const mapped: Workspace[] = dbWorkspaces.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            role: row.role || 'owner',
             connectedAccounts: [],
-          };
+          }));
+
+          // Merge any locally created workspaces that may not yet be in the database
+          const existingIds = new Set(mapped.map((w) => w.id));
+          const merged = [...mapped];
+          for (const c of cached) {
+            if (!existingIds.has(c.id)) {
+              merged.push(c);
+            }
+          }
+
+          StorageService.saveWorkspaces(merged, userId);
+          return merged;
         }
 
-        // 2. If no workspace exists for this user, create a brand new one!
+        // If no workspace exists in DB for this user, provision an initial one
         const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'My';
         const userSlug = `${(user.email?.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
         const workspaceName = `${userName}'s Workspace`;
@@ -211,21 +220,122 @@ export const DatabaseService = {
           .single();
 
         if (!createErr && created) {
-          console.log('[Supabase] Created isolated workspace for user:', created.id);
-          return {
+          const initialWs: Workspace = {
             id: created.id,
             name: created.name,
             slug: created.slug,
             role: created.role || 'owner',
             connectedAccounts: [],
           };
+          StorageService.saveWorkspaces([initialWs], userId);
+          return [initialWs];
         }
       } catch (err) {
-        console.error('Error provisioning user workspace:', err);
+        console.warn('Error fetching user workspaces from Supabase:', err);
       }
     }
 
-    return INITIAL_WORKSPACES[0];
+    if (cached && cached.length > 0) {
+      return cached;
+    }
+
+    return INITIAL_WORKSPACES;
+  },
+
+  /**
+   * Provision or fetch the primary workspace belonging to the user.
+   */
+  async getUserWorkspace(user: any): Promise<Workspace> {
+    const list = await this.getUserWorkspaces(user);
+    const activeId = StorageService.getActiveWorkspaceId();
+    if (activeId) {
+      const match = list.find((w) => w.id === activeId);
+      if (match) return match;
+    }
+    return list[0] || INITIAL_WORKSPACES[0];
+  },
+
+  /**
+   * Create a completely fresh, independent workspace.
+   * Starts with an empty state (0 posts, 0 accounts).
+   */
+  async createWorkspace(user: any, name: string): Promise<Workspace> {
+    const userId = user?.id || 'guest';
+    const trimmedName = name.trim() || 'New Workspace';
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'ws_' + Math.random().toString(36).substring(2, 12);
+    const slug = `${trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
+
+    let finalId = newId;
+
+    if (supabase && user && user.id) {
+      try {
+        const { data: created, error } = await supabase
+          .from('workspaces')
+          .insert({
+            id: newId,
+            user_id: user.id,
+            name: trimmedName,
+            slug,
+            role: 'owner',
+          })
+          .select()
+          .single();
+
+        if (!error && created) {
+          finalId = created.id;
+        } else if (error) {
+          console.warn('[DatabaseService] Supabase workspace insert notice:', error.message);
+        }
+      } catch (e) {
+        console.warn('[DatabaseService] Error inserting workspace into Supabase:', e);
+      }
+    }
+
+    const newWs: Workspace = {
+      id: finalId,
+      name: trimmedName,
+      slug,
+      role: 'owner',
+      connectedAccounts: [],
+    };
+
+    // Ensure strictly isolated, completely empty data for the new workspace
+    StorageService.saveAccounts([], finalId);
+    StorageService.savePosts([], finalId);
+
+    // Save into list of workspaces
+    const existing = StorageService.getWorkspaces(userId);
+    const updated = [...existing.filter((w) => w.id !== finalId), newWs];
+    StorageService.saveWorkspaces(updated, userId);
+    StorageService.setActiveWorkspaceId(finalId);
+
+    return newWs;
+  },
+
+  /**
+   * Update an existing workspace's details
+   */
+  async updateWorkspace(workspace: Workspace, user?: any): Promise<void> {
+    const userId = user?.id || 'guest';
+    if (supabase) {
+      try {
+        await supabase
+          .from('workspaces')
+          .update({
+            name: workspace.name,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', workspace.id);
+      } catch (err) {
+        console.warn('Failed to update workspace in Supabase:', err);
+      }
+    }
+
+    const existing = StorageService.getWorkspaces(userId);
+    const updated = existing.map((w) => (w.id === workspace.id ? { ...w, ...workspace } : w));
+    StorageService.saveWorkspaces(updated, userId);
   },
 
   /**

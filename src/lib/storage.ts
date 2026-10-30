@@ -22,9 +22,45 @@ const STORAGE_KEYS = {
   POSTS: 'pb_posts_v3',
   MEDIA: 'pb_media_v3',
   WORKSPACES: 'pb_workspaces_v3',
+  ACTIVE_WORKSPACE: 'pb_active_workspace_id',
 };
 
 export const StorageService = {
+  getWorkspaces(userId?: string): Workspace[] {
+    if (typeof window === 'undefined') return INITIAL_WORKSPACES;
+    const key = userId ? `${STORAGE_KEYS.WORKSPACES}_${userId}` : STORAGE_KEYS.WORKSPACES;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return INITIAL_WORKSPACES;
+    } catch {
+      return INITIAL_WORKSPACES;
+    }
+  },
+
+  saveWorkspaces(workspaces: Workspace[], userId?: string) {
+    if (typeof window === 'undefined') return;
+    const key = userId ? `${STORAGE_KEYS.WORKSPACES}_${userId}` : STORAGE_KEYS.WORKSPACES;
+    try {
+      localStorage.setItem(key, JSON.stringify(workspaces));
+    } catch (e) {
+      console.error('Failed to save workspaces to localStorage', e);
+    }
+  },
+
+  getActiveWorkspaceId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_WORKSPACE);
+  },
+
+  setActiveWorkspaceId(id: string) {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_WORKSPACE, id);
+  },
+
   getAccounts(workspaceId?: string): SocialAccount[] {
     if (typeof window === 'undefined') return [];
     const key = workspaceId ? `${STORAGE_KEYS.ACCOUNTS}_${workspaceId}` : STORAGE_KEYS.ACCOUNTS;

@@ -14,7 +14,6 @@ import { PlatformLogo } from './SocialIcons';
 import { ScheduleDatePicker } from './ScheduleDatePicker';
 import { ConnectedAccountSelector } from './ConnectedAccountSelector';
 import { PostPreview } from './PostPreview';
-import { YouTubeStudioComposer } from './YouTubeStudioComposer';
 import {
   Calendar,
   Clock,
@@ -25,8 +24,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Sparkles,
-Check,
+  Check,
   Send,
   Save,
   ArrowLeft,
@@ -66,15 +64,6 @@ interface CreatePostDashboardProps {
   onSave: (postData: Partial<Post>, action: 'schedule' | 'publish-now' | 'draft') => Promise<void>;
   onBack: () => void;
   onGoToConnections?: () => void;
-  openAiModal: (
-    initialPrompt: string,
-    onGenerated: (result: any) => void,
-    options?: {
-      platform?: SocialPlatform;
-      initialTitle?: string;
-      existingCaption?: string;
-    }
-  ) => void;
 }
 
 // 4 Primary Supported Social Platforms with Brand Specifications
@@ -145,7 +134,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   onSave,
   onBack,
   onGoToConnections,
-  openAiModal,
 }) => {
   // Format Switcher (text / image / video)
   const [currentPostType, setCurrentPostType] = useState<'text' | 'image' | 'video'>(initialPostType);
@@ -185,16 +173,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       },
       youtube: {
         caption: initialPost?.platformOverrides?.youtube?.caption || '',
-        title: initialPost?.platformOverrides?.youtube?.title || '',
-        thumbnailUrl: initialPost?.platformOverrides?.youtube?.thumbnailUrl || initialPost?.media?.[0]?.thumbnailUrl,
-        tags: initialPost?.platformOverrides?.youtube?.tags || initialPost?.tags || [],
-        categoryId: initialPost?.platformOverrides?.youtube?.categoryId || '22',
-        madeForKids: initialPost?.platformOverrides?.youtube?.madeForKids ?? false,
-        privacyStatus: initialPost?.platformOverrides?.youtube?.privacyStatus || 'public',
-        playlistId: initialPost?.platformOverrides?.youtube?.playlistId,
-        recordingDate: initialPost?.platformOverrides?.youtube?.recordingDate,
-        videoLocation: initialPost?.platformOverrides?.youtube?.videoLocation,
-        commentModeration: initialPost?.platformOverrides?.youtube?.commentModeration || 'hold_inappropriate',
       },
       linkedin: { caption: '' },
       twitter: { caption: '' },
@@ -218,7 +196,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [firstComment, setFirstComment] = useState(initialPost?.firstComment || '');
   const [destinationLink, setDestinationLink] = useState('');
   const [collaborators, setCollaborators] = useState(initialPost?.collaborators || '');
-  const [isAiGenerated, setIsAiGenerated] = useState(initialPost?.isAiGenerated || false);
   const [activeConfigTab, setActiveConfigTab] = useState<'none' | 'comment' | 'link' | 'collab'>('none');
 
   // Aspect ratio crop simulator (original, 1:1, 4:5, 9:16, 16:9)
@@ -318,14 +295,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     );
   }, [accounts, selectedAccountIds, activePreviewPlatform, activeAccount]);
 
-  const isYouTubeOnly = selectedPlatforms.length === 1 && selectedPlatforms[0] === 'youtube';
-  const youtubeChannelAccount = useMemo(() => {
-    return (
-      accounts.find((a) => selectedAccountIds.includes(a.id) && a.platform === 'youtube') ||
-      accounts.find((a) => a.platform === 'youtube')
-    );
-  }, [accounts, selectedAccountIds]);
-
   const previewPostData: Partial<Post> = useMemo(() => {
     const overrides: Record<string, PlatformCaptionOverride> = {};
     Object.entries(platformCaptions).forEach(([plat, cap]) => {
@@ -334,7 +303,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         caption: cap.caption,
         title: cap.title,
         firstComment: firstComment,
-        isAiGenerated: isAiGenerated,
       };
     });
 
@@ -343,10 +311,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       media: mediaList,
       platformOverrides: overrides,
       firstComment: firstComment,
-      isAiGenerated: isAiGenerated,
       postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
     };
-  }, [mainCaption, mediaList, platformCaptions, firstComment, isAiGenerated]);
+  }, [mainCaption, mediaList, platformCaptions, firstComment]);
 
   // Circular Platform Selection Handler
   const handleTogglePlatform = (platformId: SocialPlatform) => {
@@ -491,51 +458,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     // 1. Update Master Caption
     setMainCaption(trimmed);
 
-    // 2. Intelligently map across all selected platforms
+    // 2. Map caption across all selected platforms
     setPlatformCaptions((prev) => {
       const next = { ...prev };
       for (const plat of selectedPlatforms) {
-        if (plat === 'youtube') {
-          // For YouTube: map to description, preserve existing title unless provided
-          next.youtube = {
-            ...next.youtube,
-            caption: trimmed,
-            title: optionalTitle || next.youtube?.title || '',
-          };
-        } else {
-          // Instagram, Facebook, LinkedIn, Threads, Pinterest
-          next[plat] = {
-            ...next[plat],
-            caption: trimmed,
-          };
-        }
+        next[plat] = {
+          ...next[plat],
+          caption: trimmed,
+        };
       }
       return next;
     });
 
     showToast('Caption applied to all selected platforms.');
-  };
-
-  const handleAiModalResult = (result: any, targetPlatform?: SocialPlatform) => {
-    if (!result) return;
-    const captionText = typeof result === 'string' ? result : result.caption || '';
-    const titleText = typeof result === 'string' ? undefined : result.title;
-    const applyToAll = typeof result === 'object' && result.applyToAll;
-
-    if (applyToAll || !targetPlatform) {
-      applyCaptionToAllPlatforms(captionText, titleText);
-    } else {
-      setPlatformCaptions((prev) => ({
-        ...prev,
-        [targetPlatform]: {
-          ...prev[targetPlatform],
-          caption: captionText,
-          ...(titleText !== undefined ? { title: titleText } : {}),
-        },
-      }));
-      setMainCaption(captionText);
-      showToast(`Caption inserted for ${SUPPORTED_PLATFORMS.find((p) => p.id === targetPlatform)?.name || targetPlatform}!`);
-    }
   };
 
   // Copy Main Caption into specific Platform Caption
@@ -545,10 +480,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       [platformId]: {
         ...prev[platformId],
         caption: mainCaption,
-        title:
-          platformId === 'youtube' && !prev[platformId]?.title
-            ? mainCaption.split('\n')[0] || ''
-            : prev[platformId]?.title,
       },
     }));
     showToast(`Copied main caption to ${platformId}`);
@@ -561,18 +492,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
     if (action !== 'draft' && selectedAccountIds.length === 0) {
       alert('Please select at least one social platform to publish to.');
-      return;
-    }
-
-    // Platform validation: YouTube requires video media
-    const hasYouTubeTarget = selectedAccountIds.some(
-      (id) => accounts.find((a) => a.id === id)?.platform === 'youtube'
-    );
-    const hasVideo = mediaList.some((m) => m.type === 'video');
-    if (action !== 'draft' && hasYouTubeTarget && !hasVideo) {
-      alert(
-        'YouTube requires a video upload (MP4, MOV, WEBM). Please attach a video file or deselect YouTube before continuing.'
-      );
       return;
     }
 
@@ -599,32 +518,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           caption: destinationLink ? `${captionText}\n\n🔗 ${destinationLink}` : captionText,
           title:
             p === 'youtube'
-              ? platData?.title?.trim() || mainCaption.split('\n')[0] || 'Scheduled Video'
+              ? platData?.title?.trim() || mainCaption.split('\n')[0] || 'Post'
               : undefined,
           firstComment: p === 'instagram' ? firstComment || undefined : undefined,
           collaborator: p === 'instagram' ? collaborators || undefined : undefined,
         };
       });
 
-      // If YouTube is targeted, sync its thumbnail and tags to top-level media & tags
-      const ytOverride = overrides.youtube;
-      const effectiveMedia = mediaList.map((m, idx) => {
-        if (idx === 0 && ytOverride?.thumbnailUrl) {
-          return { ...m, thumbnailUrl: ytOverride.thumbnailUrl };
-        }
-        return m;
-      });
-
       const payload: Partial<Post> = {
         content: destinationLink ? `${mainCaption}\n\n🔗 ${destinationLink}` : mainCaption,
         targetAccountIds: selectedAccountIds,
-        media: effectiveMedia,
+        media: mediaList,
         postType: currentPostType === 'video' ? 'reel' : 'post',
         platformOverrides: overrides,
-        tags: ytOverride?.tags || (initialPost?.tags || []),
+        tags: initialPost?.tags || [],
         firstComment: firstComment || undefined,
         collaborators: collaborators || undefined,
-        isAiGenerated,
+        isAiGenerated: false,
         scheduledFor: scheduledIso,
       };
 
@@ -774,38 +684,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* LEFT 2 COLUMNS: Media + Captions + Customizations */}
           <div className="lg:col-span-2 space-y-6">
-            {isYouTubeOnly ? (
-              <YouTubeStudioComposer
-                channelAccount={youtubeChannelAccount}
-                mediaList={mediaList}
-                onMediaChange={(newMedia) => setMediaList(newMedia)}
-                title={platformCaptions.youtube?.title || ''}
-                onTitleChange={(newTitle) =>
-                  setPlatformCaptions((prev) => ({
-                    ...prev,
-                    youtube: { ...prev.youtube, title: newTitle },
-                  }))
-                }
-                description={platformCaptions.youtube?.caption || mainCaption}
-                onDescriptionChange={(newDesc) => {
-                  setMainCaption(newDesc);
-                  setPlatformCaptions((prev) => ({
-                    ...prev,
-                    youtube: { ...prev.youtube, caption: newDesc },
-                  }));
-                }}
-                youtubeOverride={platformCaptions.youtube || { caption: mainCaption }}
-                onOverrideChange={(newOverride) =>
-                  setPlatformCaptions((prev) => ({
-                    ...prev,
-                    youtube: newOverride,
-                  }))
-                }
-                openAiModal={openAiModal}
-                isUploading={isUploading}
-              />
-            ) : (
-              <>
             {/* Media Dropzone (when postType is image or video) */}
             {currentPostType !== 'text' && (
               <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
@@ -1050,7 +928,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       {selectedPlatforms.length > 1
                         ? 'Main Caption (Master / Default)'
                         : selectedPlatforms[0] === 'youtube'
-                        ? 'YouTube Video Description'
+                        ? 'YouTube Caption'
                         : selectedPlatforms[0] === 'instagram'
                         ? 'Instagram Caption'
                         : 'Post Caption'}
@@ -1081,33 +959,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               </div>
 
-              {/* YouTube Title field (shown when only YouTube is selected) */}
-              {selectedPlatforms.length === 1 && selectedPlatforms[0] === 'youtube' && (
-                <div className="space-y-1 pb-1 border-b border-gray-100">
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
-                    YouTube Video Title (Required)
-                  </label>
-                  <input
-                    type="text"
-                    value={platformCaptions.youtube?.title || ''}
-                    onChange={(e) =>
-                      setPlatformCaptions((prev) => ({
-                        ...prev,
-                        youtube: { ...prev.youtube, title: e.target.value },
-                      }))
-                    }
-                    placeholder="Enter an engaging video title (max 100 characters)..."
-                    maxLength={100}
-                    className="w-full text-sm font-semibold px-3 py-2 rounded-xl border border-gray-200 bg-gray-50/50 focus:outline-hidden focus:border-emerald-500"
-                  />
-                </div>
-              )}
-
               {/* Textarea */}
               <textarea
                 value={mainCaption}
                 onChange={(e) => setMainCaption(e.target.value)}
-                placeholder="What would you like to share? Write your post or use AI to craft engaging copy..."
+                placeholder="What would you like to share? Write your post caption and hashtags..."
                 className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
               />
 
@@ -1132,7 +988,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               )}
 
-              {/* Footer Toolbar: Emoji Picker & Unified AI Social Assistant */}
+              {/* Footer Toolbar: Emoji Picker */}
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div className="flex items-center space-x-2">
                   <button
@@ -1144,36 +1000,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   >
                     <Smile className="w-4 h-4 text-amber-500" />
                     <span className="text-xs font-medium text-gray-600">Emoji</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  {/* Unified AI Social Assistant Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const singlePlat = selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined;
-                      openAiModal(
-                        mainCaption,
-                        (result: any) => handleAiModalResult(result, singlePlat),
-                        {
-                          platform: singlePlat,
-                          initialTitle: singlePlat === 'youtube' ? platformCaptions.youtube?.title : undefined,
-                          existingCaption: mainCaption,
-                        }
-                      );
-                    }}
-                    className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.99] text-white shadow-xs flex items-center space-x-2 transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
-                    <span>
-                      {selectedPlatforms.length === 1
-                        ? `AI Assistant for ${
-                            SUPPORTED_PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name ||
-                            'Post'
-                          }`
-                        : 'AI Social Assistant'}
-                    </span>
                   </button>
                 </div>
               </div>
@@ -1285,38 +1111,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                         {/* Collapsible Caption Input Area */}
                         {!isCollapsed && (
-                          platId === 'youtube' ? (
-                            <div className="p-4">
-                              <YouTubeStudioComposer
-                                channelAccount={youtubeChannelAccount}
-                                mediaList={mediaList}
-                                onMediaChange={(newMedia) => setMediaList(newMedia)}
-                                title={platData.title || ''}
-                                onTitleChange={(newTitle) =>
-                                  setPlatformCaptions((prev) => ({
-                                    ...prev,
-                                    youtube: { ...prev.youtube, title: newTitle },
-                                  }))
-                                }
-                                description={platData.caption || mainCaption}
-                                onDescriptionChange={(newDesc) => {
-                                  setPlatformCaptions((prev) => ({
-                                    ...prev,
-                                    youtube: { ...prev.youtube, caption: newDesc },
-                                  }));
-                                }}
-                                youtubeOverride={platData}
-                                onOverrideChange={(newOverride) =>
-                                  setPlatformCaptions((prev) => ({
-                                    ...prev,
-                                    youtube: newOverride,
-                                  }))
-                                }
-                                openAiModal={openAiModal}
-                                isUploading={isUploading}
-                              />
-                            </div>
-                          ) : (
                           <div className="p-4 space-y-3">
                             {/* Specific Caption Textarea */}
                             <textarea
@@ -1348,29 +1142,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               </div>
                             )}
 
-                            {/* Platform AI Social Assistant Entry Point */}
-                            <div className="flex items-center justify-end text-xs pt-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openAiModal(
-                                    platData.caption || mainCaption,
-                                    (result: any) => handleAiModalResult(result, platId),
-                                    {
-                                      platform: platId,
-                                      initialTitle: platData.title,
-                                      existingCaption: platData.caption,
-                                    }
-                                  )
-                                }
-                                className="text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 transition-all cursor-pointer shadow-2xs"
-                              >
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>AI Assistant for {platConfig.name}</span>
-                              </button>
-                            </div>
+                            {platId === 'youtube' && (
+                              <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-200/60 flex items-center space-x-2">
+                                <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                <span>YouTube Data API v3 officially supports video publishing. Photo and text posts are scheduled and organized in your PostingTube calendar.</span>
+                              </div>
+                            )}
                           </div>
-                          )
                         )}
                       </div>
                     );
@@ -1480,8 +1258,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               )}
             </div>
-            </>
-            )}
           </div>
 
           {/* RIGHT COLUMN: Redesigned Scheduling Engine & Live Feed Preview */}

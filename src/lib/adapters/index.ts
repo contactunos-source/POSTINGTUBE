@@ -297,7 +297,7 @@ export const youtubeAdapter: PlatformAdapter = {
     const errors: string[] = [];
     const hasVideo = post.media?.some((m) => m.type === 'video');
     if (!hasVideo) {
-      errors.push('YouTube only supports video uploads (MP4, MOV, WEBM). Text-only or photo posts cannot be published to YouTube.');
+      errors.push('YouTube Data API v3 only supports video uploads (MP4, MOV, WEBM). Community text/photo posts are not supported by YouTube public third-party API.');
     }
     const title = override?.title || post.content.split('\n')[0];
     if (!title || title.trim().length === 0) {
@@ -316,7 +316,7 @@ export const youtubeAdapter: PlatformAdapter = {
     if (!videoMedia) {
       return {
         success: false,
-        errorMessage: 'YouTube requires an attached video asset (MP4, MOV, WEBM).',
+        errorMessage: 'YouTube Data API v3 does not support third-party publishing for Community text/image posts. Direct publishing to YouTube requires video content (MP4, MOV, WEBM).',
       };
     }
 

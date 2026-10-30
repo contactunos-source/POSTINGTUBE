@@ -388,180 +388,67 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             </div>
           </div>
         ) : (
-          /* YouTube Standard Video Watch Preview */
-          (() => {
-            const ytCustomThumb =
-              override?.thumbnailUrl ||
-              post.platformOverrides?.youtube?.thumbnailUrl ||
-              media?.thumbnailUrl;
-            const categoryId = override?.categoryId || post.platformOverrides?.youtube?.categoryId || '22';
-            const catMap: Record<string, string> = {
-              '1': 'Film & Animation',
-              '2': 'Autos & Vehicles',
-              '10': 'Music',
-              '15': 'Pets & Animals',
-              '17': 'Sports',
-              '19': 'Travel & Events',
-              '20': 'Gaming',
-              '22': 'People & Blogs',
-              '23': 'Comedy',
-              '24': 'Entertainment',
-              '25': 'News & Politics',
-              '26': 'Howto & Style',
-              '27': 'Education',
-              '28': 'Science & Technology',
-              '29': 'Nonprofits & Activism',
-            };
-            const categoryName = catMap[categoryId] || `Category ${categoryId}`;
-            const isKids =
-              override?.madeForKids ??
-              post.platformOverrides?.youtube?.madeForKids;
-            const visibility =
-              override?.privacyStatus ||
-              post.platformOverrides?.youtube?.privacyStatus ||
-              'public';
-            const ytTags =
-              override?.tags ||
-              post.platformOverrides?.youtube?.tags ||
-              post.tags ||
-              [];
-
-            return (
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                {/* 16:9 Video Player / Custom Thumbnail */}
-                <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
-                  {media ? (
-                    media.type === 'video' ? (
-                      <video
-                        src={media.url}
-                        poster={ytCustomThumb && ytCustomThumb !== media.url ? ytCustomThumb : undefined}
-                        className="w-full h-full object-contain"
-                        controls
-                      />
-                    ) : (
-                      <img
-                        src={ytCustomThumb || media.url}
-                        alt="YouTube thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : ytCustomThumb ? (
-                    <img
-                      src={ytCustomThumb}
-                      alt="YouTube custom thumbnail"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-gray-500 text-xs">Video media required</div>
-                  )}
-
-                  {/* Thumbnail Badge if custom */}
-                  {ytCustomThumb && ytCustomThumb !== media?.url && (
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-bold">
-                      Custom Thumbnail
-                    </div>
-                  )}
-
-                  {/* Seekbar visual */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600" />
-                </div>
-
-                {/* Video Metadata */}
-                <div className="p-3.5 space-y-2.5">
-                  <h3 className="text-sm font-bold text-gray-900 leading-snug">
-                    {override?.title || post.platformOverrides?.youtube?.title || caption.split('\n')[0] || 'Scheduled YouTube Video Title'}
-                  </h3>
-
-                  {/* Channel Row */}
-                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                    <div className="flex items-center space-x-2">
-                      <img src={avatar} alt={displayName} className="w-8 h-8 rounded-full object-cover" />
-                      <div>
-                        <h5 className="text-xs font-bold text-gray-900 leading-none">{displayName}</h5>
-                        <span className="text-[10px] text-gray-500">YouTube Channel</span>
-                      </div>
-                    </div>
-                    <button type="button" className="px-3 py-1 rounded-full bg-black text-white text-xs font-bold cursor-pointer">
-                      Subscribe
-                    </button>
-                  </div>
-
-                  {/* Metadata Pills: Category, Audience, Visibility */}
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-gray-600">
-                    <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded-md border border-red-200">
-                      {categoryName}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-md border ${
-                        isKids
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-gray-100 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      {isKids ? 'Made for Kids' : 'Not for Kids'}
-                    </span>
-                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md border border-gray-200 capitalize">
-                      {visibility}
-                    </span>
-                  </div>
-
-                  {/* YouTube Action Buttons */}
-                  <div className="flex items-center space-x-2 text-xs text-gray-700 overflow-x-auto scrollbar-none py-1">
-                    <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1.5 shrink-0">
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                      <span>3.2K</span>
-                      <span className="text-gray-300">|</span>
-                      <ThumbsDown className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1 shrink-0">
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
-                    </div>
-                    <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1 shrink-0">
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download</span>
-                    </div>
-                  </div>
-
-                  {/* Video Description Card */}
-                  <div className="bg-gray-50 rounded-xl p-2.5 text-xs text-gray-800 space-y-1.5">
-                    <div className="text-[11px] font-bold text-gray-600">
-                      <span>4.1K views</span> • <span>Just now</span>
-                    </div>
-                    <p className={`whitespace-pre-line text-gray-700 leading-relaxed ${isDescExpanded ? '' : 'line-clamp-2'}`}>
-                      {caption || 'Add your YouTube video description in the composer...'}
-                    </p>
-                    {caption.length > 80 && (
-                      <button
-                        type="button"
-                        onClick={() => setIsDescExpanded(!isDescExpanded)}
-                        className="text-[11px] font-bold text-gray-900 hover:underline cursor-pointer"
-                      >
-                        {isDescExpanded ? 'Show less' : '...more'}
-                      </button>
-                    )}
-
-                    {/* Tags preview */}
-                    {ytTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-200/60">
-                        {ytTags.slice(0, 6).map((tg) => (
-                          <span
-                            key={tg}
-                            className="text-[10px] text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-200 font-mono"
-                          >
-                            #{tg}
-                          </span>
-                        ))}
-                        {ytTags.length > 6 && (
-                          <span className="text-[10px] text-gray-400">+{ytTags.length - 6} more</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+          /* YouTube Standard Post Preview */
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            {/* Channel Header Row */}
+            <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-gray-100">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <img src={avatar} alt={displayName} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                <div className="min-w-0">
+                  <h5 className="text-xs font-bold text-gray-900 truncate">{displayName}</h5>
+                  <span className="text-[10px] text-gray-400 block">YouTube Channel</span>
                 </div>
               </div>
-            );
-          })()
+              <button type="button" className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold shrink-0">
+                Subscribe
+              </button>
+            </div>
+
+            {/* Post Caption */}
+            <div className="px-3.5 pt-3 pb-2 text-xs text-gray-800 leading-relaxed whitespace-pre-line">
+              {caption || 'Enter your post caption in the composer...'}
+            </div>
+
+            {/* Attached Media Preview */}
+            {media && (
+              <div className="px-3.5 pb-3">
+                {media.type === 'video' ? (
+                  <div className="relative aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
+                    <video
+                      src={media.url}
+                      className="w-full h-full object-contain"
+                      controls
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50 max-h-[380px] flex items-center justify-center">
+                    <img
+                      src={media.url}
+                      alt="YouTube post media"
+                      className="w-full h-auto max-h-[380px] object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Bar (Like, Dislike, Share) */}
+            <div className="px-3.5 py-2.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600">
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1.5">
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                  <span>Like</span>
+                  <span className="text-gray-300">|</span>
+                  <ThumbsDown className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1">
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Share</span>
+                </div>
+              </div>
+              <span className="text-[10px] text-gray-400">Public</span>
+            </div>
+          </div>
         )
       )}
 

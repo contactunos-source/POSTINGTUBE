@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
 import { NewPostLaunchpad } from '@/components/NewPostLaunchpad';
-import { AiAssistantModal } from '@/components/AiAssistantModal';
 import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 import {
   INITIAL_ACCOUNTS,
@@ -93,15 +92,25 @@ export default function DashboardPage() {
   const initUserData = async (user: any) => {
     setIsLoaded(false);
     try {
-      // 1. Get or provision isolated workspace for this user
-      const userWs = await DatabaseService.getUserWorkspace(user);
-      setCurrentWorkspace(userWs);
-      setWorkspaces([userWs]);
+      // 1. Get or provision all workspaces for this user
+      const userWorkspaces = await DatabaseService.getUserWorkspaces(user);
+      setWorkspaces(userWorkspaces);
 
-      // 2. Fetch posts and connected accounts strictly isolated to this workspace
+      // 2. Resolve active workspace from query param or persistent storage
+      const urlWsId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('workspace_id')
+        : null;
+      const savedWsId = StorageService.getActiveWorkspaceId();
+      const targetId = urlWsId || savedWsId;
+
+      const activeWs = (targetId && userWorkspaces.find((w) => w.id === targetId)) || userWorkspaces[0];
+      setCurrentWorkspace(activeWs);
+      StorageService.setActiveWorkspaceId(activeWs.id);
+
+      // 3. Fetch posts and connected accounts strictly isolated to this active workspace
       const [dbAccounts, dbPosts] = await Promise.all([
-        DatabaseService.getAccounts(userWs.id),
-        DatabaseService.getPosts(userWs.id),
+        DatabaseService.getAccounts(activeWs.id),
+        DatabaseService.getPosts(activeWs.id),
       ]);
 
       setAccounts(dbAccounts);
@@ -109,6 +118,49 @@ export default function DashboardPage() {
       setMediaItems(StorageService.getMedia());
     } catch (err) {
       console.error('Failed to initialize user data:', err);
+    } finally {
+      setIsLoaded(true);
+    }
+  };
+
+  // Switch workspace with complete data re-fetching & strict multi-tenant isolation
+  const handleSelectWorkspace = async (ws: Workspace) => {
+    if (ws.id === currentWorkspace.id) return;
+    setIsLoaded(false);
+    setCurrentWorkspace(ws);
+    StorageService.setActiveWorkspaceId(ws.id);
+    try {
+      const [dbAccounts, dbPosts] = await Promise.all([
+        DatabaseService.getAccounts(ws.id),
+        DatabaseService.getPosts(ws.id),
+      ]);
+      setAccounts(dbAccounts);
+      setPosts(dbPosts);
+      setEditingPost(null);
+    } catch (err) {
+      console.error('Failed to load workspace data:', err);
+    } finally {
+      setIsLoaded(true);
+    }
+  };
+
+  // Create brand new workspace with fresh empty state
+  const handleCreateWorkspace = async (name: string) => {
+    setIsLoaded(false);
+    try {
+      const newWs = await DatabaseService.createWorkspace(authUser, name);
+      const updatedList = [...workspaces, newWs];
+      setWorkspaces(updatedList);
+      setCurrentWorkspace(newWs);
+      StorageService.setActiveWorkspaceId(newWs.id);
+
+      // Fresh empty state - 0 posts, 0 accounts
+      setAccounts([]);
+      setPosts([]);
+      setEditingPost(null);
+      setSuccessToast(`Workspace "${newWs.name}" created!`);
+    } catch (err) {
+      console.error('Failed to create workspace:', err);
     } finally {
       setIsLoaded(true);
     }
@@ -346,36 +398,10 @@ export default function DashboardPage() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Partial<Post> | null>(null);
 
-  // AI Assistant modal state
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiInitialPrompt, setAiInitialPrompt] = useState('');
-  const [aiInitialPlatform, setAiInitialPlatform] = useState<SocialPlatform | undefined>(undefined);
-  const [aiInitialTitle, setAiInitialTitle] = useState('');
-  
-  const [aiExistingCaption, setAiExistingCaption] = useState('');
-  const [onAiInsertCallback, setOnAiInsertCallback] = useState<((result: any) => void) | null>(null);
-
   // Counts
   const scheduledCount = posts.filter((p) => p.status === 'scheduled').length;
   const draftCount = posts.filter((p) => p.status === 'draft').length;
   const failedCount = posts.filter((p) => p.status === 'failed').length;
-
-  const handleOpenAiModal = (
-    prompt: string,
-    onGenerated: (result: any) => void,
-    options?: {
-      platform?: SocialPlatform;
-      initialTitle?: string;
-      existingCaption?: string;
-    }
-  ) => {
-    setAiInitialPrompt(prompt);
-    setAiInitialPlatform(options?.platform);
-    setAiInitialTitle(options?.initialTitle || '');
-    setAiExistingCaption(options?.existingCaption || '');
-    setOnAiInsertCallback(() => onGenerated);
-    setIsAiModalOpen(true);
-  };
 
   const handleCreateTypeSelected = (type: 'text' | 'image' | 'video') => {
     setPreviousTab('new-post');
@@ -672,7 +698,8 @@ export default function DashboardPage() {
         }}
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
-        onSelectWorkspace={setCurrentWorkspace}
+        onSelectWorkspace={handleSelectWorkspace}
+        onCreateWorkspace={handleCreateWorkspace}
         openCreateModal={() => {
           setPreviousTab(activeTab);
           setEditingPost(null);
@@ -798,7 +825,6 @@ export default function DashboardPage() {
             }}
             onBack={handleBackFromComposer}
             onGoToConnections={() => setActiveTab('connections')}
-            openAiModal={handleOpenAiModal}
           />
         )}
 
@@ -911,9 +937,10 @@ export default function DashboardPage() {
             authUser={authUser}
             accounts={accounts}
             onRemoveAccount={handleRemoveAccount}
-            onUpdateWorkspace={(ws) => {
+            onUpdateWorkspace={async (ws) => {
               setCurrentWorkspace(ws);
               setWorkspaces(workspaces.map((w) => (w.id === ws.id ? ws : w)));
+              await DatabaseService.updateWorkspace(ws, authUser);
             }}
           />
         )}
@@ -1002,23 +1029,6 @@ export default function DashboardPage() {
           </button>
         </nav>
       </main>
-
-      {/* AI Assistant Modal */}
-      {isAiModalOpen && (
-        <AiAssistantModal
-          initialPrompt={aiInitialPrompt}
-          initialPlatform={aiInitialPlatform}
-          initialTitle={aiInitialTitle}
-          existingCaption={aiExistingCaption}
-          onInsert={(result) => {
-            if (onAiInsertCallback) {
-              onAiInsertCallback(result);
-            }
-            setIsAiModalOpen(false);
-          }}
-          onClose={() => setIsAiModalOpen(false)}
-        />
-      )}
     </div>
   );
 }
