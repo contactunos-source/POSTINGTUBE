@@ -71,7 +71,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     >
       {/* Top Header */}
       <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center space-x-2.5">
+        <Link
+          href="/dashboard"
+          onClick={() => {
+            try {
+              localStorage.setItem('postingtube_active_tab', 'new-post');
+              sessionStorage.setItem('postingtube_active_tab', 'new-post');
+            } catch (e) {}
+          }}
+          className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 transition-opacity focus:outline-none group"
+          title="Return to PostingTube Creator Dashboard"
+        >
           <PostingTubeLogo />
           {!collapsed && (
             <div className="min-w-0">
@@ -84,7 +94,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </span>
             </div>
           )}
-        </div>
+        </Link>
       </div>
 
       {/* Navigation List */}

@@ -105,6 +105,7 @@ export interface PostingTubeLogoProps {
   href?: string;
   badge?: string;
   className?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 /**
@@ -119,6 +120,7 @@ export const PostingTubeLogo: React.FC<PostingTubeLogoProps> = ({
   href,
   badge,
   className = '',
+  onClick,
 }) => {
   const iconSizes = {
     sm: 24,
@@ -134,12 +136,18 @@ export const PostingTubeLogo: React.FC<PostingTubeLogoProps> = ({
     xl: 'text-2xl',
   };
 
+  const isInteractive = Boolean(href || onClick);
+
   const content = (
-    <div className={`inline-flex items-center space-x-2.5 select-none ${className}`}>
+    <div
+      className={`inline-flex items-center space-x-2.5 select-none ${
+        isInteractive ? 'cursor-pointer group' : ''
+      } ${className}`}
+    >
       {variant !== 'wordmark' && (
         <PostingTubeIcon
           size={iconSizes[size]}
-          className="shadow-xs hover:scale-105 transition-transform"
+          className={`shadow-xs ${isInteractive ? 'group-hover:scale-105 transition-transform' : ''}`}
         />
       )}
 
@@ -148,7 +156,7 @@ export const PostingTubeLogo: React.FC<PostingTubeLogoProps> = ({
           <span
             className={`font-bold tracking-tight ${textSizes[size]} ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}
+            } ${isInteractive ? 'group-hover:text-black transition-colors' : ''}`}
           >
             Posting<span className="text-emerald-600">Tube</span>
           </span>
@@ -165,9 +173,27 @@ export const PostingTubeLogo: React.FC<PostingTubeLogoProps> = ({
 
   if (href) {
     return (
-      <Link href={href} className="inline-flex items-center group cursor-pointer">
+      <Link
+        href={href}
+        onClick={onClick}
+        className="inline-flex items-center group cursor-pointer focus:outline-none"
+        title="PostingTube"
+      >
         {content}
       </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center group cursor-pointer text-left bg-transparent border-0 p-0 focus:outline-none"
+        title="PostingTube"
+      >
+        {content}
+      </button>
     );
   }
 

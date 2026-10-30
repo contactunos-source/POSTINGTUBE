@@ -106,34 +106,84 @@ export default function DashboardPage() {
     }
   };
 
-  // Active tab state: On browser refresh/reload, ALWAYS redirect to main dashboard ('new-post')
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    if (typeof window !== 'undefined') {
+  // Helper to resolve active tab from URL query params or persisted storage across refresh
+  const resolveInitialTab = (): ActiveTab => {
+    if (typeof window === 'undefined') return 'new-post';
+
+    const params = new URLSearchParams(window.location.search);
+
+    // OAuth return callbacks always route to connections
+    if (
+      params.get('fb_connect_success') === 'true' ||
+      params.get('ig_connect_success') === 'true' ||
+      params.get('youtube_connect_success') === 'true' ||
+      params.get('li_connect_success') === 'true' ||
+      params.get('tab') === 'connections' ||
+      params.get('error')
+    ) {
+      return 'connections';
+    }
+
+    const tabParam = params.get('tab');
+    const validTabs: Record<string, ActiveTab> = {
+      'new-post': 'new-post',
+      'create': 'new-post',
+      'launchpad': 'new-post',
+      'create-composer': 'create-composer',
+      'composer': 'create-composer',
+      'calendar': 'calendar',
+      'posts': 'posts-all',
+      'posts-all': 'posts-all',
+      'posts-scheduled': 'posts-scheduled',
+      'scheduled': 'posts-scheduled',
+      'posts-posted': 'posts-posted',
+      'posted': 'posts-posted',
+      'published': 'posts-posted',
+      'posts-drafts': 'posts-drafts',
+      'drafts': 'posts-drafts',
+      'posts-failed': 'posts-failed',
+      'failed': 'posts-failed',
+      'connections': 'connections',
+      'channels': 'connections',
+      'accounts': 'connections',
+      'analytics': 'analytics',
+      'insights': 'insights',
+      'settings': 'settings',
+      'worker-console': 'worker-console',
+      'worker': 'worker-console',
+    };
+
+    if (tabParam && validTabs[tabParam]) {
+      return validTabs[tabParam];
+    }
+
+    // On browser refresh, preserve current tab from session/local storage if URL query was omitted
+    try {
       const navEntry = window.performance?.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
       const isReload = navEntry?.type === 'reload' || (window.performance && (window.performance as any).navigation?.type === 1);
-
-      // If user refreshed the browser, always stay on the main dashboard!
       if (isReload) {
-        return 'new-post';
+        const stored = sessionStorage.getItem('postingtube_active_tab') || localStorage.getItem('postingtube_active_tab');
+        if (stored && validTabs[stored]) {
+          return validTabs[stored];
+        }
       }
+    } catch (e) {}
 
-      const params = new URLSearchParams(window.location.search);
-      if (
-        params.get('fb_connect_success') === 'true' ||
-        params.get('ig_connect_success') === 'true' ||
-        params.get('youtube_connect_success') === 'true' ||
-        params.get('tab') === 'connections' ||
-        params.get('error')
-      ) {
-        return 'connections';
-      }
-    }
     return 'new-post';
-  });
+  };
+
+  // Active tab state: Preserves current page across browser refresh (F5/Ctrl+R)
+  const [activeTab, setActiveTab] = useState<ActiveTab>(resolveInitialTab);
 
   // Track previous tab to guarantee intelligent, safe Back navigation to Dashboard
   const [previousTab, setPreviousTab] = useState<ActiveTab>('new-post');
-  const [selectedInsightsAccountId, setSelectedInsightsAccountId] = useState<string>('all');
+  const [selectedInsightsAccountId, setSelectedInsightsAccountId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('accountId') || 'all';
+    }
+    return 'all';
+  });
 
   // Success Toast Notification state
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -271,16 +321,6 @@ export default function DashboardPage() {
   // Listen for OAuth callbacks or URL navigation params
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const navEntry = window.performance?.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-      const isReload = navEntry?.type === 'reload' || (window.performance && (window.performance as any).navigation?.type === 1);
-
-      if (isReload) {
-        // User refreshed the page: Clean up URL query parameters and stay on main dashboard!
-        window.history.replaceState(null, '', window.location.pathname);
-        setActiveTab('new-post');
-        return;
-      }
-
       const params = new URLSearchParams(window.location.search);
       const isOauthReturn =
         params.get('fb_connect_success') === 'true' ||
@@ -291,9 +331,40 @@ export default function DashboardPage() {
         params.get('error');
 
       if (isOauthReturn) {
-        setActiveTab('connections');
+        handleTabChange('connections');
+        if (params.get('fb_connect_success') === 'true') {
+          setSuccessToast('Facebook page connected successfully!');
+        } else if (params.get('ig_connect_success') === 'true') {
+          setSuccessToast('Instagram account connected successfully!');
+        } else if (params.get('youtube_connect_success') === 'true') {
+          setSuccessToast('YouTube channel connected successfully!');
+        } else if (params.get('li_connect_success') === 'true') {
+          setSuccessToast('LinkedIn account connected successfully!');
+        }
+      } else {
+        // Ensure initial URL param matches active tab if restored from storage
+        const currentParam = params.get('tab');
+        if (!currentParam && activeTab !== 'new-post') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', activeTab);
+          window.history.replaceState(null, '', url.pathname + url.search);
+        }
       }
     }
+  }, []);
+
+  // Centralized Browser Back / Forward History Navigation Listener
+  useEffect(() => {
+    const handlePopState = () => {
+      const targetTab = resolveInitialTab();
+      if (targetTab !== 'create-composer') {
+        setEditingPost(null);
+      }
+      setActiveTab(targetTab);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Active Publishing Daemon for Scheduled Posts
@@ -334,7 +405,22 @@ export default function DashboardPage() {
 
     return () => clearInterval(schedulerTimer);
   }, [isLoaded, posts, accounts]);
-  const [createDashboardType, setCreateDashboardType] = useState<'text' | 'image' | 'video'>('text');
+  const [createDashboardType, setCreateDashboardType] = useState<'text' | 'image' | 'video'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const typeParam = params.get('type');
+      if (typeParam === 'text' || typeParam === 'image' || typeParam === 'video') {
+        return typeParam;
+      }
+      try {
+        const stored = (sessionStorage.getItem('postingtube_composer_type') || localStorage.getItem('postingtube_composer_type')) as any;
+        if (stored === 'text' || stored === 'image' || stored === 'video') {
+          return stored;
+        }
+      } catch (e) {}
+    }
+    return 'text';
+  });
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Partial<Post> | null>(null);
 
@@ -342,6 +428,58 @@ export default function DashboardPage() {
   const scheduledCount = posts.filter((p) => p.status === 'scheduled').length;
   const draftCount = posts.filter((p) => p.status === 'draft').length;
   const failedCount = posts.filter((p) => p.status === 'failed').length;
+
+  // Centralized tab changer: Synchronizes URL and localStorage across refresh
+  const handleTabChange = (tab: ActiveTab) => {
+    if (activeTab !== tab) setPreviousTab(activeTab);
+    setActiveTab(tab);
+
+    try {
+      localStorage.setItem('postingtube_active_tab', tab);
+      sessionStorage.setItem('postingtube_active_tab', tab);
+      if (tab !== 'create-composer') {
+        localStorage.removeItem('postingtube_composer_type');
+        sessionStorage.removeItem('postingtube_composer_type');
+      }
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (tab === 'new-post') {
+        url.searchParams.delete('tab');
+        url.searchParams.delete('type');
+        url.searchParams.delete('postId');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
+      const newUrl = url.pathname + (url.search ? url.search : '');
+      window.history.pushState(null, '', newUrl);
+    }
+  };
+
+  // PostingTube Logo Click Navigation: Always routes directly to main dashboard / Create Post launchpad
+  const handleLogoClick = () => {
+    setEditingPost(null);
+    setPreviousTab('new-post');
+    setActiveTab('new-post');
+    setIsMobileMenuOpen(false);
+
+    try {
+      localStorage.setItem('postingtube_active_tab', 'new-post');
+      sessionStorage.setItem('postingtube_active_tab', 'new-post');
+      localStorage.removeItem('postingtube_composer_type');
+      sessionStorage.removeItem('postingtube_composer_type');
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('tab');
+      url.searchParams.delete('type');
+      url.searchParams.delete('postId');
+      const cleanUrl = url.pathname + (url.search ? url.search : '');
+      window.history.pushState(null, '', cleanUrl);
+    }
+  };
 
   const handleCreateTypeSelected = (type: 'text' | 'image' | 'video') => {
     setPreviousTab('new-post');
@@ -357,35 +495,48 @@ export default function DashboardPage() {
       tags: [],
     });
     setActiveTab('create-composer');
+
+    try {
+      localStorage.setItem('postingtube_active_tab', 'create-composer');
+      sessionStorage.setItem('postingtube_active_tab', 'create-composer');
+      localStorage.setItem('postingtube_composer_type', type);
+      sessionStorage.setItem('postingtube_composer_type', type);
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'create-composer');
+      url.searchParams.set('type', type);
+      window.history.pushState(null, '', url.pathname + url.search);
+    }
+  };
+
+  const handleOpenCreateModal = (type: 'text' | 'image' | 'video' = 'image') => {
+    setPreviousTab(activeTab);
+    setEditingPost(null);
+    setCreateDashboardType(type);
+    setActiveTab('create-composer');
+
+    try {
+      localStorage.setItem('postingtube_active_tab', 'create-composer');
+      sessionStorage.setItem('postingtube_active_tab', 'create-composer');
+      localStorage.setItem('postingtube_composer_type', type);
+      sessionStorage.setItem('postingtube_composer_type', type);
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'create-composer');
+      url.searchParams.set('type', type);
+      window.history.pushState(null, '', url.pathname + url.search);
+    }
   };
 
   const handleBackFromComposer = () => {
     setEditingPost(null);
     const target = previousTab && previousTab !== 'create-composer' ? previousTab : 'new-post';
-    setActiveTab(target);
+    handleTabChange(target);
   };
-
-  // Prevent browser back from leaving the application when composer is active
-  useEffect(() => {
-    if (activeTab === 'create-composer') {
-      window.history.pushState({ postingtube_composer: true }, '');
-
-      const handlePopState = () => {
-        setEditingPost(null);
-        setActiveTab((curr) => {
-          if (curr === 'create-composer') {
-            return previousTab && previousTab !== 'create-composer' ? previousTab : 'new-post';
-          }
-          return curr;
-        });
-      };
-
-      window.addEventListener('popstate', handlePopState);
-      return () => {
-        window.removeEventListener('popstate', handlePopState);
-      };
-    }
-  }, [activeTab, previousTab]);
 
   const handleSavePost = async (
     postData: Partial<Post>,
@@ -475,8 +626,24 @@ export default function DashboardPage() {
   const handleEditExistingPost = (post: Post) => {
     setPreviousTab(activeTab);
     setEditingPost(post);
-    setCreateDashboardType(post.postType === 'reel' ? 'video' : post.media && post.media.length > 0 ? 'image' : 'text');
+    const pType = post.postType === 'reel' ? 'video' : post.media && post.media.length > 0 ? 'image' : 'text';
+    setCreateDashboardType(pType);
     setActiveTab('create-composer');
+
+    try {
+      localStorage.setItem('postingtube_active_tab', 'create-composer');
+      sessionStorage.setItem('postingtube_active_tab', 'create-composer');
+      localStorage.setItem('postingtube_composer_type', pType);
+      sessionStorage.setItem('postingtube_composer_type', pType);
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'create-composer');
+      url.searchParams.set('type', pType);
+      url.searchParams.set('postId', post.id);
+      window.history.pushState(null, '', url.pathname + url.search);
+    }
   };
 
   const handleDeletePost = async (id: string) => {
@@ -632,16 +799,8 @@ export default function DashboardPage() {
       {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          if (activeTab !== tab) setPreviousTab(activeTab);
-          setActiveTab(tab);
-        }}
-        openCreateModal={() => {
-          setPreviousTab(activeTab);
-          setEditingPost(null);
-          setCreateDashboardType('image');
-          setActiveTab('create-composer');
-        }}
+        setActiveTab={handleTabChange}
+        openCreateModal={() => handleOpenCreateModal('image')}
         scheduledCount={scheduledCount}
         draftCount={draftCount}
         failedCount={failedCount}
@@ -649,9 +808,22 @@ export default function DashboardPage() {
         authUser={authUser}
         accounts={accounts}
         selectedInsightsAccountId={selectedInsightsAccountId}
-        onSelectInsightsAccount={(accId) => setSelectedInsightsAccountId(accId)}
+        onSelectInsightsAccount={(accId) => {
+          setSelectedInsightsAccountId(accId);
+          if (activeTab === 'insights' && typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'insights');
+            if (accId && accId !== 'all') {
+              url.searchParams.set('accountId', accId);
+            } else {
+              url.searchParams.delete('accountId');
+            }
+            window.history.replaceState(null, '', url.pathname + url.search);
+          }
+        }}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        onLogoClick={handleLogoClick}
       />
 
       {/* Main View Area */}
@@ -686,7 +858,15 @@ export default function DashboardPage() {
 
             {/* Mobile Brand */}
             <div className="lg:hidden shrink-0">
-              <PostingTubeLogo size="sm" />
+              <PostingTubeLogo
+                size="sm"
+                href="/dashboard"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleLogoClick();
+                }}
+                className="cursor-pointer"
+              />
             </div>
           </div>
 
@@ -734,7 +914,7 @@ export default function DashboardPage() {
         {activeTab === 'new-post' && (
           <NewPostLaunchpad
             onSelectType={handleCreateTypeSelected}
-            onGoToConnections={() => setActiveTab('connections')}
+            onGoToConnections={() => handleTabChange('connections')}
             connectedCount={accounts.length}
           />
         )}
@@ -746,10 +926,10 @@ export default function DashboardPage() {
             initialPost={editingPost || undefined}
             onSave={async (postData, action) => {
               await handleSavePost(postData, action);
-              setActiveTab('posts-all');
+              handleTabChange('posts-all');
             }}
             onBack={handleBackFromComposer}
-            onGoToConnections={() => setActiveTab('connections')}
+            onGoToConnections={() => handleTabChange('connections')}
           />
         )}
 
@@ -760,7 +940,7 @@ export default function DashboardPage() {
             onAddAccount={handleAddAccount}
             onRemoveAccount={handleRemoveAccount}
             onRefreshAccount={handleRefreshAccount}
-            onNavigateToTab={setActiveTab}
+            onNavigateToTab={handleTabChange}
             onShowSuccessToast={(msg) => setSuccessToast(msg)}
           />
         )}
@@ -772,13 +952,8 @@ export default function DashboardPage() {
             workspaceName="PostingTube"
             onSelectPost={handleEditExistingPost}
             onReschedulePost={handleReschedulePost}
-            onNavigateToTab={(tab) => setActiveTab(tab as any)}
-            openCreateModal={() => {
-              setPreviousTab('calendar');
-              setEditingPost(null);
-              setCreateDashboardType('image');
-              setActiveTab('create-composer');
-            }}
+            onNavigateToTab={(tab) => handleTabChange(tab as any)}
+            openCreateModal={() => handleOpenCreateModal('image')}
             onCreateAtDate={(d) => {
               setPreviousTab('calendar');
               const dayStr = getIstDateString(d);
@@ -801,6 +976,16 @@ export default function DashboardPage() {
               } as any);
               setCreateDashboardType('image');
               setActiveTab('create-composer');
+              try {
+                localStorage.setItem('postingtube_active_tab', 'create-composer');
+                sessionStorage.setItem('postingtube_active_tab', 'create-composer');
+              } catch (e) {}
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', 'create-composer');
+                url.searchParams.set('type', 'image');
+                window.history.pushState(null, '', url.pathname + url.search);
+              }
             }}
           />
         )}
@@ -830,12 +1015,7 @@ export default function DashboardPage() {
             onDeletePost={handleDeletePost}
             onPublishNow={handlePublishNow}
             onRetryPost={handleRetryPost}
-            openCreateModal={() => {
-              setPreviousTab(activeTab);
-              setEditingPost(null);
-              setCreateDashboardType('image');
-              setActiveTab('create-composer');
-            }}
+            openCreateModal={() => handleOpenCreateModal('image')}
           />
         )}
 
@@ -879,7 +1059,7 @@ export default function DashboardPage() {
         >
           <button
             onClick={() => {
-              setActiveTab('new-post');
+              handleTabChange('new-post');
               setIsMobileMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
@@ -900,7 +1080,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => {
-              setActiveTab('posts-all');
+              handleTabChange('posts-all');
               setIsMobileMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
@@ -915,7 +1095,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => {
-              setActiveTab('calendar');
+              handleTabChange('calendar');
               setIsMobileMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${
@@ -930,7 +1110,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => {
-              setActiveTab('insights');
+              handleTabChange('insights');
               setIsMobileMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer ${

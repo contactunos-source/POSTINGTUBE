@@ -46,6 +46,7 @@ interface SidebarProps {
   onSelectInsightsAccount?: (accountId: string) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  onLogoClick?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -62,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectInsightsAccount,
   isMobileOpen = false,
   onCloseMobile,
+  onLogoClick,
 }) => {
   const connectedAccounts = accounts.filter((a) => a.status === 'connected' || !a.status);
   const displayName =
@@ -94,7 +96,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <PostingTubeLogo size="md" />
+          <PostingTubeLogo
+            size="md"
+            href="/dashboard"
+            onClick={(e) => {
+              if (onLogoClick) {
+                e.preventDefault();
+                onLogoClick();
+                onCloseMobile?.();
+              }
+            }}
+            className="cursor-pointer"
+          />
           <button
             onClick={onCloseMobile}
             className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0 ml-1"

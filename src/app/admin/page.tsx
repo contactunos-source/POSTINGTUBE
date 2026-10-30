@@ -20,9 +20,74 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [ownerEmail, setOwnerEmail] = useState<string>('onmansonu@gmail.com');
 
-  // Navigation state
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  // Navigation state with URL & localStorage persistence across page refresh
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') as AdminTab;
+      const valid: AdminTab[] = [
+        'overview',
+        'users',
+        'accounts',
+        'posts',
+        'billing',
+        'devices',
+        'activity',
+        'system',
+        'security',
+      ];
+      if (tab && valid.includes(tab)) return tab;
+      try {
+        const stored = (sessionStorage.getItem('postingtube_admin_tab') || localStorage.getItem('postingtube_admin_tab')) as AdminTab;
+        if (stored && valid.includes(stored)) return stored;
+      } catch (e) {}
+    }
+    return 'overview';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleAdminTabChange = (tab: AdminTab) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('postingtube_admin_tab', tab);
+      sessionStorage.setItem('postingtube_admin_tab', tab);
+    } catch (e) {}
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (tab === 'overview') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
+      window.history.pushState(null, '', url.pathname + (url.search ? url.search : ''));
+    }
+  };
+
+  // Browser history listener
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab') as AdminTab;
+      const valid: AdminTab[] = [
+        'overview',
+        'users',
+        'accounts',
+        'posts',
+        'billing',
+        'devices',
+        'activity',
+        'system',
+        'security',
+      ];
+      if (tab && valid.includes(tab)) {
+        setActiveTab(tab);
+      } else {
+        setActiveTab('overview');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Data states
   const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
@@ -314,7 +379,7 @@ export default function AdminPage() {
       {/* Sidebar */}
       <AdminSidebar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleAdminTabChange}
         ownerEmail={ownerEmail}
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
