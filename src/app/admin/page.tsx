@@ -566,6 +566,7 @@ export default function AdminPage() {
           onClose={() => setSelectedUserForModal(null)}
           onUpdateStatus={handleUpdateUserStatus}
           onUpdatePlan={handleUpdateUserPlan}
+          onRefresh={fetchUsers}
         />
       )}
     </div>

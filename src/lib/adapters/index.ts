@@ -5,6 +5,7 @@ export interface PublishResult {
   externalPostId?: string;
   externalPostUrl?: string;
   errorMessage?: string;
+  isAssistedCommunityPost?: boolean;
   details?: Record<string, unknown>;
 }
 
@@ -299,20 +300,44 @@ export const linkedinAdapter: PlatformAdapter = {
 export const youtubeAdapter: PlatformAdapter = {
   validatePost(post, override) {
     const errors: string[] = [];
-    const hasVideo = post.media?.some((m) => m.type === 'video');
-    if (!hasVideo) {
-      errors.push('YouTube Data API v3 only supports video uploads (MP4, MOV, WEBM). Community text/photo posts are not supported by YouTube public third-party API.');
-    }
-    const title = override?.title || post.content.split('\n')[0];
-    if (!title || title.trim().length === 0) {
-      errors.push('YouTube requires a video title.');
-    }
-    if (title && title.length > 100) {
-      errors.push(`YouTube video title exceeds 100 characters limit (Current: ${title.length}).`);
+    const hasMedia = post.media && post.media.length > 0;
+    const hasText = (override?.caption || post.content || '').trim().length > 0;
+
+    if (!hasMedia && !hasText) {
+      errors.push('YouTube post requires either an image, video, or caption content.');
     }
     return { valid: errors.length === 0, errors };
   },
   async publish(account, post, override) {
+    const channelId = account.pageId || account.externalId || account.id;
+    const communityUrl =
+      channelId && !channelId.startsWith('acc_')
+        ? `https://www.youtube.com/channel/${channelId}/community`
+        : (account.username ? `https://www.youtube.com/@${account.username.replace(/^@/, '')}/community` : 'https://www.youtube.com');
+
+    const hasVideo = post.media?.some((m) => m.type === 'video');
+
+    // 1. YouTube Community Image/Text Post Workflow (PostingTube's primary social posting mode)
+    // Official API capability check:
+    // Google's public YouTube Data API v3 does not provide third-party API endpoints for direct Community
+    // tab image/text posts. We do not fake published status or misuse video endpoints.
+    // We provide the official 1-Click Assisted Community Publisher so the user publishes directly on their channel.
+    if (!hasVideo) {
+      return {
+        success: false,
+        isAssistedCommunityPost: true,
+        externalPostUrl: communityUrl,
+        errorMessage:
+          'YouTube Data API v3 does not offer third-party API creation for Community image posts. Use the 1-Click Community Publisher to share this image on your channel.',
+        details: {
+          communityUrl,
+          caption: override?.caption || post.content,
+          imageUrl: post.media?.[0]?.url,
+        },
+      };
+    }
+
+    // 2. Video Upload Workflow (when video binary is present)
     const title = override?.title || post.content.split('\n')[0] || 'Scheduled Video';
     const description = override?.caption || post.content;
     const videoMedia = post.media?.find((m) => m.type === 'video') || post.media?.[0];
@@ -320,7 +345,7 @@ export const youtubeAdapter: PlatformAdapter = {
     if (!videoMedia) {
       return {
         success: false,
-        errorMessage: 'YouTube Data API v3 does not support third-party publishing for Community text/image posts. Direct publishing to YouTube requires video content (MP4, MOV, WEBM).',
+        errorMessage: 'Video media is missing for YouTube video upload.',
       };
     }
 
@@ -358,15 +383,17 @@ export const youtubeAdapter: PlatformAdapter = {
           externalPostUrl: data.videoUrl,
           details: data.details,
         };
-      } else {
-        return {
-          success: false,
-          errorMessage: `YouTube API Error: ${data.error || 'Failed to publish video'}`,
-        };
       }
-    } catch (e: unknown) {
-      const err = e instanceof Error ? e.message : 'Network error communicating with YouTube API';
-      return { success: false, errorMessage: err };
+
+      return {
+        success: false,
+        errorMessage: data.error || data.message || 'YouTube publishing failed',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        errorMessage: err.message || 'Failed to connect to YouTube publishing service',
+      };
     }
   },
   async refreshTokens(account) {

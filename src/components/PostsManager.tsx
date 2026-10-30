@@ -52,6 +52,7 @@ interface PostsManagerProps {
   onRetryPost: (post: Post) => void;
   openCreateModal: () => void;
   onPostsUpdated?: (updated: Post[]) => void;
+  onRefreshData?: () => Promise<void> | void;
 }
 
 function formatRelativeTime(dateStr: string | null | undefined): string {
@@ -223,6 +224,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   onRetryPost,
   openCreateModal,
   onPostsUpdated,
+  onRefreshData,
 }) => {
   const [localPosts, setLocalPosts] = useState<Post[]>(posts);
   const [activeTab, setActiveTab] = useState<PostStatus | 'all'>(initialStatusFilter);
@@ -575,15 +577,25 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:space-x-2.5">
-            {/* Real-time Analytics Refresh Button */}
+            {/* Real-time Posts & Analytics Refresh Button */}
             <button
-              onClick={handleRefreshAllAnalytics}
+              onClick={async () => {
+                setIsRefreshingAll(true);
+                try {
+                  if (onRefreshData) {
+                    await onRefreshData();
+                  }
+                  await handleRefreshAllAnalytics();
+                } finally {
+                  setIsRefreshingAll(false);
+                }
+              }}
               disabled={isRefreshingAll}
               className="bg-white border border-gray-200/90 hover:bg-gray-50 text-gray-700 font-semibold py-2 px-3 rounded-xl text-xs shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-              title="Fetch real-time analytics from official platform APIs"
+              title="Fetch latest posts from database and real-time social analytics"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
-              <span>{isRefreshingAll ? 'Refreshing...' : 'Refresh Analytics'}</span>
+              <span>{isRefreshingAll ? 'Refreshing...' : 'Refresh Posts & Analytics'}</span>
             </button>
 
             <button
@@ -814,7 +826,16 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                           ⏱ Scheduled
                                         </span>
                                       )}
-                                      {isAccFailed && (
+                                      {(accResult?.status === 'action_required' ||
+                                        (acc.platform === 'youtube' && isAccFailed && accResult?.errorMessage?.includes('video'))) && (
+                                        <span
+                                          className="inline-flex items-center text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200/60"
+                                          title="Assisted YouTube Community Post ready"
+                                        >
+                                          ℹ Community Post Ready
+                                        </span>
+                                      )}
+                                      {isAccFailed && !(acc.platform === 'youtube' && accResult?.errorMessage?.includes('video')) && (
                                         <span
                                           className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md"
                                           title={accResult?.errorMessage || 'Platform publishing failed'}
@@ -906,16 +927,36 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                             )}
                           </div>
 
-                          {/* Failure Error Alert (if any platform failed) */}
+                          {/* Assisted YouTube Community Post Notification */}
                           {post.results &&
-                            Object.entries(post.results).some(([, r]) => r.status === 'failed') && (
+                            Object.entries(post.results).some(
+                              ([, r]) =>
+                                (r.status === 'action_required' && r.actionType === 'community_assist') ||
+                                (r.platform === 'youtube' && r.status === 'failed' && r.errorMessage?.includes('video'))
+                            ) && (
+                              <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+                                <div className="font-bold flex items-center space-x-1.5 text-amber-950">
+                                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>YouTube Community Image Post Ready</span>
+                                </div>
+                                <p className="text-[11px] text-amber-800 leading-relaxed">
+                                  Official YouTube Data API v3 does not permit direct third-party publishing for Community tab image posts. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and open your channel&apos;s Community tab directly.
+                                </p>
+                              </div>
+                            )}
+
+                          {/* Failure Error Alert (if any platform failed with an unexpected error) */}
+                          {post.results &&
+                            Object.entries(post.results).some(
+                              ([, r]) => r.status === 'failed' && !(r.platform === 'youtube' && r.errorMessage?.includes('video'))
+                            ) && (
                               <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 space-y-1">
                                 <div className="font-bold flex items-center space-x-1.5 text-rose-900">
                                   <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                                   <span>Publishing Alert</span>
                                 </div>
                                 {Object.entries(post.results)
-                                  .filter(([, r]) => r.status === 'failed')
+                                  .filter(([, r]) => r.status === 'failed' && !(r.platform === 'youtube' && r.errorMessage?.includes('video')))
                                   .map(([accId, r]) => {
                                     const acc = accounts.find((a) => a.id === accId);
                                     return (
@@ -965,7 +1006,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               </div>
 
                               {/* Metric Cards Grid */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
                                 {/* Views */}
                                 <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
                                   <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
@@ -1034,7 +1075,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 </div>
 
                                 {/* Shares */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs col-span-2 sm:col-span-1">
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
                                   <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
                                     <Share2 className="w-3 h-3 text-emerald-500" />
                                     <span>Shares</span>
@@ -1048,6 +1089,33 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         title="Platform does not expose share counts publicly"
                                       >
                                         Not available
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Engagement Rate / Interactions */}
+                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                    <Sparkles className="w-3 h-3 text-purple-500" />
+                                    <span>Engagement</span>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {analytics.totalViews && analytics.totalViews > 0 ? (
+                                      <span>
+                                        {(((analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) / analytics.totalViews) * 100).toFixed(1)}%
+                                      </span>
+                                    ) : (analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) > 0 ? (
+                                      <span>
+                                        {(analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)).toLocaleString()}{' '}
+                                        <span className="text-[10px] font-normal text-gray-400">(Actions)</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="text-[11px] text-gray-400 font-normal italic"
+                                        title="Real-time verified engagement actions"
+                                      >
+                                        0%
                                       </span>
                                     )}
                                   </div>
@@ -1113,8 +1181,14 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 </button>
                               )}
 
-                              {/* Retry Failed (for completely failed posts or partial failures) */}
-                              {(post.status === 'failed' || (post.status === 'published' && postAccounts.some((a) => post.results?.[a.id]?.status === 'failed'))) && (
+                              {/* Retry Failed (for completely failed posts or unexpected failures) */}
+                              {(post.status === 'failed' ||
+                                (post.status === 'published' &&
+                                  postAccounts.some(
+                                    (a) =>
+                                      post.results?.[a.id]?.status === 'failed' &&
+                                      !(a.platform === 'youtube' && post.results?.[a.id]?.errorMessage?.includes('video'))
+                                  ))) && (
                                 <button
                                   onClick={() => onRetryPost(post)}
                                   className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
@@ -1125,10 +1199,45 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 </button>
                               )}
 
+                              {/* 1-Click Assisted YouTube Community Publisher Button */}
+                              {postAccounts
+                                .filter((acc) => {
+                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  return (
+                                    acc.platform === 'youtube' &&
+                                    (res?.status === 'action_required' ||
+                                      (res?.status === 'failed' && res?.errorMessage?.includes('video')))
+                                  );
+                                })
+                                .map((acc) => {
+                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  const liveUrl = getPlatformDestinationUrl(acc, res);
+                                  return (
+                                    <button
+                                      key={`yt-comm-${acc.id}`}
+                                      onClick={() => {
+                                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                          navigator.clipboard.writeText(post.content || '');
+                                        }
+                                        alert('Post caption copied to clipboard! Opening your channel\'s YouTube Community tab in a new tab.');
+                                        window.open(liveUrl, '_blank');
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                                      title="Copy caption and open YouTube Community tab to finalize post"
+                                    >
+                                      <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
+                                      <span>Publish to YouTube Community ↗</span>
+                                    </button>
+                                  );
+                                })}
+
                               {/* Per-Platform Live Links (strictly to successful destinations and correct platforms) */}
                               {postAccounts
                                 .filter((acc) => {
                                   const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  if (acc.platform === 'youtube' && (res?.status === 'action_required' || res?.errorMessage?.includes('video'))) {
+                                    return false; // Dedicated YouTube Community button shown above
+                                  }
                                   return (
                                     res?.status === 'success' ||
                                     (post.status === 'published' && (!res || res.status !== 'failed'))

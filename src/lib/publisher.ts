@@ -9,12 +9,13 @@ export interface PublishExecutionSummary {
   results: Record<
     string,
     {
-      status: 'success' | 'failed' | 'pending';
+      status: 'success' | 'failed' | 'pending' | 'action_required';
       platform?: string;
       accountName?: string;
       externalPostId?: string;
       externalPostUrl?: string;
       errorMessage?: string;
+      actionType?: string;
       publishedAt?: string;
       timestamp?: string;
     }
@@ -115,7 +116,20 @@ export async function executePostPublish(
           const latencyMs = Date.now() - dispatchStartTime;
           const finishedAt = new Date().toISOString();
 
-          if (res.success) {
+          if (res.isAssistedCommunityPost) {
+            results[account.id] = {
+              status: 'action_required',
+              platform: account.platform,
+              accountName: account.displayName || account.username,
+              externalPostUrl: res.externalPostUrl,
+              errorMessage: res.errorMessage,
+              actionType: 'community_assist',
+              timestamp: finishedAt,
+            };
+            console.info(
+              `[Assisted YouTube Community] Post #${post.id} -> ${account.displayName}: 1-Click Community Publisher ready.`
+            );
+          } else if (res.success) {
             publishedCount++;
             results[account.id] = {
               status: 'success',
@@ -157,12 +171,15 @@ export async function executePostPublish(
       })
     );
 
+    const hasAssisted = Object.values(results).some((r) => r.status === 'action_required');
     let overallStatus: PostStatus = 'published';
     if (publishedCount === 0 && failedCount > 0) {
       overallStatus = 'failed';
-    } else if (failedCount > 0) {
-      // Partial success: keep as published so completed platforms are preserved,
-      // while results records individual failures for safe re-attempts
+    } else if (publishedCount === 0 && hasAssisted) {
+      // If only YouTube was targeted for an image post, do not mark as published
+      overallStatus = 'draft';
+    } else if (failedCount > 0 || hasAssisted) {
+      // Partial success: keep as published so completed platforms are live
       overallStatus = 'published';
     }
 

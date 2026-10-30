@@ -181,21 +181,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     return initial;
   });
 
-  // Auto-remove YouTube from selection if user switches to Image or Text post
-  useEffect(() => {
-    if (currentPostType !== 'video') {
-      const youtubeAccIds = accounts.filter((a) => a.platform === 'youtube').map((a) => a.id);
-      setSelectedAccountIds((prev) => {
-        const hasYouTube = prev.some((id) => youtubeAccIds.includes(id));
-        if (hasYouTube) {
-          const next = prev.filter((id) => !youtubeAccIds.includes(id));
-          showToast('YouTube was unselected: YouTube Data API v3 supports video uploads only.');
-          return next.length > 0 ? next : (accounts.find((a) => a.platform !== 'youtube') ? [accounts.find((a) => a.platform !== 'youtube')!.id] : []);
-        }
-        return prev;
-      });
-    }
-  }, [currentPostType, accounts]);
   const [collapsedPlatforms, setCollapsedPlatforms] = useState<Record<string, boolean>>({});
 
   // Media state
@@ -582,19 +567,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
-    // YouTube format validation: only video uploads are officially supported by Google Data API v3
-    if (action !== 'draft' && currentPostType !== 'video') {
-      const hasYouTube = selectedAccountIds.some(
-        (id) => accounts.find((a) => a.id === id)?.platform === 'youtube'
-      );
-      if (hasYouTube) {
-        alert(
-          'YouTube Data API v3 only supports video uploads (MP4, MOV, WEBM). Community text/photo posts are not supported by YouTube public third-party API. Please switch post type to Video or unselect YouTube.'
-        );
-        return;
-      }
-    }
-
     // Schedule validation
     if (action === 'schedule' && !isScheduleValid) {
       alert('The selected schedule time is in the past. Please select a future date and time.');
@@ -798,10 +770,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             onToggleAccount={handleToggleAccount}
             onShowNotice={showToast}
             onSelectAll={() => {
-              const validAccs = accounts.filter(
-                (a) => !(a.platform === 'youtube' && currentPostType !== 'video')
-              );
-              const allAccIds = validAccs.map((a) => a.id);
+              const allAccIds = accounts.map((a) => a.id);
               setSelectedAccountIds(allAccIds);
               if (rememberAccounts && typeof window !== 'undefined') {
                 localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
@@ -1499,7 +1468,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   </div>
                 )}
 
-                {/* 3. YOUTUBE (AI Label Only - Altered/Synthetic Content) */}
+                {/* 3. YOUTUBE (Community Image Post & AI Label) */}
                 {selectedPlatforms.includes('youtube') && (
                   <div className="p-4 rounded-xl border border-red-100 bg-linear-to-br from-red-50/40 via-white to-rose-50/20 space-y-3">
                     <div className="flex items-center justify-between">
@@ -1507,7 +1476,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         <PlatformLogo platform="youtube" className="w-4 h-4" />
                         <span className="text-xs font-bold text-gray-900">YouTube</span>
                         <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200/60">
-                          AI Label Only (Altered Content)
+                          Community Image Post
                         </span>
                       </div>
                     </div>
@@ -1520,7 +1489,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                           <span className="text-xs font-bold text-gray-800">Altered or Synthetic Content</span>
                         </div>
                         <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Declare whether this video contains realistic altered or synthetic material (e.g. generative AI video, audio, or faces). Automatically sets official YouTube Data API v3 <code className="text-[10px] text-red-700 bg-red-50 px-1 py-0.5 rounded">status.containsSyntheticMedia</code>.
+                          Declare whether this post contains realistic altered or synthetic material (e.g. generative AI images or text).
                         </p>
                       </div>
                       <button
@@ -1540,10 +1509,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       </button>
                     </div>
 
-                    {/* Clear Unsupported Notice */}
-                    <div className="text-[10px] text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 flex items-center space-x-1.5">
-                      <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span>YouTube third-party API does not support co-author collaboration tags.</span>
+                    {/* Community Post Workflow info */}
+                    <div className="text-[10px] text-gray-500 bg-red-50/40 p-2.5 rounded-lg border border-red-100/80 flex items-start space-x-2">
+                      <Info className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">
+                        YouTube Image Posts are published to your channel&apos;s Community tab with pre-formatted caption copying &amp; 1-click community composer.
+                      </span>
                     </div>
                   </div>
                 )}

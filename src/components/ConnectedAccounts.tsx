@@ -828,6 +828,19 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             Connect and manage your live Facebook Pages, Instagram accounts, and social channels.
           </p>
         </div>
+
+        <button
+          onClick={() => {
+            if (onRefreshAccount) {
+              onRefreshAccount('all');
+            }
+          }}
+          className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
+          title="Re-synchronize connected accounts directly from database"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Refresh Accounts</span>
+        </button>
       </div>
 
       {/* Rows of Platforms */}

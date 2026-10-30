@@ -29,15 +29,6 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const handleAccountClick = (account: SocialAccount) => {
-    if (account.platform === 'youtube' && postType !== 'video') {
-      const msg = 'YouTube Data API v3 only supports video uploads (MP4, MOV, WEBM). Switch post type to Video to publish to YouTube.';
-      if (onShowNotice) {
-        onShowNotice(msg);
-      } else {
-        alert(msg);
-      }
-      return;
-    }
     onToggleAccount(account.id);
   };
 
@@ -73,10 +64,9 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
         </div>
       </div>
 
-      {/* Row of Circular Accounts (matching exact UI screenshot) */}
+      {/* Row of Circular Accounts */}
       <div className="flex items-center flex-wrap gap-3.5 sm:gap-4 py-2">
         {accounts.map((account) => {
-          const isUnsupported = account.platform === 'youtube' && postType !== 'video';
           const isSelected = selectedAccountIds.includes(account.id);
           const isHovered = hoveredId === account.id;
 
@@ -92,9 +82,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                 type="button"
                 onClick={() => handleAccountClick(account)}
                 className={`relative w-12 h-12 rounded-full transition-all duration-150 cursor-pointer focus:outline-none select-none flex items-center justify-center ${
-                  isUnsupported
-                    ? 'opacity-40 grayscale hover:opacity-60 ring-1 ring-amber-400/50'
-                    : isSelected
+                  isSelected
                     ? 'ring-[2.5px] ring-emerald-400 ring-offset-2 ring-offset-white shadow-sm scale-105'
                     : 'grayscale opacity-40 hover:opacity-85 hover:grayscale-0 hover:scale-102'
                 }`}
@@ -104,16 +92,6 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                 <div className="absolute -top-1 -left-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm border border-gray-200/90 flex items-center justify-center z-10">
                   <PlatformLogo platform={account.platform} className="w-2.5 h-2.5 text-gray-800" />
                 </div>
-
-                {/* Video Only Badge for YouTube when not in Video mode */}
-                {isUnsupported && (
-                  <div
-                    className="absolute -bottom-1 -right-1 bg-amber-500 text-white text-[8px] font-extrabold px-1 py-0.2 rounded-full shadow-xs uppercase tracking-tight z-10"
-                    title="YouTube API supports video uploads only"
-                  >
-                    Video
-                  </div>
-                )}
 
                 {/* Profile Image Avatar */}
                 {account.avatarUrl ? (
@@ -141,9 +119,9 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   {/* Tooltip Content */}
                   <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center">
                     <div>{account.displayName || `@${account.username}`}</div>
-                    {isUnsupported && (
-                      <div className="text-[10px] text-amber-300 font-normal mt-0.5">
-                        ⚠️ Video uploads only (switch to Video Post)
+                    {account.platform === 'youtube' && postType !== 'video' && (
+                      <div className="text-[10px] text-amber-200 font-normal mt-0.5">
+                        YouTube Community Image Post
                       </div>
                     )}
                   </div>

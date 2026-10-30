@@ -107,12 +107,13 @@ export interface Post {
   results?: Record<
     string,
     {
-      status: 'success' | 'failed' | 'pending';
+      status: 'success' | 'failed' | 'pending' | 'action_required';
       platform?: string;
       accountName?: string;
       externalPostId?: string;
       externalPostUrl?: string;
       errorMessage?: string;
+      actionType?: string;
       publishedAt?: string;
       timestamp?: string;
       analytics?: PlatformPostMetrics;

@@ -814,10 +814,25 @@ export default function DashboardPage() {
     await DatabaseService.deleteAccount(id, authUser?.id);
   };
 
+  const handleRefreshUserData = async () => {
+    if (!authUser?.id) return;
+    try {
+      const userWs = await getUserWorkspaceId(authUser.id);
+      setCurrentWorkspaceId(userWs);
+      const [dbAccounts, dbPosts] = await Promise.all([
+        DatabaseService.getAccounts(authUser.id, userWs),
+        DatabaseService.getPosts(authUser.id, userWs),
+      ]);
+      setAccounts(dbAccounts);
+      setPosts(dbPosts);
+    } catch (err) {
+      console.warn('Failed to refresh user data:', err);
+    }
+  };
+
   const handleRefreshAccount = async (id: string) => {
     if (id === 'all') {
-      const refreshed = await DatabaseService.getAccounts(authUser?.id);
-      setAccounts(refreshed);
+      await handleRefreshUserData();
       return;
     }
     const updatedAccounts = accounts.map((a) =>
@@ -1053,6 +1068,7 @@ export default function DashboardPage() {
             posts={posts}
             accounts={accounts}
             workspaceId={currentWorkspaceId}
+            onRefreshData={handleRefreshUserData}
             onPostsUpdated={(updated) => {
               queueMicrotask(() => setPosts(updated));
             }}

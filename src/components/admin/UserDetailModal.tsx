@@ -20,6 +20,7 @@ import {
   Smartphone,
   Ban,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminCustomerProfile } from '@/lib/admin/service';
 import { PlatformLogo } from '@/components/SocialIcons';
@@ -29,6 +30,7 @@ interface UserDetailModalProps {
   onClose: () => void;
   onUpdateStatus: (userId: string, newStatus: 'active' | 'suspended') => Promise<void>;
   onUpdatePlan?: (userId: string, newPlan: 'free' | 'creator_pro' | 'agency_scale') => Promise<void>;
+  onRefresh?: () => void;
 }
 
 export const UserDetailModal: React.FC<UserDetailModalProps> = ({
@@ -36,6 +38,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
   onClose,
   onUpdateStatus,
   onUpdatePlan,
+  onRefresh,
 }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'accounts' | 'posts' | 'billing'>('info');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -92,6 +95,17 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors cursor-pointer shadow-2xs"
+                title="Refresh customer profile & statistics"
+              >
+                <RefreshCw className="w-4 h-4 text-emerald-600" />
+              </button>
+            )}
+
             <button
               type="button"
               disabled={isUpdating}

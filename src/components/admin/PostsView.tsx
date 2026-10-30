@@ -30,6 +30,7 @@ interface PostsViewProps {
   onSearch: (query: string) => void;
   onRetryPost: (postId: string) => Promise<void>;
   onOpenUserProfile?: (userEmailOrId: string) => void;
+  onRefresh?: () => void;
   users?: Array<{ id: string; email: string; fullName?: string }>;
 }
 
@@ -44,6 +45,7 @@ export const PostsView: React.FC<PostsViewProps> = ({
   onSearch,
   onRetryPost,
   onOpenUserProfile,
+  onRefresh,
   users = [],
 }) => {
   const [search, setSearch] = useState('');
@@ -109,14 +111,28 @@ export const PostsView: React.FC<PostsViewProps> = ({
           </p>
         </div>
 
-        <a
-          href="/api/admin/export?type=posts"
-          download
-          className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
-        >
-          <Download className="w-3.5 h-3.5 text-gray-500" />
-          <span>Export Posts CSV</span>
-        </a>
+        <div className="flex items-center space-x-2">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Refresh all customer posts directly from database"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 text-gray-500 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh Posts</span>
+            </button>
+          )}
+
+          <a
+            href="/api/admin/export?type=posts"
+            download
+            className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs w-fit"
+          >
+            <Download className="w-3.5 h-3.5 text-gray-500" />
+            <span>Export Posts CSV</span>
+          </a>
+        </div>
       </div>
 
       {/* Metrics Summary Cards */}
