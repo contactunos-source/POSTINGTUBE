@@ -1070,7 +1070,9 @@ export default function DashboardPage() {
             workspaceId={currentWorkspaceId}
             onRefreshData={handleRefreshUserData}
             onPostsUpdated={(updated) => {
-              queueMicrotask(() => setPosts(updated));
+              setTimeout(() => {
+                setPosts(updated);
+              }, 0);
             }}
             initialStatusFilter={
               activeTab === 'posts-scheduled'

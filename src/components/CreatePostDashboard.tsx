@@ -193,6 +193,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [instagramAiLabel, setInstagramAiLabel] = useState<boolean>(
     initialPost?.platformOverrides?.instagram?.isAiGenerated ?? initialPost?.isAiGenerated ?? false
   );
+  const [isInstagramCollabEnabled, setIsInstagramCollabEnabled] = useState<boolean>(
+    Boolean(initialPost?.platformOverrides?.instagram?.collaborator || initialPost?.collaborators)
+  );
   const [instagramCollaborators, setInstagramCollaborators] = useState<string>(
     initialPost?.platformOverrides?.instagram?.collaborator ?? initialPost?.collaborators ?? ''
   );
@@ -336,7 +339,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             : acc?.platform === 'youtube'
             ? youtubeAiLabel
             : false;
-        const collab = acc?.platform === 'instagram' ? instagramCollaborators.trim() || undefined : undefined;
+        const collab =
+          acc?.platform === 'instagram' && isInstagramCollabEnabled
+            ? instagramCollaborators.trim() || undefined
+            : undefined;
 
         overrides[accId] = {
           ...cap,
@@ -367,7 +373,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       media: mediaList,
       platformOverrides: overrides,
       accountOverrides: overrides,
-      collaborators: selectedPlatforms.includes('instagram') ? instagramCollaborators.trim() || undefined : undefined,
+      collaborators:
+        selectedPlatforms.includes('instagram') && isInstagramCollabEnabled
+          ? instagramCollaborators.trim() || undefined
+          : undefined,
       isAiGenerated: isAnyAi,
       postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
     };
@@ -379,6 +388,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     accounts,
     selectedPlatforms,
     instagramAiLabel,
+    isInstagramCollabEnabled,
     instagramCollaborators,
     facebookAiLabel,
     youtubeAiLabel,
@@ -601,7 +611,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             : false;
 
         const collab =
-          acc.platform === 'instagram' ? instagramCollaborators.trim() || undefined : undefined;
+          acc.platform === 'instagram' && isInstagramCollabEnabled
+            ? instagramCollaborators.trim() || undefined
+            : undefined;
 
         const overrideObj: PlatformCaptionOverride = {
           ...accData,
@@ -637,7 +649,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         platformOverrides: platformOverrides,
         accountOverrides: accountOverrides,
         tags: initialPost?.tags || [],
-        collaborators: selectedPlatforms.includes('instagram') ? instagramCollaborators.trim() || undefined : undefined,
+        collaborators:
+          selectedPlatforms.includes('instagram') && isInstagramCollabEnabled
+            ? instagramCollaborators.trim() || undefined
+            : undefined,
         isAiGenerated: isAnyAi,
         scheduledFor: scheduledIso,
       };
@@ -1025,98 +1040,269 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               </div>
             )}
 
-            {/* 2. MAIN / DEFAULT CAPTION EDITOR */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-3 focus-within:border-emerald-500 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                    <span>
-                      {selectedAccountIds.length > 1
-                        ? 'Main Caption (Master / Default)'
-                        : accounts.find((a) => a.id === selectedAccountIds[0])
-                        ? `${accounts.find((a) => a.id === selectedAccountIds[0])?.displayName || accounts.find((a) => a.id === selectedAccountIds[0])?.username} Caption`
-                        : 'Post Caption'}
-                    </span>
-                    {selectedAccountIds.length === 1 && accounts.find((a) => a.id === selectedAccountIds[0]) && (
-                      <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize">
-                        {accounts.find((a) => a.id === selectedAccountIds[0])?.platform}
-                      </span>
+            {/* 2. MAIN / DEFAULT CAPTION EDITOR WITH INTEGRATED LEFT-SIDE PLATFORM FEATURES */}
+            {(() => {
+              const hasPlatformFeatures =
+                selectedPlatforms.includes('instagram') ||
+                selectedPlatforms.includes('facebook') ||
+                selectedPlatforms.includes('youtube');
+
+              return (
+                <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs focus-within:border-emerald-500 transition-colors overflow-hidden">
+                  <div className="flex flex-col md:flex-row items-stretch">
+                    {/* Left Side: Compact Platform Features Panel */}
+                    {hasPlatformFeatures && (
+                      <div className="w-full md:w-64 lg:w-72 bg-slate-50/70 border-b md:border-b-0 md:border-r border-gray-100 p-4 shrink-0 space-y-3.5">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-200/60">
+                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            Platform Features
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {/* Instagram Features */}
+                          {selectedPlatforms.includes('instagram') && (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
+                                <PlatformLogo platform="instagram" className="w-3.5 h-3.5" />
+                                <span>Instagram</span>
+                              </div>
+
+                              {/* Row 1: AI-Generated Content */}
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                  <span className="text-xs font-semibold text-gray-800 truncate">
+                                    AI-Generated Content
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={instagramAiLabel}
+                                  onClick={() => setInstagramAiLabel(!instagramAiLabel)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                                    instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                      instagramAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              {/* Row 2: Collaboration Settings */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
+                                  <div className="flex items-center space-x-2 min-w-0">
+                                    <Users className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    <span className="text-xs font-semibold text-gray-800 truncate">
+                                      Collaboration Settings
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={isInstagramCollabEnabled}
+                                    onClick={() => setIsInstagramCollabEnabled(!isInstagramCollabEnabled)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                                      isInstagramCollabEnabled ? 'bg-rose-600' : 'bg-gray-200'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                        isInstagramCollabEnabled ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                                {isInstagramCollabEnabled && (
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-2 text-xs font-bold text-rose-400 select-none">@</span>
+                                    <input
+                                      type="text"
+                                      value={instagramCollaborators}
+                                      onChange={(e) => setInstagramCollaborators(e.target.value)}
+                                      placeholder="handles (comma-separated)"
+                                      className="w-full pl-6 pr-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-rose-400 focus:ring-1 focus:ring-rose-200 text-gray-800 placeholder:text-gray-400"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Facebook Features */}
+                          {selectedPlatforms.includes('facebook') && (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
+                                <PlatformLogo platform="facebook" className="w-3.5 h-3.5" />
+                                <span>Facebook</span>
+                              </div>
+
+                              {/* Row: AI-Generated Content */}
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <span className="text-xs font-semibold text-gray-800 truncate">
+                                    AI-Generated Content
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={facebookAiLabel}
+                                  onClick={() => setFacebookAiLabel(!facebookAiLabel)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                                    facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                      facebookAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* YouTube Features */}
+                          {selectedPlatforms.includes('youtube') && (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
+                                <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
+                                <span>YouTube</span>
+                              </div>
+
+                              {/* Row: AI-Generated Content */}
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <Sparkles className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                  <span className="text-xs font-semibold text-gray-800 truncate">
+                                    AI-Generated Content
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={youtubeAiLabel}
+                                  onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                                    youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                      youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    <Info className="w-3.5 h-3.5 text-gray-400" />
-                  </span>
-                  {selectedAccountIds.length > 1 ? (
-                    <span className="text-[11px] text-gray-400 block mt-0.5">
-                      Applies automatically across all selected accounts unless customized below.
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-gray-400 block mt-0.5">
-                      Default caption for your selected account.
-                    </span>
-                  )}
-                </div>
 
-                {/* Live Character & Hashtag Counter */}
-                <div className="flex items-center space-x-3 text-xs text-gray-400 font-medium">
-                  <span className="flex items-center space-x-1">
-                    <Hash className="w-3 h-3 text-gray-400" />
-                    <span>{mainHashtagsCount}/30</span>
-                  </span>
-                  <span>•</span>
-                  <span
-                    className={`font-mono ${
-                      mainCharsRemaining < 50 ? 'text-amber-600 font-bold' : ''
-                    }`}
-                  >
-                    {mainCaption.length} chars
-                  </span>
-                </div>
-              </div>
+                    {/* Right Side: Main Caption Editor */}
+                    <div className="flex-1 p-5 space-y-3 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                            <span>
+                              {selectedAccountIds.length > 1
+                                ? 'Main Caption (Master / Default)'
+                                : accounts.find((a) => a.id === selectedAccountIds[0])
+                                ? `${accounts.find((a) => a.id === selectedAccountIds[0])?.displayName || accounts.find((a) => a.id === selectedAccountIds[0])?.username} Caption`
+                                : 'Post Caption'}
+                            </span>
+                            {selectedAccountIds.length === 1 && accounts.find((a) => a.id === selectedAccountIds[0]) && (
+                              <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize">
+                                {accounts.find((a) => a.id === selectedAccountIds[0])?.platform}
+                              </span>
+                            )}
+                            <Info className="w-3.5 h-3.5 text-gray-400" />
+                          </span>
+                          {selectedAccountIds.length > 1 ? (
+                            <span className="text-[11px] text-gray-400 block mt-0.5">
+                              Applies automatically across all selected accounts unless customized below.
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-gray-400 block mt-0.5">
+                              Default caption for your selected account.
+                            </span>
+                          )}
+                        </div>
 
-              {/* Textarea */}
-              <textarea
-                value={mainCaption}
-                onChange={(e) => setMainCaption(e.target.value)}
-                placeholder="What would you like to share? Write your post caption and hashtags..."
-                className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
-              />
+                        {/* Live Character & Hashtag Counter */}
+                        <div className="flex items-center space-x-3 text-xs text-gray-400 font-medium">
+                          <span className="flex items-center space-x-1">
+                            <Hash className="w-3 h-3 text-gray-400" />
+                            <span>{mainHashtagsCount}/30</span>
+                          </span>
+                          <span>•</span>
+                          <span
+                            className={`font-mono ${
+                              mainCharsRemaining < 50 ? 'text-amber-600 font-bold' : ''
+                            }`}
+                          >
+                            {mainCaption.length} chars
+                          </span>
+                        </div>
+                      </div>
 
-              {/* Emoji Picker Bar */}
-              {showEmojiPicker && (
-                <div
-                  ref={emojiPickerRef}
-                  className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base"
-                >
-                  {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
-                    (em) => (
-                      <button
-                        key={em}
-                        type="button"
-                        onClick={() => setMainCaption(mainCaption + ' ' + em)}
-                        className="hover:scale-125 transition-transform p-1 cursor-pointer"
-                      >
-                        {em}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
+                      {/* Textarea */}
+                      <textarea
+                        value={mainCaption}
+                        onChange={(e) => setMainCaption(e.target.value)}
+                        placeholder="What would you like to share? Write your post caption and hashtags..."
+                        className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
+                      />
 
-              {/* Footer Toolbar: Emoji Picker */}
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-                <div className="flex items-center space-x-2">
-                  <button
-                    ref={emojiButtonRef}
-                    type="button"
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5 border border-gray-200/80 bg-gray-50/50"
-                    title="Insert Emoji"
-                  >
-                    <Smile className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-medium text-gray-600">Emoji</span>
-                  </button>
+                      {/* Emoji Picker Bar */}
+                      {showEmojiPicker && (
+                        <div
+                          ref={emojiPickerRef}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base"
+                        >
+                          {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
+                            (em) => (
+                              <button
+                                key={em}
+                                type="button"
+                                onClick={() => setMainCaption(mainCaption + ' ' + em)}
+                                className="hover:scale-125 transition-transform p-1 cursor-pointer"
+                              >
+                                {em}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer Toolbar: Emoji Picker */}
+                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            ref={emojiButtonRef}
+                            type="button"
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5 border border-gray-200/80 bg-gray-50/50"
+                            title="Insert Emoji"
+                          >
+                            <Smile className="w-4 h-4 text-amber-500" />
+                            <span className="text-xs font-medium text-gray-600">Emoji</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EVERY SELECTED ACCOUNT (Shown when >1 account selected) */}
             {selectedAccountIds.length > 1 && (
@@ -1323,213 +1509,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               </div>
             )}
 
-            {/* Platform-Specific Feature Options */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                    Platform Features
-                  </span>
-                </div>
-                <span className="text-[11px] text-gray-400">
-                  {selectedPlatforms.length === 0
-                    ? 'No accounts selected'
-                    : `${selectedPlatforms.length} platform${selectedPlatforms.length > 1 ? 's' : ''} active`}
-                </span>
-              </div>
 
-              {/* Empty state when no platforms selected */}
-              {selectedPlatforms.length === 0 && (
-                <div className="py-6 px-4 text-center rounded-xl border border-dashed border-gray-200 bg-gray-50/50">
-                  <Info className="w-5 h-5 text-gray-400 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-gray-600">Select social accounts above</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Platform options (AI Label, Collaborations) appear dynamically for Instagram, Facebook, and YouTube.
-                  </p>
-                </div>
-              )}
-
-              {/* Dynamic Platform Feature Options */}
-              <div className="space-y-4">
-                {/* 1. INSTAGRAM (AI Label + Collaborations) */}
-                {selectedPlatforms.includes('instagram') && (
-                  <div className="p-4 rounded-xl border border-rose-100 bg-linear-to-br from-rose-50/40 via-white to-pink-50/20 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <PlatformLogo platform="instagram" className="w-4 h-4" />
-                        <span className="text-xs font-bold text-gray-900">Instagram</span>
-                        <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60">
-                          AI Label + Collaborations
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Feature 1A: AI Label */}
-                    <div className="flex items-start justify-between gap-4 pt-1 border-t border-rose-100/60">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span className="text-xs font-bold text-gray-800">AI-Generated Content Label</span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Disclose that this photo, carousel, or reel was created or modified using generative AI. Meta will attach an official <span className="font-semibold text-gray-700">&quot;AI info&quot;</span> label via <code className="text-[10px] text-purple-700 bg-purple-50 px-1 py-0.5 rounded">is_ai_generated</code>.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={instagramAiLabel}
-                        onClick={() => setInstagramAiLabel(!instagramAiLabel)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                          instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            instagramAiLabel ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Feature 1B: Collaborations */}
-                    <div className="space-y-2 pt-2 border-t border-rose-100/60">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-1.5">
-                          <Users className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                          <span className="text-xs font-bold text-gray-800">Instagram Collaborations</span>
-                        </div>
-                        <span className="text-[10px] text-gray-400">Up to 5 accounts</span>
-                      </div>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-xs font-bold text-rose-400 select-none">@</span>
-                        <input
-                          type="text"
-                          value={instagramCollaborators}
-                          onChange={(e) => setInstagramCollaborators(e.target.value)}
-                          placeholder="creator_handle, partner_brand (comma-separated)"
-                          className="w-full pl-7 pr-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:outline-hidden focus:border-rose-400 focus:ring-1 focus:ring-rose-200 transition-all text-gray-800 placeholder:text-gray-400"
-                        />
-                      </div>
-                      <p className="text-[10px] text-gray-500 leading-relaxed">
-                        Invites public Instagram accounts as co-authors. Once accepted, your post will also appear on the collaborator&apos;s feed grid and reach their followers.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. FACEBOOK (AI Label Only) */}
-                {selectedPlatforms.includes('facebook') && (
-                  <div className="p-4 rounded-xl border border-blue-100 bg-linear-to-br from-blue-50/40 via-white to-sky-50/20 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <PlatformLogo platform="facebook" className="w-4 h-4" />
-                        <span className="text-xs font-bold text-gray-900">Facebook</span>
-                        <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
-                          AI Label Only
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Feature 2: AI Label */}
-                    <div className="flex items-start justify-between gap-4 pt-1 border-t border-blue-100/60">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span className="text-xs font-bold text-gray-800">AI-Generated Content Label</span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Disclose that this post or video contains AI-generated or modified content (sets official Meta Graph API parameter <code className="text-[10px] text-blue-700 bg-blue-50 px-1 py-0.5 rounded">is_ai_generated</code>).
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={facebookAiLabel}
-                        onClick={() => setFacebookAiLabel(!facebookAiLabel)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                          facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            facebookAiLabel ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Clear Unsupported Notice */}
-                    <div className="text-[10px] text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 flex items-center space-x-1.5">
-                      <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                      <span>Co-author collaborations are exclusively supported on Instagram.</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. YOUTUBE (Community Image Post & AI Label) */}
-                {selectedPlatforms.includes('youtube') && (
-                  <div className="p-4 rounded-xl border border-red-100 bg-linear-to-br from-red-50/40 via-white to-rose-50/20 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <PlatformLogo platform="youtube" className="w-4 h-4" />
-                        <span className="text-xs font-bold text-gray-900">YouTube</span>
-                        <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200/60">
-                          Community Image Post
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Feature 3: AI Label */}
-                    <div className="flex items-start justify-between gap-4 pt-1 border-t border-red-100/60">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                          <span className="text-xs font-bold text-gray-800">Altered or Synthetic Content</span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Declare whether this post contains realistic altered or synthetic material (e.g. generative AI images or text).
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={youtubeAiLabel}
-                        onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                          youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            youtubeAiLabel ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Community Post Workflow info */}
-                    <div className="text-[10px] text-gray-500 bg-red-50/40 p-2.5 rounded-lg border border-red-100/80 flex items-start space-x-2">
-                      <Info className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
-                      <span className="leading-relaxed">
-                        YouTube Image Posts are published to your channel&apos;s Community tab with pre-formatted caption copying &amp; 1-click community composer.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Other Platforms Selected (e.g. LinkedIn, Twitter, etc.) */}
-                {selectedPlatforms.filter((p) => p !== 'instagram' && p !== 'facebook' && p !== 'youtube').map((plat) => (
-                  <div key={plat} className="p-3 rounded-xl border border-gray-200 bg-gray-50/50 flex items-center space-x-2 text-[11px] text-gray-500">
-                    <PlatformLogo platform={plat} className="w-4 h-4 shrink-0" />
-                    <span>
-                      <strong className="capitalize">{plat}</strong> does not support AI labeling or collaboration tags via official third-party posting APIs.
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* RIGHT COLUMN: Redesigned Scheduling Engine & Live Feed Preview */}

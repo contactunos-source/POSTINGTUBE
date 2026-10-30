@@ -291,6 +291,17 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
     return false;
   };
 
+  const isYouTubeCommunityIssue = (acc: SocialAccount, res?: any) => {
+    const isYt = acc.platform === 'youtube' || res?.platform === 'youtube';
+    if (!isYt) return false;
+    if (res?.status === 'action_required' && res?.actionType === 'community_assist') return true;
+    const msg = (res?.errorMessage || '').toLowerCase();
+    return (
+      (res?.status === 'failed' || res?.status === 'action_required') &&
+      (msg.includes('video') || msg.includes('community') || msg.includes('photo') || msg.includes('image'))
+    );
+  };
+
   // Calculate live counts for the status navigation bar
   const counts = useMemo(() => {
     return {
@@ -337,7 +348,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
         setLocalPosts(next);
         if (onPostsUpdated) {
-          onPostsUpdated(next);
+          setTimeout(() => onPostsUpdated(next), 0);
         }
 
         setSelectedPostForDetails((prev) => {
@@ -406,7 +417,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
 
         setLocalPosts(next);
         if (onPostsUpdated) {
-          onPostsUpdated(next);
+          setTimeout(() => onPostsUpdated(next), 0);
         }
 
         setSelectedPostForDetails((prev) => {
@@ -456,7 +467,10 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
     });
 
     if (needsFetch) {
-      handleRefreshAllAnalytics();
+      const timer = setTimeout(() => {
+        handleRefreshAllAnalytics();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -826,23 +840,30 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                           ⏱ Scheduled
                                         </span>
                                       )}
-                                      {(accResult?.status === 'action_required' ||
-                                        (acc.platform === 'youtube' && isAccFailed && accResult?.errorMessage?.includes('video'))) && (
-                                        <span
-                                          className="inline-flex items-center text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200/60"
-                                          title="Assisted YouTube Community Post ready"
-                                        >
-                                          ℹ Community Post Ready
-                                        </span>
-                                      )}
-                                      {isAccFailed && !(acc.platform === 'youtube' && accResult?.errorMessage?.includes('video')) && (
-                                        <span
-                                          className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md"
-                                          title={accResult?.errorMessage || 'Platform publishing failed'}
-                                        >
-                                          ✕ Failed
-                                        </span>
-                                      )}
+                                      {(() => {
+                                        const isYtAssist = isYouTubeCommunityIssue(acc, accResult);
+                                        if (isYtAssist) {
+                                          return (
+                                            <span
+                                              className="inline-flex items-center text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200/60"
+                                              title="Assisted YouTube Community Post ready"
+                                            >
+                                              ℹ Community Post Ready
+                                            </span>
+                                          );
+                                        }
+                                        if (isAccFailed) {
+                                          return (
+                                            <span
+                                              className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md"
+                                              title={accResult?.errorMessage || 'Platform publishing failed'}
+                                            >
+                                              ✕ Failed
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                       {post.status === 'draft' && (
                                         <span className="inline-flex items-center text-[10px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.2 rounded-md">
                                           Draft
@@ -928,45 +949,45 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                           </div>
 
                           {/* Assisted YouTube Community Post Notification */}
-                          {post.results &&
-                            Object.entries(post.results).some(
-                              ([, r]) =>
-                                (r.status === 'action_required' && r.actionType === 'community_assist') ||
-                                (r.platform === 'youtube' && r.status === 'failed' && r.errorMessage?.includes('video'))
-                            ) && (
-                              <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3 text-xs text-amber-900 space-y-1">
-                                <div className="font-bold flex items-center space-x-1.5 text-amber-950">
-                                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>YouTube Community Image Post Ready</span>
-                                </div>
-                                <p className="text-[11px] text-amber-800 leading-relaxed">
-                                  Official YouTube Data API v3 does not permit direct third-party publishing for Community tab image posts. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and open your channel&apos;s Community tab directly.
-                                </p>
+                          {postAccounts.some((acc) =>
+                            isYouTubeCommunityIssue(acc, post.results?.[acc.id] || post.results?.[acc.platform])
+                          ) && (
+                            <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+                              <div className="font-bold flex items-center space-x-1.5 text-amber-950">
+                                <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>YouTube Community Image Post Ready</span>
                               </div>
-                            )}
+                              <p className="text-[11px] text-amber-800 leading-relaxed">
+                                Official YouTube Data API v3 does not permit direct third-party publishing for Community tab image posts. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and open your channel&apos;s Community tab directly.
+                              </p>
+                            </div>
+                          )}
 
                           {/* Failure Error Alert (if any platform failed with an unexpected error) */}
-                          {post.results &&
-                            Object.entries(post.results).some(
-                              ([, r]) => r.status === 'failed' && !(r.platform === 'youtube' && r.errorMessage?.includes('video'))
-                            ) && (
-                              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 space-y-1">
-                                <div className="font-bold flex items-center space-x-1.5 text-rose-900">
-                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                                  <span>Publishing Alert</span>
-                                </div>
-                                {Object.entries(post.results)
-                                  .filter(([, r]) => r.status === 'failed' && !(r.platform === 'youtube' && r.errorMessage?.includes('video')))
-                                  .map(([accId, r]) => {
-                                    const acc = accounts.find((a) => a.id === accId);
-                                    return (
-                                      <div key={accId} className="text-[11px] text-rose-700">
-                                        • {acc?.displayName || 'Account'}: {r.errorMessage || 'Unknown error'}
-                                      </div>
-                                    );
-                                  })}
+                          {postAccounts.some((acc) => {
+                            const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                            return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
+                          }) && (
+                            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 space-y-1">
+                              <div className="font-bold flex items-center space-x-1.5 text-rose-900">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Publishing Alert</span>
                               </div>
-                            )}
+                              {postAccounts
+                                .filter((acc) => {
+                                  const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
+                                })
+                                .map((acc) => {
+                                  const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  return (
+                                    <div key={acc.id} className="text-[11px] text-rose-700">
+                                      • {acc.displayName || acc.username}: {r?.errorMessage || 'Unknown error'}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
 
                           {/* Real-Time Social Media Analytics Bar (Official APIs) */}
                           {post.status === 'published' && (
@@ -1184,11 +1205,10 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               {/* Retry Failed (for completely failed posts or unexpected failures) */}
                               {(post.status === 'failed' ||
                                 (post.status === 'published' &&
-                                  postAccounts.some(
-                                    (a) =>
-                                      post.results?.[a.id]?.status === 'failed' &&
-                                      !(a.platform === 'youtube' && post.results?.[a.id]?.errorMessage?.includes('video'))
-                                  ))) && (
+                                  postAccounts.some((a) => {
+                                    const r = post.results?.[a.id] || post.results?.[a.platform];
+                                    return r?.status === 'failed' && !isYouTubeCommunityIssue(a, r);
+                                  }))) && (
                                 <button
                                   onClick={() => onRetryPost(post)}
                                   className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
@@ -1203,11 +1223,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               {postAccounts
                                 .filter((acc) => {
                                   const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  return (
-                                    acc.platform === 'youtube' &&
-                                    (res?.status === 'action_required' ||
-                                      (res?.status === 'failed' && res?.errorMessage?.includes('video')))
-                                  );
+                                  return isYouTubeCommunityIssue(acc, res);
                                 })
                                 .map((acc) => {
                                   const res = post.results?.[acc.id] || post.results?.[acc.platform];
@@ -1235,7 +1251,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               {postAccounts
                                 .filter((acc) => {
                                   const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  if (acc.platform === 'youtube' && (res?.status === 'action_required' || res?.errorMessage?.includes('video'))) {
+                                  if (isYouTubeCommunityIssue(acc, res)) {
                                     return false; // Dedicated YouTube Community button shown above
                                   }
                                   return (
