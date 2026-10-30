@@ -1362,6 +1362,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                 <img
                                   src={acc.avatarUrl}
                                   alt={acc.displayName || acc.username}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null;
+                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username || 'A')}&background=059669&color=fff&size=128&bold=true`;
+                                  }}
                                   className="w-8 h-8 rounded-full object-cover border border-gray-200"
                                 />
                               ) : (

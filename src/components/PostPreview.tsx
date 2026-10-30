@@ -56,8 +56,11 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
   const username = activeAccount?.username || 'your_channel';
   const displayName = activeAccount?.displayName || 'Your Channel';
   const avatar =
-    activeAccount?.avatarUrl ||
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
+    activeAccount?.avatarUrl && !activeAccount.avatarUrl.includes('unsplash.com')
+      ? activeAccount.avatarUrl
+      : activeAccount?.platform === 'facebook' && (activeAccount?.pageId || activeAccount?.id)
+      ? `https://graph.facebook.com/${(activeAccount.pageId || activeAccount.id || '').replace(/^fb_/, '')}/picture?type=large`
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=059669&color=fff&size=256&bold=true`;
 
   // Compute container aspect ratio class based on user choice
   const getMediaAspectClass = () => {
@@ -152,7 +155,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {/* Bottom Caption & Profile Overlay */}
             <div className="relative z-10 p-3.5 space-y-2">
               <div className="flex items-center space-x-2">
-                <img src={avatar} alt={username} className="w-7 h-7 rounded-full object-cover ring-2 ring-white/60" />
+                <img src={avatar} referrerPolicy="no-referrer" alt={username} className="w-7 h-7 rounded-full object-cover ring-2 ring-white/60" />
                 <span className="text-xs font-bold text-white">@{username}{collaborator ? ` & @${collaborator.replace(/^@/, '')}` : ''}</span>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-white bg-black/50 border border-white/20 px-1.5 py-0.5 rounded-full backdrop-blur-xs"><Sparkles className="w-2.5 h-2.5 text-purple-300" />AI info</span>)}
                 <button type="button" className="text-[10px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
                   Follow
@@ -173,7 +176,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-gray-100">
               <div className="flex items-center space-x-2.5">
-                <img src={avatar} alt={username} className="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200" />
+                <img src={avatar} referrerPolicy="no-referrer" alt={username} className="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200" />
                 <div>
                   <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{collaborator ? `${username} and @${collaborator.replace(/^@/, '')}` : username}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
                   <div className="text-[10px] text-gray-400">Sponsored • Original Audio</div>
@@ -237,7 +240,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
           {/* Header */}
           <div className="p-3.5 flex items-center justify-between border-b border-gray-100">
             <div className="flex items-center space-x-2.5">
-              <img src={avatar} alt={displayName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+              <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
               <div>
                 <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{displayName}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
                 <div className="text-[11px] text-gray-500 flex items-center space-x-1 mt-0.5">
@@ -374,7 +377,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {/* Bottom Channel Info & Title */}
             <div className="relative z-10 p-3.5 space-y-2">
               <div className="flex items-center space-x-2">
-                <img src={avatar} alt={displayName} className="w-7 h-7 rounded-full object-cover" />
+                <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-7 h-7 rounded-full object-cover" />
                 <span className="text-xs font-bold text-white">@{username}</span>
                 <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
                   Subscribe
@@ -392,7 +395,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {/* Channel Header Row */}
             <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-gray-100">
               <div className="flex items-center space-x-2.5 min-w-0">
-                <img src={avatar} alt={displayName} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-8 h-8 rounded-full object-cover shrink-0" />
                 <div className="min-w-0">
                   <h5 className="text-xs font-bold text-gray-900 truncate">{displayName}</h5>
                   <span className="text-[10px] text-gray-400 block">YouTube Channel</span>
@@ -457,7 +460,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">
           <div className="flex items-start space-x-3">
             <div className="relative">
-              <img src={avatar} alt={username} className="w-9 h-9 rounded-full object-cover" />
+              <img src={avatar} referrerPolicy="no-referrer" alt={username} className="w-9 h-9 rounded-full object-cover" />
               <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-black text-white text-[10px] flex items-center justify-center font-bold">
                 +
               </div>
@@ -498,7 +501,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-2.5">
-              <img src={avatar} alt={displayName} className="w-10 h-10 rounded-full object-cover" />
+              <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-10 h-10 rounded-full object-cover" />
               <div>
                 <h4 className="text-xs font-bold text-gray-900">{displayName}</h4>
                 <p className="text-[10px] text-gray-500">Creator & Agency Lead • 1st</p>
@@ -582,7 +585,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               {caption.split('\n')[0] || 'Pin Title Preview'}
             </h4>
             <div className="flex items-center space-x-2 pt-1">
-              <img src={avatar} alt={displayName} className="w-5 h-5 rounded-full object-cover" />
+              <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-5 h-5 rounded-full object-cover" />
               <span className="text-[11px] font-semibold text-gray-700">{displayName}</span>
             </div>
           </div>

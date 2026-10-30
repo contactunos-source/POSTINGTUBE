@@ -131,18 +131,43 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 2b. Also fetch authenticated user's Google Profile Picture as guaranteed avatar fallback
+    let googleProfilePic = '';
+    try {
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+      if (userInfoRes.ok) {
+        const userInfo = await userInfoRes.json();
+        if (userInfo.picture) {
+          googleProfilePic = userInfo.picture;
+        }
+      }
+    } catch (e) {
+      console.warn('[YouTube OAuth] Failed to fetch Google userinfo picture:', e);
+    }
+
     // 3. Format discovered channels
     const discoveredChannels: DiscoveredYouTubeChannel[] = items.map((item: any) => {
       const snippet = item.snippet || {};
       const stats = item.statistics || {};
       const rawCount = parseInt(stats.subscriberCount, 10);
       const subCount = Number.isFinite(rawCount) ? rawCount : 0;
+      const channelAvatar =
+        snippet.thumbnails?.high?.url ||
+        snippet.thumbnails?.medium?.url ||
+        snippet.thumbnails?.default?.url ||
+        googleProfilePic ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(snippet.title || 'YouTube Channel')}&background=FF0000&color=fff&size=256&bold=true`;
 
       return {
         id: item.id,
         name: snippet.title || 'YouTube Channel',
         username: snippet.customUrl ? (snippet.customUrl.startsWith('@') ? snippet.customUrl : `@${snippet.customUrl}`) : (snippet.title || 'channel'),
-        avatarUrl: snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
+        avatarUrl: channelAvatar,
         accessToken,
         refreshToken,
         tokenExpiresAt,
@@ -160,7 +185,7 @@ export async function GET(req: NextRequest) {
         platform: 'youtube',
         username: cleanHandle,
         displayName: ch.name,
-        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+        avatarUrl: ch.avatarUrl,
         accountType: 'channel',
         status: 'connected',
         followersCount: ch.followersCount || 0,

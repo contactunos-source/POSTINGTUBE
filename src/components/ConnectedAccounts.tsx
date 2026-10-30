@@ -364,7 +364,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         displayName: `@${cleanHandle}`,
         avatarUrl:
           targetPage?.avatarUrl ||
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanHandle || 'Instagram')}&background=E1306C&color=fff&size=256&bold=true`,
         accountType: 'business',
         status: 'connected',
         followersCount: 0,
@@ -441,7 +441,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         displayName: target.name,
         avatarUrl:
           target.avatarUrl ||
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(target.name || 'YouTube Channel')}&background=FF0000&color=fff&size=256&bold=true`,
         accountType: 'channel',
         status: 'connected',
         followersCount: target.followersCount || 0,
@@ -522,7 +522,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         displayName: page.name,
         avatarUrl:
           page.avatarUrl ||
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+          `https://graph.facebook.com/${page.id}/picture?type=large`,
         accountType: 'page',
         status: 'connected',
         followersCount: 0,
@@ -589,7 +589,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       platform: connectingPlatform,
       username: clean,
       displayName: clean,
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&background=059669&color=fff&size=256&bold=true`,
       status: 'connected',
       accessToken: genericToken.trim() || undefined,
       followersCount: 0,
@@ -882,7 +882,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       className="group flex items-center space-x-2 pl-1.5 pr-2 py-1 rounded-full bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200 transition-colors text-xs text-emerald-950 font-medium"
                     >
                       {account.avatarUrl ? (
-                        <img
+                        <img referrerPolicy="no-referrer"
                           src={account.avatarUrl}
                           alt={account.displayName}
                           className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-emerald-300"
@@ -1497,7 +1497,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                               >
                                 <div className="flex items-center space-x-3.5">
                                   {page.avatarUrl ? (
-                                    <img
+                                    <img referrerPolicy="no-referrer"
                                       src={page.avatarUrl}
                                       alt={page.name}
                                       className="w-12 h-12 rounded-xl object-cover border border-gray-700 shadow-sm"
@@ -1835,7 +1835,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           >
                             <div className="flex items-center space-x-3.5">
                               {page.avatarUrl ? (
-                                <img
+                                <img referrerPolicy="no-referrer"
                                   src={page.avatarUrl}
                                   alt={page.name}
                                   className="w-11 h-11 rounded-xl object-cover ring-1 ring-gray-700"
@@ -1929,7 +1929,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           >
                             <div className="flex items-center space-x-3 min-w-0">
                               {channel.avatarUrl ? (
-                                <img
+                                <img referrerPolicy="no-referrer"
                                   src={channel.avatarUrl}
                                   alt={channel.name}
                                   className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10"
@@ -2138,8 +2138,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         platform: 'threads',
                         username: clean,
                         displayName: `@${clean}`,
-                        avatarUrl:
-                          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+                        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&background=000000&color=fff&size=256&bold=true`,
                         accountType: 'creator',
                         status: 'connected',
                         followersCount: 890,
@@ -2248,8 +2247,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         platform: 'pinterest',
                         username: cleanUser,
                         displayName: `${clean} (Pinterest)`,
-                        avatarUrl:
-                          'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
+                        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&background=E60023&color=fff&size=256&bold=true`,
                         accountType: 'business',
                         status: 'connected',
                         followersCount: 4200,

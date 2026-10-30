@@ -348,10 +348,17 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                       <div className="flex items-center space-x-2.5">
                         <img
                           src={
-                            acc.avatarUrl ||
-                            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
+                            acc.avatarUrl && !acc.avatarUrl.includes('unsplash.com')
+                              ? acc.avatarUrl
+                              : `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`
                           }
                           alt={acc.displayName}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
+                          }}
                           className="w-8 h-8 rounded-full object-cover border border-gray-200"
                         />
                         <div className="min-w-0">

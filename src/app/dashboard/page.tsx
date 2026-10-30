@@ -115,7 +115,28 @@ export default function DashboardPage() {
 
       setAccounts(dbAccounts);
       setPosts(dbPosts);
+
+      // Also trigger official avatar sync
+      try {
+        const syncRes = await fetch('/api/accounts/sync-avatars', { method: 'POST' });
+        const syncData = await syncRes.json();
+        if (syncData?.success && Array.isArray(syncData.accounts) && syncData.accounts.length > 0) {
+          setAccounts(syncData.accounts);
+        }
+      } catch (e) {
+        console.warn('Avatar sync refresh notice:', e);
+      }
       setMediaItems(StorageService.getMedia(user.id));
+
+      // Asynchronously synchronize official account avatars (YouTube, Facebook, Instagram) in the background
+      fetch('/api/accounts/sync-avatars', { method: 'POST' })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res?.success && Array.isArray(res.accounts) && res.accounts.length > 0) {
+            setAccounts(res.accounts);
+          }
+        })
+        .catch((e) => console.warn('[AvatarSync] Notice:', e));
     } catch (err) {
       console.error('Failed to initialize user data:', err);
       setAccounts([]);
@@ -825,6 +846,17 @@ export default function DashboardPage() {
       ]);
       setAccounts(dbAccounts);
       setPosts(dbPosts);
+
+      // Also trigger official avatar sync
+      try {
+        const syncRes = await fetch('/api/accounts/sync-avatars', { method: 'POST' });
+        const syncData = await syncRes.json();
+        if (syncData?.success && Array.isArray(syncData.accounts) && syncData.accounts.length > 0) {
+          setAccounts(syncData.accounts);
+        }
+      } catch (e) {
+        console.warn('Avatar sync refresh notice:', e);
+      }
     } catch (err) {
       console.warn('Failed to refresh user data:', err);
     }

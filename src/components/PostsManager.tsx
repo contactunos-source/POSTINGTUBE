@@ -163,7 +163,21 @@ function getAggregatedMetrics(post: Post) {
 }
 
 export function getPlatformDestinationUrl(acc: SocialAccount, res?: any): string {
-  if (res?.externalPostUrl) return res.externalPostUrl;
+  // If externalPostUrl is provided and belongs to the account's platform, use it
+  if (res?.externalPostUrl && typeof res.externalPostUrl === 'string') {
+    const url = res.externalPostUrl.toLowerCase();
+    const isUrlMatchingPlatform =
+      (acc.platform === 'youtube' && (url.includes('youtube.com') || url.includes('youtu.be'))) ||
+      (acc.platform === 'instagram' && url.includes('instagram.com')) ||
+      (acc.platform === 'facebook' && (url.includes('facebook.com') || url.includes('fb.com'))) ||
+      (acc.platform === 'twitter' && (url.includes('twitter.com') || url.includes('x.com'))) ||
+      (acc.platform === 'linkedin' && url.includes('linkedin.com')) ||
+      (acc.platform === 'pinterest' && url.includes('pinterest.com'));
+
+    if (isUrlMatchingPlatform) {
+      return res.externalPostUrl;
+    }
+  }
 
   switch (acc.platform) {
     case 'youtube': {
@@ -171,10 +185,10 @@ export function getPlatformDestinationUrl(acc: SocialAccount, res?: any): string
         return `https://www.youtube.com/watch?v=${res.externalPostId}`;
       }
       if (acc.pageId) {
-        return `https://www.youtube.com/channel/${acc.pageId}`;
+        return `https://www.youtube.com/channel/${acc.pageId}/community`;
       }
       if (acc.username) {
-        return `https://www.youtube.com/@${acc.username.replace(/^@/, '')}`;
+        return `https://www.youtube.com/@${acc.username.replace(/^@/, '')}/community`;
       }
       return 'https://www.youtube.com';
     }
@@ -815,8 +829,14 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                   >
                                     <div className="relative">
                                       <img
-                                        src={acc.avatarUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200'}
+                                        src={acc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`}
                                         alt={acc.displayName}
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.onerror = null;
+                                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
+                                        }}
                                         className="w-5 h-5 rounded-md object-cover border border-gray-200"
                                       />
                                       <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-white flex items-center justify-center shadow-xs">
@@ -1254,9 +1274,13 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                   if (isYouTubeCommunityIssue(acc, res)) {
                                     return false; // Dedicated YouTube Community button shown above
                                   }
+                                  // Never show a live link if the account publishing failed or requires action
+                                  if (res?.status === 'failed' || res?.status === 'action_required') {
+                                    return false;
+                                  }
                                   return (
                                     res?.status === 'success' ||
-                                    (post.status === 'published' && (!res || res.status !== 'failed'))
+                                    (post.status === 'published' && Boolean(res?.externalPostId || res?.externalPostUrl))
                                   );
                                 })
                                 .map((acc) => {
@@ -1569,8 +1593,14 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                           <div className="flex items-center space-x-3">
                             <div className="relative">
                               <img
-                                src={acc.avatarUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200'}
+                                src={acc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`}
                                 alt={acc.displayName}
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
+                                }}
                                 className="w-9 h-9 rounded-lg object-cover border border-gray-200"
                               />
                               <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-xs">

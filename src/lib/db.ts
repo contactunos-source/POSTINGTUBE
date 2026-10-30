@@ -90,6 +90,47 @@ export function mapPostToDbPost(post: Post, workspaceId: string = DEFAULT_WORKSP
 }
 
 /**
+ * Resolves an authoritative, reliable profile picture URL for any connected account.
+ * Eliminates generic Unsplash placeholders, resolves live Facebook page pictures,
+ * and falls back to deterministic platform-branded high-res monograms.
+ */
+export function getAuthoritativeAvatar(account: {
+  platform?: string;
+  avatarUrl?: string | null;
+  displayName?: string | null;
+  username?: string | null;
+  pageId?: string | null;
+  id?: string | null;
+}): string {
+  const current = account.avatarUrl;
+  // If valid non-unsplash image URL, keep it!
+  if (current && !current.includes('unsplash.com') && current.startsWith('http')) {
+    return current;
+  }
+
+  // For Facebook Page, official graph.facebook.com provides direct high-res avatar
+  if (account.platform === 'facebook') {
+    const rawId = (account.pageId || account.id || '').replace(/^fb_/, '');
+    if (rawId && /^\d+$/.test(rawId)) {
+      return `https://graph.facebook.com/${rawId}/picture?type=large`;
+    }
+  }
+
+  const name = account.displayName || account.username || account.platform || 'Account';
+  const colorMap: Record<string, string> = {
+    youtube: 'FF0000',
+    facebook: '1877F2',
+    instagram: 'E1306C',
+    twitter: '000000',
+    linkedin: '0A66C2',
+    pinterest: 'E60023',
+    tiktok: '000000',
+  };
+  const bg = colorMap[account.platform || ''] || '059669';
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&size=256&bold=true`;
+}
+
+/**
  * Maps Supabase account row to SocialAccount model
  */
 export function mapDbAccountToAccount(row: any): SocialAccount {
@@ -111,13 +152,27 @@ export function mapDbAccountToAccount(row: any): SocialAccount {
     } catch {}
   }
 
+  let rawAvatar = row.avatar_url || '';
+  if (rawAvatar && rawAvatar.includes('unsplash.com')) {
+    rawAvatar = '';
+  }
+
+  const avatarUrl = getAuthoritativeAvatar({
+    platform: row.platform,
+    avatarUrl: rawAvatar,
+    displayName: row.display_name,
+    username: row.username,
+    pageId: row.page_id,
+    id: row.id,
+  });
+
   return {
     id: row.id,
     userId: row.user_id || undefined,
     platform: row.platform,
     username: row.username,
     displayName: row.display_name,
-    avatarUrl: row.avatar_url || '',
+    avatarUrl,
     accountType: row.account_type || (row.platform === 'youtube' ? 'channel' : 'page'),
     accessToken,
     refreshToken,
@@ -145,13 +200,18 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
 
   const validWorkspaceId = (workspaceId && UUID_REGEX.test(workspaceId)) ? workspaceId : DEFAULT_WORKSPACE_ID;
 
+  let safeAvatar = account.avatarUrl || null;
+  if (safeAvatar && safeAvatar.includes('unsplash.com')) {
+    safeAvatar = getAuthoritativeAvatar(account);
+  }
+
   const row: any = {
     id: account.id,
     workspace_id: validWorkspaceId,
     platform: account.platform,
     username: account.username,
     display_name: account.displayName,
-    avatar_url: account.avatarUrl || null,
+    avatar_url: safeAvatar,
     account_type: account.accountType || (account.platform === 'youtube' ? 'channel' : 'page'),
     access_token: tokenPayload,
     page_id: account.pageId || account.id,

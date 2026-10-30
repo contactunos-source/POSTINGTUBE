@@ -640,6 +640,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           alt={acc.displayName}
                           className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-2xs shrink-0"
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
+                          }}
                         />
                       ) : (
                         <div

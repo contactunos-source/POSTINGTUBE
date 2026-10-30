@@ -343,7 +343,9 @@ export async function GET(req: NextRequest) {
         platform: 'instagram',
         username: cleanUsername,
         displayName: `@${cleanUsername}`,
-        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+        avatarUrl:
+          ch.avatarUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanUsername || 'Instagram')}&background=E1306C&color=fff&size=256&bold=true`,
         accountType: 'business',
         status: 'connected',
         followersCount: 0,

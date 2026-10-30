@@ -98,15 +98,18 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   <img
                     src={account.avatarUrl}
                     alt={account.displayName}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full rounded-full object-cover bg-gray-100"
                     onError={(e) => {
-                      // Fallback if image link fails
-                      (e.target as HTMLElement).style.display = 'none';
+                      // Fallback if image link fails or expired
+                      const target = e.target as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'A')}&background=059669&color=fff&size=128&bold=true`;
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-xs uppercase">
-                    {(account.displayName || account.username || 'A').slice(0, 1)}
+                  <div className="w-full h-full rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xs uppercase shadow-inner">
+                    {(account.displayName || account.username || 'A').slice(0, 2)}
                   </div>
                 )}
               </button>
@@ -119,11 +122,6 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   {/* Tooltip Content */}
                   <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center">
                     <div>{account.displayName || `@${account.username}`}</div>
-                    {account.platform === 'youtube' && postType !== 'video' && (
-                      <div className="text-[10px] text-amber-200 font-normal mt-0.5">
-                        YouTube Community Image Post
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

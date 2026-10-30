@@ -172,10 +172,25 @@ export async function GET(req: NextRequest) {
 
     // 5. Final fallback with verified server token if no user pages found yet
     if (detectedChannels.length === 0 && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
+      let pageAvatar = '';
+      try {
+        const picRes = await fetch(
+          `https://graph.facebook.com/v20.0/${targetPageId}/picture?type=large&redirect=false&access_token=${encodeURIComponent(
+            process.env.FACEBOOK_PAGE_ACCESS_TOKEN
+          )}`
+        );
+        const picData = await picRes.json();
+        if (picData?.data?.url) {
+          pageAvatar = picData.data.url;
+        }
+      } catch (e) {
+        console.warn('Could not fetch server page picture:', e);
+      }
+
       detectedChannels.push({
         id: targetPageId,
         name: process.env.FACEBOOK_PAGE_NAME || 'U NOS Digital marketing',
-        avatarUrl: '',
+        avatarUrl: pageAvatar || `https://graph.facebook.com/${targetPageId}/picture?type=large`,
         accessToken: process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
         platform: 'facebook',
       });
@@ -184,13 +199,18 @@ export async function GET(req: NextRequest) {
     // 6. Direct Supabase Persistence: Guarantee all discovered Facebook pages are stored
     for (const ch of detectedChannels) {
       const cleanUsername = (ch.name || 'facebook_page').toLowerCase().replace(/\s+/g, '_');
+      const pageAvatar =
+        ch.avatarUrl ||
+        `https://graph.facebook.com/${ch.id}/picture?type=large` ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(ch.name || 'Facebook Page')}&background=1877F2&color=fff&size=256&bold=true`;
+
       const fbAcc: SocialAccount = {
         id: `fb_${ch.id}`,
         userId: userId || undefined,
         platform: 'facebook',
         username: cleanUsername,
         displayName: ch.name,
-        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1579208575657-c595a05383b7?w=100&auto=format&fit=crop&q=80',
+        avatarUrl: pageAvatar,
         accountType: 'page',
         status: 'connected',
         followersCount: 0,
