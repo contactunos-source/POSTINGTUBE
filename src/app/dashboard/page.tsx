@@ -1090,15 +1090,6 @@ export default function DashboardPage() {
           />
         )}
 
-        {activeTab === 'worker-console' && (
-          <BackgroundWorkerSimulator
-            posts={posts}
-            accounts={accounts}
-            onPostUpdated={(updated) => {
-              setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            }}
-          />
-        )}
 
         {activeTab === 'settings' && (
           <SettingsView

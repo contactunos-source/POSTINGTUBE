@@ -161,6 +161,57 @@ function getAggregatedMetrics(post: Post) {
   };
 }
 
+export function getPlatformDestinationUrl(acc: SocialAccount, res?: any): string {
+  if (res?.externalPostUrl) return res.externalPostUrl;
+
+  switch (acc.platform) {
+    case 'youtube': {
+      if (res?.externalPostId) {
+        return `https://www.youtube.com/watch?v=${res.externalPostId}`;
+      }
+      if (acc.pageId) {
+        return `https://www.youtube.com/channel/${acc.pageId}`;
+      }
+      if (acc.username) {
+        return `https://www.youtube.com/@${acc.username.replace(/^@/, '')}`;
+      }
+      return 'https://www.youtube.com';
+    }
+    case 'facebook': {
+      if (res?.externalPostId) {
+        return `https://www.facebook.com/${res.externalPostId}`;
+      }
+      if (acc.pageId) {
+        return `https://www.facebook.com/${acc.pageId}`;
+      }
+      return 'https://www.facebook.com';
+    }
+    case 'instagram': {
+      if (res?.externalPostId) {
+        return `https://www.instagram.com/p/${res.externalPostId}/`;
+      }
+      if (acc.username) {
+        return `https://www.instagram.com/${acc.username.replace(/^@/, '')}/`;
+      }
+      return 'https://www.instagram.com';
+    }
+    case 'twitter': {
+      if (res?.externalPostId) {
+        return `https://x.com/i/status/${res.externalPostId}`;
+      }
+      return 'https://x.com';
+    }
+    case 'linkedin': {
+      if (res?.externalPostId) {
+        return `https://www.linkedin.com/feed/update/${res.externalPostId}`;
+      }
+      return 'https://www.linkedin.com';
+    }
+    default:
+      return 'https://postingtube.com';
+  }
+}
+
 export const PostsManager: React.FC<PostsManagerProps> = ({
   posts,
   accounts,
@@ -192,6 +243,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
     setLocalPosts(posts);
   }, [posts]);
 
+  const localPostsRef = useRef(localPosts);
+  useEffect(() => {
+    localPostsRef.current = localPosts;
+  }, [localPosts]);
+
   // Sync initial status filter changes when user navigates via sidebar tabs
   useEffect(() => {
     setActiveTab(initialStatusFilter);
@@ -217,14 +273,30 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
     enabled: selectedPostForDetails !== null,
   });
 
+  const isPostFailed = (p: Post) => {
+    if (p.status === 'failed') return true;
+    if (p.results && Object.values(p.results).some((r) => r?.status === 'failed')) {
+      return true;
+    }
+    return false;
+  };
+
+  const isPostPublished = (p: Post) => {
+    if (p.status === 'published') return true;
+    if (p.results && Object.values(p.results).some((r) => r?.status === 'success')) {
+      return true;
+    }
+    return false;
+  };
+
   // Calculate live counts for the status navigation bar
   const counts = useMemo(() => {
     return {
       all: localPosts.length,
-      published: localPosts.filter((p) => p.status === 'published').length,
+      published: localPosts.filter(isPostPublished).length,
       scheduled: localPosts.filter((p) => p.status === 'scheduled').length,
       draft: localPosts.filter((p) => p.status === 'draft').length,
-      failed: localPosts.filter((p) => p.status === 'failed').length,
+      failed: localPosts.filter(isPostFailed).length,
     };
   }, [localPosts]);
 
@@ -239,34 +311,32 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       });
       const data = await res.json();
       if (data.success && data.analytics) {
-        setLocalPosts((prev) => {
-          const next = prev.map((p) => {
-            if (p.id !== post.id) return p;
-            const updatedResults = { ...(p.results || {}) };
-            for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
-              if (updatedResults[accId]) {
-                updatedResults[accId].analytics = metrics;
-              } else {
-                updatedResults[accId] = {
-                  status: 'success',
-                  platform: metrics.platform,
-                  externalPostId: metrics.externalPostId,
-                  analytics: metrics,
-                };
-              }
+        const next = localPostsRef.current.map((p) => {
+          if (p.id !== post.id) return p;
+          const updatedResults = { ...(p.results || {}) };
+          for (const [accId, metrics] of Object.entries(data.analytics as Record<string, PlatformPostMetrics>)) {
+            if (updatedResults[accId]) {
+              updatedResults[accId].analytics = metrics;
+            } else {
+              updatedResults[accId] = {
+                status: 'success',
+                platform: metrics.platform,
+                externalPostId: metrics.externalPostId,
+                analytics: metrics,
+              };
             }
-            return {
-              ...p,
-              results: updatedResults,
-              analytics: data.analytics,
-            };
-          });
-
-          if (onPostsUpdated) {
-            setTimeout(() => onPostsUpdated(next), 0);
           }
-          return next;
+          return {
+            ...p,
+            results: updatedResults,
+            analytics: data.analytics,
+          };
         });
+
+        setLocalPosts(next);
+        if (onPostsUpdated) {
+          onPostsUpdated(next);
+        }
 
         setSelectedPostForDetails((prev) => {
           if (!prev || prev.id !== post.id) return prev;
@@ -309,35 +379,33 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
       const data = await res.json();
       if (data.success && data.analytics) {
         setLastAnalyticsRefresh(new Date());
-        setLocalPosts((prev) => {
-          const next = prev.map((p) => {
-            const postAnalytics = data.analytics[p.id];
-            if (!postAnalytics) return p;
-            const updatedResults = { ...(p.results || {}) };
-            for (const [accId, metrics] of Object.entries(postAnalytics as Record<string, PlatformPostMetrics>)) {
-              if (updatedResults[accId]) {
-                updatedResults[accId].analytics = metrics;
-              } else {
-                updatedResults[accId] = {
-                  status: 'success',
-                  platform: metrics.platform,
-                  externalPostId: metrics.externalPostId,
-                  analytics: metrics,
-                };
-              }
+        const next = localPostsRef.current.map((p) => {
+          const postAnalytics = data.analytics[p.id];
+          if (!postAnalytics) return p;
+          const updatedResults = { ...(p.results || {}) };
+          for (const [accId, metrics] of Object.entries(postAnalytics as Record<string, PlatformPostMetrics>)) {
+            if (updatedResults[accId]) {
+              updatedResults[accId].analytics = metrics;
+            } else {
+              updatedResults[accId] = {
+                status: 'success',
+                platform: metrics.platform,
+                externalPostId: metrics.externalPostId,
+                analytics: metrics,
+              };
             }
-            return {
-              ...p,
-              results: updatedResults,
-              analytics: postAnalytics,
-            };
-          });
-
-          if (onPostsUpdated) {
-            setTimeout(() => onPostsUpdated(next), 0);
           }
-          return next;
+          return {
+            ...p,
+            results: updatedResults,
+            analytics: postAnalytics,
+          };
         });
+
+        setLocalPosts(next);
+        if (onPostsUpdated) {
+          onPostsUpdated(next);
+        }
 
         setSelectedPostForDetails((prev) => {
           if (!prev || !data.analytics[prev.id]) return prev;
@@ -394,8 +462,12 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   const filteredPosts = useMemo(() => {
     return localPosts
       .filter((post) => {
-        // Status filter
-        if (activeTab !== 'all' && post.status !== activeTab) {
+        // Status filter: ensure posts with partial failures appear in both published and failed tabs
+        if (activeTab === 'failed') {
+          if (!isPostFailed(post)) return false;
+        } else if (activeTab === 'published') {
+          if (!isPostPublished(post)) return false;
+        } else if (activeTab !== 'all' && post.status !== activeTab) {
           return false;
         }
 
@@ -1053,15 +1125,18 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                 </button>
                               )}
 
-                              {/* Per-Platform Live Links */}
-                              {post.status === 'published' &&
-                                postAccounts.map((acc) => {
+                              {/* Per-Platform Live Links (strictly to successful destinations and correct platforms) */}
+                              {postAccounts
+                                .filter((acc) => {
                                   const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  const liveUrl =
-                                    res?.externalPostUrl ||
-                                    (acc.platform === 'facebook'
-                                      ? `https://www.facebook.com/${acc.pageId || '868941086292404'}`
-                                      : 'https://instagram.com');
+                                  return (
+                                    res?.status === 'success' ||
+                                    (post.status === 'published' && (!res || res.status !== 'failed'))
+                                  );
+                                })
+                                .map((acc) => {
+                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                  const liveUrl = getPlatformDestinationUrl(acc, res);
 
                                   return (
                                     <a
@@ -1416,14 +1491,14 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                               </span>
                             )}
 
-                            {/* Live link if available */}
-                            {res?.externalPostUrl && (
+                            {/* Live link to official destination if successful */}
+                            {isSuccess && (
                               <a
-                                href={res.externalPostUrl}
+                                href={getPlatformDestinationUrl(acc, res)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-800 transition-colors"
-                                title="Open live post"
+                                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-emerald-700 transition-colors"
+                                title={`Open on ${acc.platform}`}
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </a>

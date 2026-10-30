@@ -181,7 +181,21 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     return initial;
   });
 
-  // Collapsed / Expanded state for platform-specific caption cards
+  // Auto-remove YouTube from selection if user switches to Image or Text post
+  useEffect(() => {
+    if (currentPostType !== 'video') {
+      const youtubeAccIds = accounts.filter((a) => a.platform === 'youtube').map((a) => a.id);
+      setSelectedAccountIds((prev) => {
+        const hasYouTube = prev.some((id) => youtubeAccIds.includes(id));
+        if (hasYouTube) {
+          const next = prev.filter((id) => !youtubeAccIds.includes(id));
+          showToast('YouTube was unselected: YouTube Data API v3 supports video uploads only.');
+          return next.length > 0 ? next : (accounts.find((a) => a.platform !== 'youtube') ? [accounts.find((a) => a.platform !== 'youtube')!.id] : []);
+        }
+        return prev;
+      });
+    }
+  }, [currentPostType, accounts]);
   const [collapsedPlatforms, setCollapsedPlatforms] = useState<Record<string, boolean>>({});
 
   // Media state
@@ -568,6 +582,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
+    // YouTube format validation: only video uploads are officially supported by Google Data API v3
+    if (action !== 'draft' && currentPostType !== 'video') {
+      const hasYouTube = selectedAccountIds.some(
+        (id) => accounts.find((a) => a.id === id)?.platform === 'youtube'
+      );
+      if (hasYouTube) {
+        alert(
+          'YouTube Data API v3 only supports video uploads (MP4, MOV, WEBM). Community text/photo posts are not supported by YouTube public third-party API. Please switch post type to Video or unselect YouTube.'
+        );
+        return;
+      }
+    }
+
     // Schedule validation
     if (action === 'schedule' && !isScheduleValid) {
       alert('The selected schedule time is in the past. Please select a future date and time.');
@@ -767,9 +794,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           <ConnectedAccountSelector
             accounts={accounts}
             selectedAccountIds={selectedAccountIds}
+            postType={currentPostType}
             onToggleAccount={handleToggleAccount}
+            onShowNotice={showToast}
             onSelectAll={() => {
-              const allAccIds = accounts.map((a) => a.id);
+              const validAccs = accounts.filter(
+                (a) => !(a.platform === 'youtube' && currentPostType !== 'video')
+              );
+              const allAccIds = validAccs.map((a) => a.id);
               setSelectedAccountIds(allAccIds);
               if (rememberAccounts && typeof window !== 'undefined') {
                 localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));

@@ -8,7 +8,6 @@ import {
   Link2,
   Settings,
   ChevronDown,
-  Cpu,
   BarChart3,
   X,
 } from 'lucide-react';
@@ -147,21 +146,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <nav className="space-y-0.5">
               <button
                 onClick={() => handleTabClick('posts-all')}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   activeTab.startsWith('posts-')
                     ? 'bg-emerald-50 text-emerald-700 font-semibold'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                <div className="flex items-center space-x-2.5">
-                  <Grid className="w-4 h-4" />
-                  <span>Posts</span>
-                </div>
-                {totalPostsCount > 0 && (
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full font-bold">
-                    {totalPostsCount}
-                  </span>
-                )}
+                <Grid className="w-4 h-4" />
+                <span>Posts</span>
               </button>
               <button
                 onClick={() => handleTabClick('calendar')}
@@ -194,11 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 Insights
               </button>
-              {connectedAccounts.length > 0 && (
-                <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded-full">
-                  {connectedAccounts.length}
-                </span>
-              )}
             </div>
             <nav className="space-y-0.5">
               {/* List of Connected Social Accounts */}
@@ -255,17 +242,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <BarChart3 className="w-4 h-4" />
                 <span>Analytics</span>
-              </button>
-              <button
-                onClick={() => handleTabClick('worker-console')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                  activeTab === 'worker-console'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                <Cpu className="w-4 h-4 text-emerald-600" />
-                <span>Worker Engine</span>
               </button>
               <button
                 onClick={() => handleTabClick('settings')}
