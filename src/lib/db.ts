@@ -166,111 +166,51 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
 
 export const DatabaseService = {
   /**
-   * Fetch all workspaces belonging to the user (or available locally).
-   * Ensures at least one valid workspace exists.
+   * Ensures the root default workspace exists in Supabase so foreign keys never fail.
    */
+  async ensureDefaultWorkspace(): Promise<void> {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('id', DEFAULT_WORKSPACE_ID)
+        .maybeSingle();
+
+      if (!data || error) {
+        await supabase.from('workspaces').upsert({
+          id: DEFAULT_WORKSPACE_ID,
+          name: 'PostingTube',
+          slug: 'postingtube',
+          role: 'owner',
+          created_at: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('[DatabaseService] ensureDefaultWorkspace warning:', e);
+    }
+  },
+
   async getUserWorkspaces(user?: any): Promise<Workspace[]> {
     return INITIAL_WORKSPACES;
   },
+
   async getUserWorkspace(user: any): Promise<Workspace> {
-    const list = await this.getUserWorkspaces(user);
-    const activeId = StorageService.getActiveWorkspaceId();
-    if (activeId) {
-      const match = list.find((w) => w.id === activeId);
-      if (match) return match;
-    }
-    return list[0] || INITIAL_WORKSPACES[0];
+    return INITIAL_WORKSPACES[0];
   },
 
-  /**
-   * Create a completely fresh, independent workspace.
-   * Starts with an empty state (0 posts, 0 accounts).
-   */
   async createWorkspace(user: any, name: string): Promise<Workspace> {
-    const userId = user?.id || 'guest';
-    const trimmedName = name.trim() || 'New Workspace';
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'ws_' + Math.random().toString(36).substring(2, 12);
-    const slug = `${trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
-
-    let finalId = newId;
-
-    if (supabase && user && user.id) {
-      try {
-        const { data: created, error } = await supabase
-          .from('workspaces')
-          .insert({
-            id: newId,
-            user_id: user.id,
-            name: trimmedName,
-            slug,
-            role: 'owner',
-          })
-          .select()
-          .single();
-
-        if (!error && created) {
-          finalId = created.id;
-        } else if (error) {
-          console.warn('[DatabaseService] Supabase workspace insert notice:', error.message);
-        }
-      } catch (e) {
-        console.warn('[DatabaseService] Error inserting workspace into Supabase:', e);
-      }
-    }
-
-    const newWs: Workspace = {
-      id: finalId,
-      name: trimmedName,
-      slug,
-      role: 'owner',
-      connectedAccounts: [],
-    };
-
-    // Ensure strictly isolated, completely empty data for the new workspace
-    StorageService.saveAccounts([], finalId);
-    StorageService.savePosts([], finalId);
-
-    // Save into list of workspaces
-    const existing = StorageService.getWorkspaces(userId);
-    const updated = [...existing.filter((w) => w.id !== finalId), newWs];
-    StorageService.saveWorkspaces(updated, userId);
-    StorageService.setActiveWorkspaceId(finalId);
-
-    return newWs;
+    return INITIAL_WORKSPACES[0];
   },
 
-  /**
-   * Update an existing workspace's details
-   */
   async updateWorkspace(workspace: Workspace, user?: any): Promise<void> {
-    const userId = user?.id || 'guest';
-    if (supabase) {
-      try {
-        await supabase
-          .from('workspaces')
-          .update({
-            name: workspace.name,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', workspace.id);
-      } catch (err) {
-        console.warn('Failed to update workspace in Supabase:', err);
-      }
-    }
-
-    const existing = StorageService.getWorkspaces(userId);
-    const updated = existing.map((w) => (w.id === workspace.id ? { ...w, ...workspace } : w));
-    StorageService.saveWorkspaces(updated, userId);
+    // No-op
   },
 
   /**
-   * Fetch posts isolated to the active workspace
+   * Fetch posts directly from Supabase (single source of truth).
    */
   async getPosts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<Post[]> {
-    const cachedPosts = StorageService.getPosts();
-
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -280,27 +220,25 @@ export const DatabaseService = {
 
         if (!error && Array.isArray(data)) {
           const loadedPosts = data.map(mapDbPostToPost);
-          const seenIds = new Set(loadedPosts.map((p) => p.id));
-          for (const c of cachedPosts) {
-            if (!seenIds.has(c.id)) {
-              loadedPosts.push(c);
-            }
-          }
+          // Supabase is the single source of truth.
+          // Save directly to cache; if Supabase was cleared, cache clears too.
           StorageService.savePosts(loadedPosts);
           return loadedPosts;
+        } else if (error) {
+          console.warn('[DatabaseService] Supabase getPosts error:', error.message);
         }
       } catch (e) {
         console.warn('Could not fetch posts from Supabase, falling back to cache:', e);
       }
     }
-    return cachedPosts;
+    return StorageService.getPosts();
   },
 
   /**
-   * Persist a post directly to Supabase and cache
+   * Persist a post directly to Supabase and cache.
    */
   async savePost(post: Post): Promise<void> {
-    const targetWsId = post.workspaceId || DEFAULT_WORKSPACE_ID;
+    await this.ensureDefaultWorkspace();
 
     // 1. Persist directly to Supabase
     if (supabase) {
@@ -317,7 +255,7 @@ export const DatabaseService = {
         if (post.status === 'scheduled' && post.scheduledFor) {
           const targetIds = post.targetAccountIds && post.targetAccountIds.length > 0
             ? post.targetAccountIds
-            : ['fb_default'];
+            : [];
           const scheduledTimestamp = new Date(post.scheduledFor).getTime();
 
           for (const accId of targetIds) {
@@ -334,8 +272,6 @@ export const DatabaseService = {
             );
             if (jobErr) {
               console.error(`Failed to upsert scheduled_job (${idempotencyKey}) to Supabase:`, jobErr);
-            } else {
-              console.log('[Supabase] Scheduled destination job persisted:', idempotencyKey);
             }
           }
         }
@@ -344,9 +280,9 @@ export const DatabaseService = {
       }
     }
 
-    // 2. Safely update local cache scoped to this workspace
+    // 2. Safely update local cache
     try {
-      const currentPosts = StorageService.getPosts(targetWsId);
+      const currentPosts = StorageService.getPosts();
       const index = currentPosts.findIndex((p) => p.id === post.id);
       let updatedPosts: Post[];
       if (index >= 0) {
@@ -354,37 +290,35 @@ export const DatabaseService = {
       } else {
         updatedPosts = [post, ...currentPosts];
       }
-      StorageService.savePosts(updatedPosts, targetWsId);
+      StorageService.savePosts(updatedPosts);
     } catch (cacheErr) {
       console.warn('Cache write warning:', cacheErr);
     }
   },
 
   /**
-   * Delete a post from Supabase and cache
+   * Delete a post from Supabase and cache.
    */
   async deletePost(id: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
-    const currentPosts = StorageService.getPosts(workspaceId).filter((p) => p.id !== id);
-    StorageService.savePosts(currentPosts, workspaceId);
-
     if (supabase) {
       try {
-        const { error: pErr } = await supabase.from('posts').delete().eq('id', id);
-        if (pErr) console.error('Failed to delete post from Supabase:', pErr);
         const { error: jErr } = await supabase.from('scheduled_jobs').delete().eq('post_id', id);
         if (jErr) console.error('Failed to delete scheduled_jobs from Supabase:', jErr);
+        const { error: pErr } = await supabase.from('posts').delete().eq('id', id);
+        if (pErr) console.error('Failed to delete post from Supabase:', pErr);
       } catch (err) {
         console.error('Failed to delete post from Supabase:', err);
       }
     }
+
+    const currentPosts = StorageService.getPosts().filter((p) => p.id !== id);
+    StorageService.savePosts(currentPosts);
   },
 
   /**
-   * Fetch accounts isolated to the active workspace
+   * Fetch accounts directly from Supabase (single source of truth).
    */
   async getAccounts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<SocialAccount[]> {
-    const cachedAccounts = StorageService.getAccounts();
-
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -394,38 +328,35 @@ export const DatabaseService = {
 
         if (!error && Array.isArray(data)) {
           const loadedAccounts = data.map(mapDbAccountToAccount);
-          const seenIds = new Set(loadedAccounts.map((a) => a.id));
-          for (const c of cachedAccounts) {
-            if (!seenIds.has(c.id)) {
-              loadedAccounts.push(c);
-            }
-          }
+          // Supabase is the single source of truth.
+          // Save directly to cache; if Supabase was cleared, cache clears too.
           StorageService.saveAccounts(loadedAccounts);
           return loadedAccounts;
+        } else if (error) {
+          console.warn('[DatabaseService] Supabase getAccounts error:', error.message);
         }
       } catch (e) {
         console.warn('Could not fetch accounts from Supabase:', e);
       }
     }
-    return cachedAccounts;
+    return StorageService.getAccounts();
   },
 
   /**
-   * Persist a connected account to Supabase with strict duplicate prevention
+   * Persist a connected account to Supabase with strict duplicate prevention.
    */
   async saveAccount(
     account: SocialAccount,
     workspaceId: string = DEFAULT_WORKSPACE_ID
   ): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> {
-    const targetWsId = workspaceId || DEFAULT_WORKSPACE_ID;
+    await this.ensureDefaultWorkspace();
 
-    // 1. Backend duplicate prevention: query database for existing matching account in this workspace
+    // 1. Backend duplicate prevention: query database for existing matching account
     if (supabase) {
       try {
         const { data: existingRows, error: checkErr } = await supabase
           .from('connected_accounts')
           .select('id, platform, username, page_id')
-          .eq('workspace_id', targetWsId)
           .eq('platform', account.platform);
 
         if (!checkErr && Array.isArray(existingRows)) {
@@ -441,7 +372,7 @@ export const DatabaseService = {
           });
 
           if (isDbDuplicate) {
-            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected in workspace ${targetWsId}.`);
+            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected.`);
             return {
               success: false,
               isDuplicate: true,
@@ -455,7 +386,7 @@ export const DatabaseService = {
     }
 
     // 2. Storage cache duplicate check
-    const currentAccounts = StorageService.getAccounts(targetWsId);
+    const currentAccounts = StorageService.getAccounts();
     const isCacheDuplicate = currentAccounts.some((existing) => {
       if (existing.platform !== account.platform) return false;
       const sameId = existing.id === account.id;
@@ -476,14 +407,10 @@ export const DatabaseService = {
       };
     }
 
-    // 3. Save new account to cache
-    const updatedAccounts = [...currentAccounts, account];
-    StorageService.saveAccounts(updatedAccounts, targetWsId);
-
-    // 4. Save new account to Supabase
+    // 3. Save new account to Supabase
     if (supabase) {
       try {
-        const dbAcc = mapAccountToDbAccount(account, targetWsId);
+        const dbAcc = mapAccountToDbAccount(account, DEFAULT_WORKSPACE_ID);
         const { error: upsertErr } = await supabase.from('connected_accounts').upsert(dbAcc);
         if (upsertErr) {
           console.warn('[Supabase] Initial account upsert warning:', upsertErr.message);
@@ -491,13 +418,25 @@ export const DatabaseService = {
           delete dbAcc.token_expires_at;
           const { error: retryErr } = await supabase.from('connected_accounts').upsert(dbAcc);
           if (retryErr) {
-            console.error('[Supabase] Fallback account upsert error:', retryErr);
+            console.error('[Supabase] Account upsert error:', retryErr);
+            return {
+              success: false,
+              message: `Database error: ${retryErr.message}`,
+            };
           }
         }
       } catch (err) {
         console.error('Failed to sync account to Supabase:', err);
+        return {
+          success: false,
+          message: 'Network error saving account to database.',
+        };
       }
     }
+
+    // 4. Save new account to cache
+    const updatedAccounts = [...currentAccounts.filter((a) => a.id !== account.id), account];
+    StorageService.saveAccounts(updatedAccounts);
 
     return {
       success: true,
@@ -507,32 +446,30 @@ export const DatabaseService = {
   },
 
   /**
-   * Delete an account from Supabase
+   * Delete an account from Supabase and cache.
    */
   async deleteAccount(id: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
-    const current = StorageService.getAccounts(workspaceId).filter((a) => a.id !== id);
-    StorageService.saveAccounts(current, workspaceId);
-
     if (supabase) {
       try {
-        await supabase.from('connected_accounts').delete().eq('id', id);
+        const { error } = await supabase.from('connected_accounts').delete().eq('id', id);
+        if (error) console.error('Failed to delete account from Supabase:', error);
       } catch (err) {
         console.error('Failed to delete account from Supabase:', err);
       }
     }
+
+    const current = StorageService.getAccounts().filter((a) => a.id !== id);
+    StorageService.saveAccounts(current);
   },
 
   /**
-   * Persist fresh post analytics into Supabase and local cache
+   * Persist fresh post analytics into Supabase and local cache.
    */
   async savePostAnalytics(
     postId: string,
     metricsMap: Record<string, PlatformPostMetrics>,
     workspaceId: string = DEFAULT_WORKSPACE_ID
   ): Promise<Post | null> {
-    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId)) ? workspaceId : DEFAULT_WORKSPACE_ID;
-
-    // 1. Fetch current post from Supabase first, then fallback to cache
     let currentPost: Post | null = null;
     if (supabase) {
       try {
@@ -550,7 +487,7 @@ export const DatabaseService = {
     }
 
     if (!currentPost) {
-      const posts = StorageService.getPosts(targetWsId);
+      const posts = StorageService.getPosts();
       currentPost = posts.find((p) => p.id === postId) || null;
     }
 
@@ -559,7 +496,6 @@ export const DatabaseService = {
       return null;
     }
 
-    // 2. Attach fresh platform metrics directly into the post's results JSONB object
     const updatedResults = { ...(currentPost.results || {}) };
     for (const [accId, metrics] of Object.entries(metricsMap)) {
       if (updatedResults[accId]) {
@@ -584,7 +520,6 @@ export const DatabaseService = {
       updatedAt: new Date().toISOString(),
     };
 
-    // 3. Persist updated results directly to Supabase
     if (supabase) {
       try {
         const { error: updErr } = await supabase
@@ -603,17 +538,15 @@ export const DatabaseService = {
       }
     }
 
-    // 4. Update local storage cache
     try {
-      const wsToUse = currentPost.workspaceId || targetWsId;
-      const curPosts = StorageService.getPosts(wsToUse);
+      const curPosts = StorageService.getPosts();
       const idx = curPosts.findIndex((p) => p.id === postId);
       if (idx >= 0) {
         curPosts[idx] = updatedPost;
       } else {
         curPosts.unshift(updatedPost);
       }
-      StorageService.savePosts(curPosts, wsToUse);
+      StorageService.savePosts(curPosts);
     } catch (cacheErr) {
       console.warn('[Analytics DB] StorageService update warning:', cacheErr);
     }

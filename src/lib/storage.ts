@@ -27,12 +27,11 @@ const STORAGE_KEYS = {
 
 export const StorageService = {
   getWorkspaces(userId?: string): Workspace[] {
-    if (typeof window === 'undefined') return INITIAL_WORKSPACES;
     return INITIAL_WORKSPACES;
   },
 
   saveWorkspaces(workspaces: Workspace[], userId?: string) {
-    // No-op: workspaces removed
+    // No-op
   },
 
   getActiveWorkspaceId(): string | null {
@@ -40,64 +39,17 @@ export const StorageService = {
   },
 
   setActiveWorkspaceId(id: string) {
-    // No-op: workspaces removed
+    // No-op
   },
 
   getAccounts(workspaceId?: string): SocialAccount[] {
     if (typeof window === 'undefined') return [];
     try {
-      const allAccounts: SocialAccount[] = [];
-      const seenIds = new Set<string>();
-
-      // 1. Check primary accounts storage key
-      const primaryRaw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-      if (primaryRaw) {
-        try {
-          const parsed = JSON.parse(primaryRaw);
-          if (Array.isArray(parsed)) {
-            for (const a of parsed) {
-              if (a && a.id && !seenIds.has(a.id)) {
-                seenIds.add(a.id);
-                allAccounts.push(a);
-              }
-            }
-          }
-        } catch {}
-      }
-
-      // 2. Safely scan and migrate all previous workspace-isolated account keys
-      const prefix = STORAGE_KEYS.ACCOUNTS + '_';
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(prefix)) {
-          try {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const list = JSON.parse(raw);
-              if (Array.isArray(list)) {
-                for (const a of list) {
-                  if (a && a.id && !seenIds.has(a.id)) {
-                    seenIds.add(a.id);
-                    allAccounts.push(a);
-                  }
-                }
-              }
-            }
-          } catch {}
-        }
-      }
-
-      // Filter out twitter permanently
-      const filtered = allAccounts.filter(
-        (a) => a.platform !== 'twitter' && a.id !== 'tw_primary_account'
-      );
-
-      // Persist unified accounts back to primary key
-      if (filtered.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(filtered));
-      }
-
-      return filtered;
+      const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((a) => a.platform !== 'twitter' && a.id !== 'tw_primary_account');
     } catch {
       return [];
     }
@@ -107,8 +59,12 @@ export const StorageService = {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-      if (workspaceId) {
-        localStorage.setItem(STORAGE_KEYS.ACCOUNTS + '_' + workspaceId, JSON.stringify(accounts));
+      // Clean up legacy workspace-specific account keys so stale deleted accounts never resurface
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith(STORAGE_KEYS.ACCOUNTS + '_') || key === 'pb_accounts' || key === 'pb_accounts_v2')) {
+          localStorage.removeItem(key);
+        }
       }
     } catch (e) {
       console.error('Failed to save accounts to localStorage', e);
@@ -118,61 +74,17 @@ export const StorageService = {
   getPosts(workspaceId?: string): Post[] {
     if (typeof window === 'undefined') return [];
     try {
-      const allPosts: Post[] = [];
-      const seenIds = new Set<string>();
-
-      // 1. Primary posts key
-      const primaryRaw = localStorage.getItem(STORAGE_KEYS.POSTS);
-      if (primaryRaw) {
-        try {
-          const parsed = JSON.parse(primaryRaw);
-          if (Array.isArray(parsed)) {
-            for (const p of parsed) {
-              if (p && p.id && !seenIds.has(p.id)) {
-                seenIds.add(p.id);
-                allPosts.push(p);
-              }
-            }
-          }
-        } catch {}
-      }
-
-      // 2. Safely scan and migrate all previous workspace-isolated post keys
-      const prefix = STORAGE_KEYS.POSTS + '_';
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(prefix)) {
-          try {
-            const raw = localStorage.getItem(key);
-            if (raw) {
-              const list = JSON.parse(raw);
-              if (Array.isArray(list)) {
-                for (const p of list) {
-                  if (p && p.id && !seenIds.has(p.id)) {
-                    seenIds.add(p.id);
-                    allPosts.push(p);
-                  }
-                }
-              }
-            }
-          } catch {}
-        }
-      }
-
-      const formatted = allPosts.map((p) => ({
+      const raw = localStorage.getItem(STORAGE_KEYS.POSTS);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((p: any) => ({
         ...p,
-        media: (p.media || []).map((m) => ({
+        media: (p.media || []).map((m: PostMedia) => ({
           ...m,
           thumbnailUrl: m.thumbnailUrl && !m.thumbnailUrl.startsWith('blob:') ? m.thumbnailUrl : m.url,
         })),
       }));
-
-      // Persist unified posts back to primary key
-      if (formatted.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(formatted));
-      }
-
-      return formatted;
     } catch {
       return [];
     }
@@ -182,8 +94,12 @@ export const StorageService = {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(posts));
-      if (workspaceId) {
-        localStorage.setItem(STORAGE_KEYS.POSTS + '_' + workspaceId, JSON.stringify(posts));
+      // Clean up legacy workspace-specific post keys so stale deleted posts never resurface
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith(STORAGE_KEYS.POSTS + '_') || key === 'pb_posts' || key === 'pb_posts_v2')) {
+          localStorage.removeItem(key);
+        }
       }
     } catch (e) {
       console.error('Failed to save posts to localStorage', e);
