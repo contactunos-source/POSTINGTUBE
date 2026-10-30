@@ -160,27 +160,25 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   // Main Caption state
   const [mainCaption, setMainCaption] = useState<string>(initialPost?.content || '');
 
-  // Separate platform-specific captions state (dynamically shown when multiple platforms are selected)
-  const [platformCaptions, setPlatformCaptions] = useState<
-    Record<SocialPlatform, PlatformCaptionOverride>
+  // Separate account-specific captions state (dynamically shown for every selected account)
+  const [accountCaptions, setAccountCaptions] = useState<
+    Record<string, PlatformCaptionOverride>
   >(() => {
-    return {
-      facebook: {
-        caption: initialPost?.platformOverrides?.facebook?.caption || '',
-      },
-      instagram: {
-        caption: initialPost?.platformOverrides?.instagram?.caption || '',
-      },
-      youtube: {
-        caption: initialPost?.platformOverrides?.youtube?.caption || '',
-      },
-      linkedin: { caption: '' },
-      twitter: { caption: '' },
-      tiktok: { caption: '' },
-      pinterest: { caption: '' },
-      threads: { caption: '' },
-      bluesky: { caption: '' },
-    };
+    const initial: Record<string, PlatformCaptionOverride> = {};
+    if (accounts && accounts.length > 0) {
+      accounts.forEach((acc) => {
+        const fromAcc =
+          initialPost?.accountOverrides?.[acc.id] ||
+          (initialPost?.platformOverrides as any)?.[acc.id];
+        const fromPlat = initialPost?.platformOverrides?.[acc.platform];
+        initial[acc.id] = {
+          caption: fromAcc?.caption ?? fromPlat?.caption ?? '',
+          title: fromAcc?.title ?? fromPlat?.title ?? '',
+          firstComment: fromAcc?.firstComment ?? fromPlat?.firstComment ?? '',
+        };
+      });
+    }
+    return initial;
   });
 
   // Collapsed / Expanded state for platform-specific caption cards
@@ -280,40 +278,75 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     };
   }, [accounts, selectedAccountIds]);
 
-  // Keep activePreviewPlatform synced with selectedPlatforms
+  // Active preview account ID
+  const [activePreviewAccountId, setActivePreviewAccountId] = useState<string>(() => {
+    return initialPost?.targetAccountIds?.[0] || accounts?.[0]?.id || '';
+  });
+
+  // Keep activePreviewAccountId synced when selectedAccountIds change
   useEffect(() => {
-    if (selectedPlatforms.length > 0 && !selectedPlatforms.includes(activePreviewPlatform)) {
-      setActivePreviewPlatform(selectedPlatforms[0]);
+    if (selectedAccountIds.length > 0) {
+      if (!selectedAccountIds.includes(activePreviewAccountId)) {
+        setActivePreviewAccountId(selectedAccountIds[0]);
+      }
+    } else if (accounts.length > 0) {
+      setActivePreviewAccountId(accounts[0].id);
     }
-  }, [selectedPlatforms, activePreviewPlatform]);
+  }, [selectedAccountIds, activePreviewAccountId, accounts]);
 
   const previewAccount = useMemo(() => {
+    if (activePreviewAccountId) {
+      const match = accounts.find((a) => a.id === activePreviewAccountId);
+      if (match) return match;
+    }
     return (
       accounts.find((a) => selectedAccountIds.includes(a.id) && a.platform === activePreviewPlatform) ||
+      accounts.find((a) => selectedAccountIds.includes(a.id)) ||
       accounts.find((a) => a.platform === activePreviewPlatform) ||
       activeAccount
     );
-  }, [accounts, selectedAccountIds, activePreviewPlatform, activeAccount]);
+  }, [accounts, activePreviewAccountId, selectedAccountIds, activePreviewPlatform, activeAccount]);
+
+  // Keep activePreviewPlatform synced with previewAccount
+  useEffect(() => {
+    if (previewAccount?.platform && previewAccount.platform !== activePreviewPlatform) {
+      setActivePreviewPlatform(previewAccount.platform);
+    }
+  }, [previewAccount, activePreviewPlatform]);
 
   const previewPostData: Partial<Post> = useMemo(() => {
     const overrides: Record<string, PlatformCaptionOverride> = {};
-    Object.entries(platformCaptions).forEach(([plat, cap]) => {
-      overrides[plat] = {
-        ...cap,
-        caption: cap.caption,
-        title: cap.title,
-        firstComment: firstComment,
-      };
+
+    selectedAccountIds.forEach((accId) => {
+      const acc = accounts.find((a) => a.id === accId);
+      const cap = accountCaptions[accId];
+      if (cap) {
+        overrides[accId] = {
+          ...cap,
+          caption: cap.caption,
+          title: cap.title,
+          firstComment: firstComment,
+        };
+        if (acc && !overrides[acc.platform]) {
+          overrides[acc.platform] = {
+            ...cap,
+            caption: cap.caption,
+            title: cap.title,
+            firstComment: firstComment,
+          };
+        }
+      }
     });
 
     return {
       content: mainCaption,
       media: mediaList,
       platformOverrides: overrides,
+      accountOverrides: overrides,
       firstComment: firstComment,
       postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
     };
-  }, [mainCaption, mediaList, platformCaptions, firstComment]);
+  }, [mainCaption, mediaList, accountCaptions, firstComment, selectedAccountIds, accounts]);
 
   // Circular Platform Selection Handler
   const handleTogglePlatform = (platformId: SocialPlatform) => {
@@ -410,10 +443,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   // AI Quick Writing Helpers
   const applyAiEnhancement = (
     mode: 'improve' | 'punchy' | 'cta' | 'hashtags',
-    targetPlatform?: SocialPlatform
+    targetAccountId?: string
   ) => {
-    const currentText = targetPlatform
-      ? platformCaptions[targetPlatform]?.caption || mainCaption
+    const currentText = targetAccountId
+      ? accountCaptions[targetAccountId]?.caption || mainCaption
       : mainCaption;
 
     let enhanced = currentText;
@@ -435,22 +468,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       enhanced = `${currentText.trim()}\n\n#marketing #growth #socialmedia #business #productivity #tech`;
     }
 
-    if (targetPlatform) {
-      setPlatformCaptions((prev) => ({
+    if (targetAccountId) {
+      setAccountCaptions((prev) => ({
         ...prev,
-        [targetPlatform]: {
-          ...prev[targetPlatform],
+        [targetAccountId]: {
+          ...prev[targetAccountId],
           caption: enhanced,
         },
       }));
-      showToast(`Enhanced ${targetPlatform} caption!`);
+      const acc = accounts.find((a) => a.id === targetAccountId);
+      showToast(`Enhanced ${acc?.displayName || acc?.username || 'account'} caption!`);
     } else {
       setMainCaption(enhanced);
       showToast('Main caption enhanced!');
     }
   };
 
-    // Apply Approved Caption to All Selected Platforms with Intelligent Field Mapping
+  // Apply Approved Caption to All Selected Accounts with Intelligent Field Mapping
   const applyCaptionToAllPlatforms = (captionToApply: string, optionalTitle?: string) => {
     const trimmed = captionToApply.trim();
     if (!trimmed) return;
@@ -458,31 +492,33 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     // 1. Update Master Caption
     setMainCaption(trimmed);
 
-    // 2. Map caption across all selected platforms
-    setPlatformCaptions((prev) => {
+    // 2. Map caption across all selected accounts
+    setAccountCaptions((prev) => {
       const next = { ...prev };
-      for (const plat of selectedPlatforms) {
-        next[plat] = {
-          ...next[plat],
+      for (const accId of selectedAccountIds) {
+        next[accId] = {
+          ...next[accId],
           caption: trimmed,
+          ...(optionalTitle ? { title: optionalTitle } : {}),
         };
       }
       return next;
     });
 
-    showToast('Caption applied to all selected platforms.');
+    showToast('Caption applied to all selected accounts.');
   };
 
-  // Copy Main Caption into specific Platform Caption
-  const copyFromMainCaption = (platformId: SocialPlatform) => {
-    setPlatformCaptions((prev) => ({
+  // Copy Main Caption into specific Account Caption
+  const copyFromMainCaption = (targetId: string) => {
+    setAccountCaptions((prev) => ({
       ...prev,
-      [platformId]: {
-        ...prev[platformId],
+      [targetId]: {
+        ...prev[targetId],
         caption: mainCaption,
       },
     }));
-    showToast(`Copied main caption to ${platformId}`);
+    const acc = accounts.find((a) => a.id === targetId);
+    showToast(`Copied main caption to ${acc?.displayName || acc?.username || targetId}`);
   };
 
   // Handle Save / Publish execution
@@ -508,21 +544,37 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           ? formatLocalToUtcIso(scheduledDate, scheduledTime)
           : undefined;
 
-      // Build platformOverrides for each selected platform
-      const overrides: Partial<Record<SocialPlatform, PlatformCaptionOverride>> = {};
-      selectedPlatforms.forEach((p) => {
-        const platData = platformCaptions[p] || ({} as PlatformCaptionOverride);
-        const captionText = platData?.caption?.trim() ? platData.caption : mainCaption;
-        overrides[p] = {
-          ...platData,
-          caption: destinationLink ? `${captionText}\n\n🔗 ${destinationLink}` : captionText,
+      // Build account-specific and platform-level overrides
+      const accountOverrides: Record<string, PlatformCaptionOverride> = {};
+      const platformOverrides: Record<string, PlatformCaptionOverride> = {};
+
+      selectedAccountIds.forEach((accId) => {
+        const acc = accounts.find((a) => a.id === accId);
+        if (!acc) return;
+
+        const accData = accountCaptions[accId] || ({} as PlatformCaptionOverride);
+        const captionText = accData?.caption?.trim() ? accData.caption : mainCaption;
+        const formattedCaption = destinationLink ? `${captionText}\n\n🔗 ${destinationLink}` : captionText;
+
+        const overrideObj: PlatformCaptionOverride = {
+          ...accData,
+          caption: formattedCaption,
           title:
-            p === 'youtube'
-              ? platData?.title?.trim() || mainCaption.split('\n')[0] || 'Post'
+            acc.platform === 'youtube'
+              ? accData?.title?.trim() || mainCaption.split('\n')[0] || 'Post'
               : undefined,
-          firstComment: p === 'instagram' ? firstComment || undefined : undefined,
-          collaborator: p === 'instagram' ? collaborators || undefined : undefined,
+          firstComment: acc.platform === 'instagram' ? firstComment || undefined : undefined,
+          collaborator: acc.platform === 'instagram' ? collaborators || undefined : undefined,
         };
+
+        // Key by account ID for per-account precision
+        accountOverrides[accId] = overrideObj;
+        platformOverrides[accId] = overrideObj;
+
+        // Key by platform as fallback
+        if (!platformOverrides[acc.platform]) {
+          platformOverrides[acc.platform] = overrideObj;
+        }
       });
 
       const payload: Partial<Post> = {
@@ -530,7 +582,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         targetAccountIds: selectedAccountIds,
         media: mediaList,
         postType: currentPostType === 'video' ? 'reel' : 'post',
-        platformOverrides: overrides,
+        platformOverrides: platformOverrides,
+        accountOverrides: accountOverrides,
         tags: initialPost?.tags || [],
         firstComment: firstComment || undefined,
         collaborators: collaborators || undefined,
@@ -925,19 +978,26 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <div>
                   <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
                     <span>
-                      {selectedPlatforms.length > 1
+                      {selectedAccountIds.length > 1
                         ? 'Main Caption (Master / Default)'
-                        : selectedPlatforms[0] === 'youtube'
-                        ? 'YouTube Caption'
-                        : selectedPlatforms[0] === 'instagram'
-                        ? 'Instagram Caption'
+                        : accounts.find((a) => a.id === selectedAccountIds[0])
+                        ? `${accounts.find((a) => a.id === selectedAccountIds[0])?.displayName || accounts.find((a) => a.id === selectedAccountIds[0])?.username} Caption`
                         : 'Post Caption'}
                     </span>
+                    {selectedAccountIds.length === 1 && accounts.find((a) => a.id === selectedAccountIds[0]) && (
+                      <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize">
+                        {accounts.find((a) => a.id === selectedAccountIds[0])?.platform}
+                      </span>
+                    )}
                     <Info className="w-3.5 h-3.5 text-gray-400" />
                   </span>
-                  {selectedPlatforms.length > 1 && (
+                  {selectedAccountIds.length > 1 ? (
                     <span className="text-[11px] text-gray-400 block mt-0.5">
-                      Applies automatically across all selected platforms unless customized below.
+                      Applies automatically across all selected accounts unless customized below.
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-400 block mt-0.5">
+                      Default caption for your selected account.
                     </span>
                   )}
                 </div>
@@ -1005,68 +1065,97 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               </div>
             </div>
 
-            {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EACH SELECTED PLATFORM (Shown when >1 platform selected) */}
-            {selectedPlatforms.length > 1 && (
+            {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EVERY SELECTED ACCOUNT (Shown when >1 account selected) */}
+            {selectedAccountIds.length > 1 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
                   <div>
                     <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-2">
-                      <span>Platform-Specific Captions</span>
+                      <span>Account-Specific Captions</span>
                       <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                        {selectedPlatforms.length} active
+                        {selectedAccountIds.length} active accounts
                       </span>
                     </h3>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Customize independent captions for each platform, or leave blank to inherit the main caption.
+                      Customize independent captions for each account, or leave blank to inherit the main caption.
                     </p>
                   </div>
                 </div>
 
-                {/* Stack of Platform Caption Editors */}
+                {/* Stack of Account Caption Editors */}
                 <div className="space-y-3">
-                  {selectedPlatforms.map((platId) => {
+                  {selectedAccountIds.map((accId) => {
+                    const acc = accounts.find((a) => a.id === accId);
+                    if (!acc) return null;
+
                     const platConfig =
-                      SUPPORTED_PLATFORMS.find((p) => p.id === platId) || {
-                        id: platId,
-                        name: platId,
+                      SUPPORTED_PLATFORMS.find((p) => p.id === acc.platform) || {
+                        id: acc.platform,
+                        name: acc.platform,
                         brandColor: '#4F46E5',
                         badgeBg: 'bg-indigo-600',
                         limit: 2200,
-                        placeholder: 'Write platform caption...',
+                        placeholder: 'Write account caption...',
                       };
 
-                    const platData = platformCaptions[platId] || { caption: '' };
-                    const currentCaptionText = platData.caption;
+                    const accData = accountCaptions[accId] || { caption: '' };
+                    const currentCaptionText = accData.caption;
                     const charCount = currentCaptionText.length;
                     const isOverLimit = platConfig.limit && charCount > platConfig.limit;
-                    const isCollapsed = collapsedPlatforms[platId];
+                    const isCollapsed = collapsedPlatforms[accId];
+                    const isCustomized = currentCaptionText.trim().length > 0;
 
                     return (
                       <div
-                        key={platId}
+                        key={accId}
                         className={`bg-white rounded-2xl border transition-all ${
                           isOverLimit
                             ? 'border-rose-400 ring-2 ring-rose-400/20 shadow-xs'
                             : 'border-gray-200/90 hover:border-gray-300 shadow-xs'
                         }`}
                       >
-                        {/* Platform Caption Header */}
+                        {/* Account Caption Header */}
                         <div className="p-4 flex items-center justify-between border-b border-gray-100">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
-                              <PlatformLogo platform={platId} className="w-4 h-4" />
+                          <div className="flex items-center space-x-3 min-w-0">
+                            {/* Account Avatar with Platform Badge */}
+                            <div className="relative shrink-0">
+                              {acc.avatarUrl ? (
+                                <img
+                                  src={acc.avatarUrl}
+                                  alt={acc.displayName || acc.username}
+                                  className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-xs text-gray-700">
+                                  {(acc.displayName || acc.username || acc.platform).charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-2xs">
+                                <PlatformLogo platform={acc.platform} className="w-2.5 h-2.5" />
+                              </div>
                             </div>
-                            <div>
-                              <span className="text-xs font-bold text-gray-900 block leading-tight">
-                                {platConfig.name} Caption
-                              </span>
-                              <span className="text-[10px] text-gray-400">
-                                {platData.caption.trim() ? 'Customized' : 'Inheriting main caption'}
+
+                            <div className="min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs font-bold text-gray-900 block leading-tight truncate max-w-[200px] sm:max-w-[320px]">
+                                  {acc.displayName || acc.username}
+                                </span>
+                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize shrink-0">
+                                  {platConfig.name}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-gray-400 block mt-0.5 truncate">
+                                {acc.username && acc.username !== acc.displayName ? `@${acc.username} • ` : ''}
+                                {isCustomized ? (
+                                  <span className="text-emerald-600 font-semibold">Customized caption</span>
+                                ) : (
+                                  'Inheriting main caption'
+                                )}
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 shrink-0">
                             {/* Live Char Limit Counter */}
                             <span
                               className={`text-xs font-mono px-2 py-0.5 rounded-md ${
@@ -1081,13 +1170,35 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             {/* Copy from Main Caption Button */}
                             <button
                               type="button"
-                              onClick={() => copyFromMainCaption(platId)}
+                              onClick={() => copyFromMainCaption(accId)}
                               className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                              title="Copy main caption into this field"
+                              title="Copy main caption into this account"
                             >
                               <Copy className="w-3 h-3 text-gray-400" />
                               <span className="hidden sm:inline">Copy Main</span>
                             </button>
+
+                            {/* Reset / Inherit Button if customized */}
+                            {isCustomized && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAccountCaptions((prev) => ({
+                                    ...prev,
+                                    [accId]: {
+                                      ...prev[accId],
+                                      caption: '',
+                                    },
+                                  }));
+                                  showToast(`Reset ${acc.displayName || acc.username} to inherit main caption`);
+                                }}
+                                className="px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
+                                title="Clear customized caption and inherit main caption"
+                              >
+                                <RotateCcw className="w-3 h-3 text-rose-400" />
+                                <span className="hidden sm:inline">Reset</span>
+                              </button>
+                            )}
 
                             {/* Collapse/Expand Toggle */}
                             <button
@@ -1095,7 +1206,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               onClick={() =>
                                 setCollapsedPlatforms((prev) => ({
                                   ...prev,
-                                  [platId]: !prev[platId],
+                                  [accId]: !prev[accId],
                                 }))
                               }
                               className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
@@ -1114,20 +1225,20 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                           <div className="p-4 space-y-3">
                             {/* Specific Caption Textarea */}
                             <textarea
-                              value={platData.caption}
+                              value={accData.caption}
                               onChange={(e) =>
-                                setPlatformCaptions((prev) => ({
+                                setAccountCaptions((prev) => ({
                                   ...prev,
-                                  [platId]: {
-                                    ...prev[platId],
+                                  [accId]: {
+                                    ...prev[accId],
                                     caption: e.target.value,
                                   },
                                 }))
                               }
                               placeholder={
-                                platData.caption.trim()
+                                accData.caption.trim()
                                   ? platConfig.placeholder
-                                  : `${platConfig.placeholder} (Leave blank to use main caption)`
+                                  : `Write custom caption for ${acc.displayName || acc.username} (Leave blank to use main caption)...`
                               }
                               className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200/80 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
                             />
@@ -1142,10 +1253,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               </div>
                             )}
 
-                            {platId === 'youtube' && (
+                            {acc.platform === 'youtube' && (
                               <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-200/60 flex items-center space-x-2">
                                 <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                <span>YouTube Data API v3 officially supports video publishing. Photo and text posts are scheduled and organized in your PostingTube calendar.</span>
+                                <span>
+                                  Caption for YouTube channel &quot;{acc.displayName || acc.username}&quot; publishes as video description.
+                                </span>
                               </div>
                             )}
                           </div>
@@ -1352,7 +1465,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <div>
                         <strong className="block font-semibold">Immediate Live Dispatch</strong>
                         <span>
-                          Your post will be published immediately to all {selectedPlatforms.length} selected platforms using official APIs.
+                          Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
                         </span>
                       </div>
                     </div>
@@ -1402,45 +1515,82 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <span className="text-xs font-bold text-gray-800">Platform Preview</span>
                     </div>
                     <span className="text-[11px] text-gray-400 font-medium">
-                      {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'target' : 'targets'} selected
+                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} selected
                     </span>
                   </div>
 
-                  {/* Platform Selector Tabs */}
+                  {/* Account / Platform Selector Tabs */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                    {(selectedPlatforms.length > 0
-                      ? selectedPlatforms
-                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
-                    ).map((platform) => {
-                      const isActive = activePreviewPlatform === platform;
-                      const hasCustomCaption = Boolean(
-                        platformCaptions[platform]?.caption || platformCaptions[platform]?.title
-                      );
-                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                      const platformName = config?.name || (platform);
+                    {selectedAccountIds.length > 1 ? (
+                      selectedAccountIds.map((accId) => {
+                        const acc = accounts.find((a) => a.id === accId);
+                        if (!acc) return null;
+                        const isActive = previewAccount?.id === acc.id;
+                        const hasCustomCaption = Boolean(
+                          accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
+                        );
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => {
+                              setActivePreviewAccountId(acc.id);
+                              setActivePreviewPlatform(acc.platform);
+                            }}
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-gray-900 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                            }`}
+                          >
+                            <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                            <span className="truncate max-w-[110px]">{acc.displayName || acc.username}</span>
+                            {hasCustomCaption && (
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
+                                title="Customized caption"
+                              />
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      (selectedPlatforms.length > 0
+                        ? selectedPlatforms
+                        : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
+                      ).map((platform) => {
+                        const isActive = activePreviewPlatform === platform;
+                        const hasCustomCaption = Boolean(
+                          previewAccount &&
+                            (accountCaptions[previewAccount.id]?.caption?.trim() ||
+                              accountCaptions[previewAccount.id]?.title?.trim())
+                        );
+                        const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+                        const platformName = config?.name || platform;
 
-                      return (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setActivePreviewPlatform(platform)}
-                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-gray-900 text-white shadow-xs'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                          }`}
-                        >
-                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
-                          <span className="capitalize">{platformName}</span>
-                          {hasCustomCaption && (
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
-                              title="Customized caption"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            key={platform}
+                            type="button"
+                            onClick={() => setActivePreviewPlatform(platform)}
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-gray-900 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                            }`}
+                          >
+                            <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
+                            <span className="capitalize">{platformName}</span>
+                            {hasCustomCaption && (
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
+                                title="Customized caption"
+                              />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 

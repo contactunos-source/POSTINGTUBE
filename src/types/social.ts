@@ -83,7 +83,8 @@ export interface Post {
   media: PostMedia[];
   targetAccountIds: string[];
   postType: PostType;
-  platformOverrides: Partial<Record<SocialPlatform, PlatformCaptionOverride>>;
+  platformOverrides: Record<string, PlatformCaptionOverride>;
+  accountOverrides?: Record<string, PlatformCaptionOverride>;
   tags: string[];
   firstComment?: string;
   collaborators?: string;

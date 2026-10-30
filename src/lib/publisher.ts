@@ -91,7 +91,10 @@ export async function executePostPublish(
 
         try {
           const adapter = getAdapterForPlatform(account.platform);
-          const override = post.platformOverrides?.[account.platform];
+          const override =
+            post.accountOverrides?.[account.id] ||
+            post.platformOverrides?.[account.id] ||
+            post.platformOverrides?.[account.platform];
 
           // Validate post for this specific platform
           const validation = adapter.validatePost(post, override);

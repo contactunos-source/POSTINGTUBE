@@ -44,7 +44,10 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 }) => {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-  const override = post.platformOverrides?.[selectedPlatform];
+  const override =
+    (activeAccount && post.accountOverrides?.[activeAccount.id]) ||
+    (activeAccount && post.platformOverrides?.[activeAccount.id]) ||
+    post.platformOverrides?.[selectedPlatform];
   const caption = override?.caption || post.content || '';
   const firstComment = override?.firstComment || post.firstComment;
   const isAiGenerated = override?.isAiGenerated ?? post.isAiGenerated;

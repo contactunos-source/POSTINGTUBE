@@ -104,6 +104,12 @@ async function handlePublishCron(req: NextRequest) {
             }
 
             const startTime = Date.now();
+            const accountOverride =
+              post.platform_overrides?.[account.id] ||
+              post.platform_overrides?.account_overrides?.[account.id] ||
+              post.platform_overrides?.[account.platform] ||
+              {};
+
             try {
               if (account.platform === 'facebook') {
                 const res = await fetch(`${appUrl}/api/facebook/publish`, {
@@ -112,7 +118,7 @@ async function handlePublishCron(req: NextRequest) {
                   body: JSON.stringify({
                     pageId: account.page_id || account.id,
                     accessToken: account.access_token,
-                    message: post.content,
+                    message: accountOverride.caption || post.content,
                     mediaUrl,
                     postType: post.post_type,
                   }),
@@ -153,7 +159,7 @@ async function handlePublishCron(req: NextRequest) {
                   body: JSON.stringify({
                     igUserId: account.external_id || account.page_id || account.id,
                     accessToken: account.access_token,
-                    caption: post.content,
+                    caption: accountOverride.caption || post.content,
                     mediaUrl,
                     postType: post.post_type,
                   }),
@@ -195,19 +201,19 @@ async function handlePublishCron(req: NextRequest) {
                     channelId: account.external_id || account.page_id || account.id,
                     accessToken: account.access_token,
                     refreshToken: account.refresh_token,
-                    title: post.platform_overrides?.youtube?.title || post.content.split('\n')[0] || 'Scheduled Video',
-                    description: post.platform_overrides?.youtube?.caption || post.content,
-                    tags: post.platform_overrides?.youtube?.tags || post.tags || [],
+                    title: accountOverride.title || post.platform_overrides?.youtube?.title || post.content.split('\n')[0] || 'Scheduled Video',
+                    description: accountOverride.caption || post.platform_overrides?.youtube?.caption || post.content,
+                    tags: accountOverride.tags || post.platform_overrides?.youtube?.tags || post.tags || [],
                     mediaUrl,
-                    thumbnailUrl: post.platform_overrides?.youtube?.thumbnailUrl || post.media?.[0]?.thumbnailUrl,
+                    thumbnailUrl: accountOverride.thumbnailUrl || post.platform_overrides?.youtube?.thumbnailUrl || post.media?.[0]?.thumbnailUrl,
                     scheduledTimestamp: post.scheduled_for,
                     postType: post.post_type,
-                    categoryId: post.platform_overrides?.youtube?.categoryId || '22',
-                    madeForKids: post.platform_overrides?.youtube?.madeForKids ?? false,
-                    privacyStatus: post.platform_overrides?.youtube?.privacyStatus || 'public',
-                    playlistId: post.platform_overrides?.youtube?.playlistId,
-                    recordingDate: post.platform_overrides?.youtube?.recordingDate,
-                    videoLocation: post.platform_overrides?.youtube?.videoLocation,
+                    categoryId: accountOverride.categoryId || post.platform_overrides?.youtube?.categoryId || '22',
+                    madeForKids: accountOverride.madeForKids ?? post.platform_overrides?.youtube?.madeForKids ?? false,
+                    privacyStatus: accountOverride.privacyStatus || post.platform_overrides?.youtube?.privacyStatus || 'public',
+                    playlistId: accountOverride.playlistId || post.platform_overrides?.youtube?.playlistId,
+                    recordingDate: accountOverride.recordingDate || post.platform_overrides?.youtube?.recordingDate,
+                    videoLocation: accountOverride.videoLocation || post.platform_overrides?.youtube?.videoLocation,
                   }),
                 });
                 const data = await res.json();

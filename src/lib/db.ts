@@ -21,6 +21,7 @@ export function mapDbPostToPost(row: any): Post {
     targetAccountIds: row.target_account_ids || [],
     postType: row.post_type || 'post',
     platformOverrides: row.platform_overrides || {},
+    accountOverrides: row.platform_overrides?.account_overrides || row.platform_overrides || {},
     tags: row.tags || [],
     firstComment: row.first_comment || undefined,
     collaborators: row.collaborators || undefined,
@@ -68,6 +69,7 @@ export function mapPostToDbPost(post: Post): any {
     post_type: post.postType || 'post',
     platform_overrides: {
       ...(post.platformOverrides || {}),
+      ...(post.accountOverrides ? { account_overrides: post.accountOverrides, ...post.accountOverrides } : {}),
       music_title: post.musicTitle || null,
       product_tags: post.productTags || [],
       stickers: post.stickers || [],
