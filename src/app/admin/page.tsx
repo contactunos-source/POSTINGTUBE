@@ -12,6 +12,7 @@ import { DevicesView } from '@/components/admin/DevicesView';
 import { ActivityLogsView } from '@/components/admin/ActivityLogsView';
 import { SystemHealthView } from '@/components/admin/SystemHealthView';
 import { SecuritySettingsView } from '@/components/admin/SecuritySettingsView';
+import { UserDetailModal } from '@/components/admin/UserDetailModal';
 import { AdminOverviewStats, AdminCustomerProfile } from '@/lib/admin/service';
 import { Loader2 } from 'lucide-react';
 
@@ -108,6 +109,71 @@ export default function AdminPage() {
   const [accountPlatformFilter, setAccountPlatformFilter] = useState('all');
   const [accountStatusFilter, setAccountStatusFilter] = useState('all');
   const [accountSearch, setAccountSearch] = useState('');
+
+  // Selected user profile for modal view across tabs
+  const [selectedUserForModal, setSelectedUserForModal] = useState<AdminCustomerProfile | null>(null);
+
+  const handleOpenUserProfile = (userEmailOrId: string) => {
+    if (!userEmailOrId) return;
+    const lower = userEmailOrId.toLowerCase();
+    const found = users.find((u) => u.id === userEmailOrId || u.email.toLowerCase() === lower);
+    if (found) {
+      setSelectedUserForModal(found);
+      return;
+    }
+    const userAccs = accounts.filter(
+      (a) => a.user_id === userEmailOrId || a.ownerEmail?.toLowerCase() === lower
+    );
+    const userPosts = posts.filter(
+      (p) => p.user_id === userEmailOrId || p.customerEmail?.toLowerCase() === lower
+    );
+    const displayName =
+      userAccs[0]?.ownerName ||
+      userAccs[0]?.displayName ||
+      (userEmailOrId.includes('@') ? userEmailOrId.split('@')[0] : 'Customer');
+
+    setSelectedUserForModal({
+      id: userEmailOrId,
+      email: userEmailOrId.includes('@') ? userEmailOrId : `${userEmailOrId}@customer.com`,
+      fullName: displayName,
+      status: 'active',
+      plan: 'free',
+      billingCycle: 'monthly',
+      paymentStatus: 'free',
+      registeredAt: userAccs[0]?.createdAt || new Date().toISOString(),
+      lastActiveAt: userAccs[0]?.updatedAt || new Date().toISOString(),
+      connectedAccountsCount: userAccs.length,
+      connectedAccounts: userAccs.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        displayName: a.displayName || a.username,
+        username: a.username,
+        avatarUrl: a.avatarUrl,
+        status: a.status || 'connected',
+        connectedAt: a.createdAt,
+        tokenExpiry: a.status === 'expired' ? 'Expired' : 'Valid (Auto-Refreshed)',
+        hasErrors: a.status === 'expired' || a.status === 'error',
+      })),
+      postsCount: {
+        total: userPosts.length,
+        published: userPosts.filter((p) => p.status === 'published').length,
+        scheduled: userPosts.filter((p) => p.status === 'scheduled').length,
+        drafts: userPosts.filter((p) => p.status === 'draft').length,
+        failed: userPosts.filter((p) => p.status === 'failed').length,
+      },
+      recentPosts: userPosts.slice(0, 10).map((post) => ({
+        id: post.id,
+        content: post.content || '',
+        mediaUrl: post.media?.[0]?.url,
+        status: post.status,
+        scheduledFor: post.scheduledFor,
+        publishedAt: post.publishedAt,
+        createdAt: post.createdAt,
+        destinations: post.targetAccountIds || [],
+      })),
+      billingHistory: [],
+    });
+  };
 
   // Posts state
   const [posts, setPosts] = useState<any[]>([]);
@@ -422,6 +488,8 @@ export default function AdminPage() {
               onStatusFilter={setAccountStatusFilter}
               onSearch={setAccountSearch}
               onDisconnectAccount={handleDisconnectAccount}
+              onOpenUserProfile={handleOpenUserProfile}
+              users={users}
             />
           )}
 
@@ -436,6 +504,8 @@ export default function AdminPage() {
               onStatusFilter={setPostStatusFilter}
               onSearch={setPostSearch}
               onRetryPost={handleRetryPost}
+              onOpenUserProfile={handleOpenUserProfile}
+              users={users}
             />
           )}
 
@@ -481,6 +551,15 @@ export default function AdminPage() {
           )}
         </div>
       </main>
+
+      {/* Global Customer Profile Detail Modal */}
+      {selectedUserForModal && (
+        <UserDetailModal
+          user={selectedUserForModal}
+          onClose={() => setSelectedUserForModal(null)}
+          onUpdateStatus={handleUpdateUserStatus}
+        />
+      )}
     </div>
   );
 }

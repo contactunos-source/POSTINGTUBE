@@ -15,6 +15,7 @@ export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'f
 
 export interface SocialAccount {
   id: string;
+  userId?: string;
   platform: SocialPlatform;
   username: string;
   displayName: string;
@@ -77,6 +78,7 @@ export interface PlatformPostMetrics {
 
 export interface Post {
   id: string;
+  userId?: string;
   workspaceId: string;
   content: string; // Main caption
   media: PostMedia[];

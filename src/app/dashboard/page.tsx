@@ -86,21 +86,33 @@ export default function DashboardPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const currentUserIdRef = React.useRef<string | null>(null);
 
-  // User Initialization: automatically loads unified user data
+  // User Initialization: strictly loads only this authenticated user's isolated data
   const initUserData = async (user: any) => {
+    if (!user || !user.id) {
+      setAccounts([]);
+      setPosts([]);
+      setMediaItems([]);
+      setIsLoaded(true);
+      return;
+    }
+
+    currentUserIdRef.current = user.id;
     setIsLoaded(false);
     try {
       const [dbAccounts, dbPosts] = await Promise.all([
-        DatabaseService.getAccounts(),
-        DatabaseService.getPosts(),
+        DatabaseService.getAccounts(user.id),
+        DatabaseService.getPosts(user.id),
       ]);
 
       setAccounts(dbAccounts);
       setPosts(dbPosts);
-      setMediaItems(StorageService.getMedia());
+      setMediaItems(StorageService.getMedia(user.id));
     } catch (err) {
       console.error('Failed to initialize user data:', err);
+      setAccounts([]);
+      setPosts([]);
     } finally {
       setIsLoaded(true);
     }
@@ -237,14 +249,23 @@ export default function DashboardPage() {
           console.warn('Session check warning:', e);
         }
 
-        // Listen for auth change: ONLY redirect if user explicitly clicked sign out
+        // Listen for auth change: strictly isolated account switching and clean sign out
         const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
           if (session?.user) {
-            setAuthUser(session.user);
+            if (session.user.id !== currentUserIdRef.current) {
+              setAccounts([]);
+              setPosts([]);
+              setAuthUser(session.user);
               await initUserData(session.user);
-              setAuthChecking(false);
+            }
+            setAuthChecking(false);
           } else if (event === 'SIGNED_OUT') {
+            currentUserIdRef.current = null;
+            StorageService.clearAllUserCaches();
+            setAuthUser(null);
+            setAccounts([]);
+            setPosts([]);
             window.location.href = '/login?redirectTo=/dashboard';
           }
         });
@@ -545,6 +566,7 @@ export default function DashboardPage() {
     if (action === 'publish-now') {
       const tempPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
+        userId: authUser?.id,
         workspaceId: DEFAULT_WORKSPACE_ID,
         content: postData.content || '',
         media: postData.media || [],
@@ -582,10 +604,15 @@ export default function DashboardPage() {
       } else {
         setPosts((prev) => [finalPost, ...prev]);
       }
-      await DatabaseService.savePost(finalPost);
+      await DatabaseService.savePost(finalPost, authUser?.id);
+      if (authUser?.id) {
+        const refreshed = await DatabaseService.getPosts(authUser.id);
+        setPosts(refreshed);
+      }
     } else {
       const newPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
+        userId: authUser?.id,
         workspaceId: DEFAULT_WORKSPACE_ID,
         content: postData.content || '',
         media: postData.media || [],
@@ -616,7 +643,11 @@ export default function DashboardPage() {
       } else {
         setPosts((prev) => [newPost, ...prev]);
       }
-      await DatabaseService.savePost(newPost);
+      await DatabaseService.savePost(newPost, authUser?.id);
+      if (authUser?.id) {
+        const refreshed = await DatabaseService.getPosts(authUser.id);
+        setPosts(refreshed);
+      }
     }
 
     setIsComposerOpen(false);
@@ -648,7 +679,7 @@ export default function DashboardPage() {
 
   const handleDeletePost = async (id: string) => {
     setPosts((prev) => prev.filter((p) => p.id !== id));
-    await DatabaseService.deletePost(id);
+    await DatabaseService.deletePost(id, authUser?.id);
   };
 
   const handlePublishNow = async (post: Post) => {
@@ -743,27 +774,30 @@ export default function DashboardPage() {
   };
 
   const handleAddAccount = async (account: SocialAccount): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> => {
-    // 1. Enforce backend / database duplicate protection
-    const result = await DatabaseService.saveAccount(account);
+    const userId = authUser?.id;
+    account.userId = userId;
+
+    // 1. Enforce backend / database duplicate protection scoped to this user
+    const result = await DatabaseService.saveAccount(account, userId);
 
     if (result.isDuplicate) {
       setSuccessToast(result.message || 'This account is already connected.');
       return result;
     }
 
-    // 2. Immediately refresh Connected Accounts list from database and update state
-    const refreshed = await DatabaseService.getAccounts();
+    // 2. Immediately refresh Connected Accounts list from database for this user
+    const refreshed = await DatabaseService.getAccounts(userId);
     setAccounts(refreshed);
 
     // 3. Keep user on Connections page & display clear success message
-    setActiveTab('connections');
+    handleTabChange('connections');
     setSuccessToast('Account connected successfully!');
     return result;
   };
 
   const handleRemoveAccount = async (id: string) => {
-    setAccounts(accounts.filter((a) => a.id !== id));
-    await DatabaseService.deleteAccount(id);
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    await DatabaseService.deleteAccount(id, authUser?.id);
   };
 
   const handleRefreshAccount = async (id: string) => {
@@ -773,7 +807,7 @@ export default function DashboardPage() {
     setAccounts(updatedAccounts);
     const updatedAcc = updatedAccounts.find((a) => a.id === id);
     if (updatedAcc) {
-      await DatabaseService.saveAccount(updatedAcc);
+      await DatabaseService.saveAccount(updatedAcc, authUser?.id);
     }
   };
 
@@ -884,7 +918,7 @@ export default function DashboardPage() {
                 </span>
                 <div className="h-3.5 w-px bg-gray-200 mx-0.5 shrink-0"></div>
                 <button
-                  onClick={() => signOutUser().then(() => { window.location.href = '/'; })}
+                  onClick={async () => { await signOutUser(); window.location.href = '/login'; }}
                   className="text-gray-400 hover:text-rose-600 text-[11px] font-medium flex items-center space-x-1 cursor-pointer transition-colors shrink-0"
                   title="Sign out"
                 >
@@ -942,6 +976,7 @@ export default function DashboardPage() {
             onRefreshAccount={handleRefreshAccount}
             onNavigateToTab={handleTabChange}
             onShowSuccessToast={(msg) => setSuccessToast(msg)}
+            authUser={authUser}
           />
         )}
 

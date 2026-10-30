@@ -12,6 +12,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export function mapDbPostToPost(row: any): Post {
   return {
     id: row.id,
+    userId: row.user_id || undefined,
     workspaceId: (row.workspace_id && UUID_REGEX.test(row.workspace_id)) ? row.workspace_id : DEFAULT_WORKSPACE_ID,
     content: row.content || '',
     media: (row.media || []).map((m: any) => ({
@@ -51,13 +52,14 @@ export function mapDbPostToPost(row: any): Post {
 /**
  * Maps Post model to Supabase PostgreSQL row
  */
-export function mapPostToDbPost(post: Post): any {
+export function mapPostToDbPost(post: Post, userId?: string): any {
   const validWorkspaceId = (post.workspaceId && UUID_REGEX.test(post.workspaceId))
     ? post.workspaceId
     : DEFAULT_WORKSPACE_ID;
 
   return {
     id: post.id,
+    user_id: userId || post.userId || post.author?.id || null,
     workspace_id: validWorkspaceId,
     content: post.content,
     media: (post.media || []).map((m: any) => ({
@@ -111,6 +113,7 @@ export function mapDbAccountToAccount(row: any): SocialAccount {
 
   return {
     id: row.id,
+    userId: row.user_id || undefined,
     platform: row.platform,
     username: row.username,
     displayName: row.display_name,
@@ -129,7 +132,7 @@ export function mapDbAccountToAccount(row: any): SocialAccount {
 /**
  * Maps SocialAccount to Supabase row
  */
-export function mapAccountToDbAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID): any {
+export function mapAccountToDbAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID, userId?: string): any {
   // If we have a refresh token or expiry, bundle them securely into access_token string as fallback
   let tokenPayload = account.accessToken || '';
   if (account.refreshToken || account.tokenExpiresAt) {
@@ -142,6 +145,7 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
 
   const row: any = {
     id: account.id,
+    user_id: userId || account.userId || null,
     workspace_id: workspaceId || DEFAULT_WORKSPACE_ID,
     platform: account.platform,
     username: account.username,
@@ -163,6 +167,34 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
   }
 
   return row;
+}
+
+/**
+ * Resolves active authenticated user ID from argument, session, or guest identity.
+ * Strictly prevents unauthenticated data leakage across users.
+ */
+export async function getResolvedUserId(userId?: string): Promise<string | null> {
+  if (userId && typeof userId === 'string' && userId.trim()) {
+    return userId.trim();
+  }
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        return session.user.id;
+      }
+    } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('pb_guest_session');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.id) return parsed.id;
+      }
+    } catch {}
+  }
+  return null;
 }
 
 export const DatabaseService = {
@@ -209,21 +241,26 @@ export const DatabaseService = {
   },
 
   /**
-   * Fetch posts directly from Supabase (single source of truth).
+   * Fetch posts directly from Supabase with strict user isolation (single source of truth).
    */
-  async getPosts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<Post[]> {
+  async getPosts(userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<Post[]> {
+    const resolvedUser = await getResolvedUserId(userId);
+    if (!resolvedUser) {
+      // Unauthenticated or unknown user: return empty array to prevent data leak
+      return [];
+    }
+
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('posts')
           .select('*')
+          .eq('user_id', resolvedUser)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
           const loadedPosts = data.map(mapDbPostToPost);
-          // Supabase is the single source of truth.
-          // Save directly to cache; if Supabase was cleared, cache clears too.
-          StorageService.savePosts(loadedPosts);
+          StorageService.savePosts(loadedPosts, resolvedUser);
           return loadedPosts;
         } else if (error) {
           console.warn('[DatabaseService] Supabase getPosts error:', error.message);
@@ -232,27 +269,32 @@ export const DatabaseService = {
         console.warn('Could not fetch posts from Supabase, falling back to cache:', e);
       }
     }
-    return StorageService.getPosts();
+    return StorageService.getPosts(resolvedUser);
   },
 
   /**
-   * Persist a post directly to Supabase and cache.
+   * Persist a post directly to Supabase and cache with strict user ownership.
    */
-  async savePost(post: Post): Promise<void> {
+  async savePost(post: Post, userId?: string): Promise<void> {
+    const resolvedUser = await getResolvedUserId(userId || post.userId);
+    if (resolvedUser) {
+      post.userId = resolvedUser;
+    }
+
     await this.ensureDefaultWorkspace();
 
-    // 1. Persist directly to Supabase
-    if (supabase) {
+    // 1. Persist directly to Supabase with user_id
+    if (supabase && resolvedUser) {
       try {
-        const dbPost = mapPostToDbPost(post);
+        const dbPost = mapPostToDbPost(post, resolvedUser);
         const { error: postErr } = await supabase.from('posts').upsert(dbPost);
         if (postErr) {
           console.error('Failed to upsert post to Supabase:', postErr);
         } else {
-          console.log('[Supabase] Post successfully persisted:', post.id);
+          console.log('[Supabase] Post successfully persisted for user:', resolvedUser, post.id);
         }
 
-        // If scheduled, also upsert background job queue for all target destinations
+        // If scheduled, also upsert background job queue for all target destinations with user ownership
         if (post.status === 'scheduled' && post.scheduledFor) {
           const targetIds = post.targetAccountIds && post.targetAccountIds.length > 0
             ? post.targetAccountIds
@@ -265,6 +307,7 @@ export const DatabaseService = {
               {
                 post_id: post.id,
                 account_id: accId,
+                user_id: resolvedUser,
                 scheduled_for: post.scheduledFor,
                 status: 'pending',
                 idempotency_key: idempotencyKey,
@@ -281,57 +324,70 @@ export const DatabaseService = {
       }
     }
 
-    // 2. Safely update local cache
-    try {
-      const currentPosts = StorageService.getPosts();
-      const index = currentPosts.findIndex((p) => p.id === post.id);
-      let updatedPosts: Post[];
-      if (index >= 0) {
-        updatedPosts = currentPosts.map((p) => (p.id === post.id ? post : p));
-      } else {
-        updatedPosts = [post, ...currentPosts];
+    // 2. Safely update user-scoped cache
+    if (resolvedUser) {
+      try {
+        const currentPosts = StorageService.getPosts(resolvedUser);
+        const index = currentPosts.findIndex((p) => p.id === post.id);
+        let updatedPosts: Post[];
+        if (index >= 0) {
+          updatedPosts = currentPosts.map((p) => (p.id === post.id ? post : p));
+        } else {
+          updatedPosts = [post, ...currentPosts];
+        }
+        StorageService.savePosts(updatedPosts, resolvedUser);
+      } catch (cacheErr) {
+        console.warn('Cache write warning:', cacheErr);
       }
-      StorageService.savePosts(updatedPosts);
-    } catch (cacheErr) {
-      console.warn('Cache write warning:', cacheErr);
     }
   },
 
   /**
-   * Delete a post from Supabase and cache.
+   * Delete a post from Supabase and cache with user isolation.
    */
-  async deletePost(id: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+  async deletePost(id: string, userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+    const resolvedUser = await getResolvedUserId(userId);
     if (supabase) {
       try {
-        const { error: jErr } = await supabase.from('scheduled_jobs').delete().eq('post_id', id);
-        if (jErr) console.error('Failed to delete scheduled_jobs from Supabase:', jErr);
-        const { error: pErr } = await supabase.from('posts').delete().eq('id', id);
-        if (pErr) console.error('Failed to delete post from Supabase:', pErr);
+        let jobQuery = supabase.from('scheduled_jobs').delete().eq('post_id', id);
+        let postQuery = supabase.from('posts').delete().eq('id', id);
+        if (resolvedUser) {
+          jobQuery = jobQuery.eq('user_id', resolvedUser);
+          postQuery = postQuery.eq('user_id', resolvedUser);
+        }
+        await jobQuery;
+        await postQuery;
       } catch (err) {
         console.error('Failed to delete post from Supabase:', err);
       }
     }
 
-    const currentPosts = StorageService.getPosts().filter((p) => p.id !== id);
-    StorageService.savePosts(currentPosts);
+    if (resolvedUser) {
+      const currentPosts = StorageService.getPosts(resolvedUser).filter((p) => p.id !== id);
+      StorageService.savePosts(currentPosts, resolvedUser);
+    }
   },
 
   /**
-   * Fetch accounts directly from Supabase (single source of truth).
+   * Fetch accounts directly from Supabase with strict user isolation (single source of truth).
    */
-  async getAccounts(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<SocialAccount[]> {
+  async getAccounts(userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<SocialAccount[]> {
+    const resolvedUser = await getResolvedUserId(userId);
+    if (!resolvedUser) {
+      return [];
+    }
+
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('connected_accounts')
           .select('*')
+          .eq('user_id', resolvedUser)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
           const loadedAccounts = data.map(mapDbAccountToAccount);
-          // Supabase is the single source of truth.
-          // Save directly to cache; if Supabase was cleared, cache clears too.
-          StorageService.saveAccounts(loadedAccounts);
+          StorageService.saveAccounts(loadedAccounts, resolvedUser);
           return loadedAccounts;
         } else if (error) {
           console.warn('[DatabaseService] Supabase getAccounts error:', error.message);
@@ -340,24 +396,31 @@ export const DatabaseService = {
         console.warn('Could not fetch accounts from Supabase:', e);
       }
     }
-    return StorageService.getAccounts();
+    return StorageService.getAccounts(resolvedUser);
   },
 
   /**
-   * Persist a connected account to Supabase with strict duplicate prevention.
+   * Persist a connected account to Supabase with strict duplicate prevention and user isolation.
    */
   async saveAccount(
     account: SocialAccount,
+    userId?: string,
     workspaceId: string = DEFAULT_WORKSPACE_ID
   ): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> {
+    const resolvedUser = await getResolvedUserId(userId || account.userId);
+    if (resolvedUser) {
+      account.userId = resolvedUser;
+    }
+
     await this.ensureDefaultWorkspace();
 
-    // 1. Backend duplicate prevention: query database for existing matching account
-    if (supabase) {
+    // 1. Backend duplicate prevention: query database strictly scoped to this user
+    if (supabase && resolvedUser) {
       try {
         const { data: existingRows, error: checkErr } = await supabase
           .from('connected_accounts')
           .select('id, platform, username, page_id')
+          .eq('user_id', resolvedUser)
           .eq('platform', account.platform);
 
         if (!checkErr && Array.isArray(existingRows)) {
@@ -373,11 +436,11 @@ export const DatabaseService = {
           });
 
           if (isDbDuplicate) {
-            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected.`);
+            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected to your profile.`);
             return {
               success: false,
               isDuplicate: true,
-              message: 'This account is already connected.',
+              message: 'This account is already connected to your profile.',
             };
           }
         }
@@ -386,32 +449,34 @@ export const DatabaseService = {
       }
     }
 
-    // 2. Storage cache duplicate check
-    const currentAccounts = StorageService.getAccounts();
-    const isCacheDuplicate = currentAccounts.some((existing) => {
-      if (existing.platform !== account.platform) return false;
-      const sameId = existing.id === account.id;
-      const samePageId = Boolean(existing.pageId && account.pageId && existing.pageId === account.pageId);
-      const sameUsername = Boolean(
-        existing.username &&
-        account.username &&
-        existing.username.trim().toLowerCase() === account.username.trim().toLowerCase()
-      );
-      return sameId || samePageId || sameUsername;
-    });
+    // 2. User-scoped storage cache duplicate check
+    if (resolvedUser) {
+      const currentAccounts = StorageService.getAccounts(resolvedUser);
+      const isCacheDuplicate = currentAccounts.some((existing) => {
+        if (existing.platform !== account.platform) return false;
+        const sameId = existing.id === account.id;
+        const samePageId = Boolean(existing.pageId && account.pageId && existing.pageId === account.pageId);
+        const sameUsername = Boolean(
+          existing.username &&
+          account.username &&
+          existing.username.trim().toLowerCase() === account.username.trim().toLowerCase()
+        );
+        return sameId || samePageId || sameUsername;
+      });
 
-    if (isCacheDuplicate) {
-      return {
-        success: false,
-        isDuplicate: true,
-        message: 'This account is already connected.',
-      };
+      if (isCacheDuplicate) {
+        return {
+          success: false,
+          isDuplicate: true,
+          message: 'This account is already connected to your profile.',
+        };
+      }
     }
 
-    // 3. Save new account to Supabase
-    if (supabase) {
+    // 3. Save new account to Supabase with user_id
+    if (supabase && resolvedUser) {
       try {
-        const dbAcc = mapAccountToDbAccount(account, DEFAULT_WORKSPACE_ID);
+        const dbAcc = mapAccountToDbAccount(account, DEFAULT_WORKSPACE_ID, resolvedUser);
         const { error: upsertErr } = await supabase.from('connected_accounts').upsert(dbAcc);
         if (upsertErr) {
           console.warn('[Supabase] Initial account upsert warning:', upsertErr.message);
@@ -435,9 +500,12 @@ export const DatabaseService = {
       }
     }
 
-    // 4. Save new account to cache
-    const updatedAccounts = [...currentAccounts.filter((a) => a.id !== account.id), account];
-    StorageService.saveAccounts(updatedAccounts);
+    // 4. Update user-scoped cache
+    if (resolvedUser) {
+      const currentAccounts = StorageService.getAccounts(resolvedUser);
+      const updatedAccounts = [...currentAccounts.filter((a) => a.id !== account.id), account];
+      StorageService.saveAccounts(updatedAccounts, resolvedUser);
+    }
 
     return {
       success: true,
@@ -447,20 +515,27 @@ export const DatabaseService = {
   },
 
   /**
-   * Delete an account from Supabase and cache.
+   * Delete an account from Supabase and cache with user isolation.
    */
-  async deleteAccount(id: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+  async deleteAccount(id: string, userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+    const resolvedUser = await getResolvedUserId(userId);
     if (supabase) {
       try {
-        const { error } = await supabase.from('connected_accounts').delete().eq('id', id);
+        let q = supabase.from('connected_accounts').delete().eq('id', id);
+        if (resolvedUser) {
+          q = q.eq('user_id', resolvedUser);
+        }
+        const { error } = await q;
         if (error) console.error('Failed to delete account from Supabase:', error);
       } catch (err) {
         console.error('Failed to delete account from Supabase:', err);
       }
     }
 
-    const current = StorageService.getAccounts().filter((a) => a.id !== id);
-    StorageService.saveAccounts(current);
+    if (resolvedUser) {
+      const current = StorageService.getAccounts(resolvedUser).filter((a) => a.id !== id);
+      StorageService.saveAccounts(current, resolvedUser);
+    }
   },
 
   /**

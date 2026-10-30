@@ -16,16 +16,52 @@ export const INITIAL_WORKSPACES: Workspace[] = [
   },
 ];
 
-// Local storage keys for persistent browser session
-const STORAGE_KEYS = {
-  ACCOUNTS: 'pb_accounts_v3',
-  POSTS: 'pb_posts_v3',
-  MEDIA: 'pb_media_v3',
-  WORKSPACES: 'pb_workspaces_v3',
-  ACTIVE_WORKSPACE: 'pb_active_workspace_id',
-};
+function getUserSuffix(userId?: string): string {
+  if (!userId) return 'guest';
+  return userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
 
 export const StorageService = {
+  getAccountKey(userId?: string): string {
+    return `pb_accounts_v4_${getUserSuffix(userId)}`;
+  },
+
+  getPostKey(userId?: string): string {
+    return `pb_posts_v4_${getUserSuffix(userId)}`;
+  },
+
+  getMediaKey(userId?: string): string {
+    return `pb_media_v4_${getUserSuffix(userId)}`;
+  },
+
+  clearAllUserCaches(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('pb_') || k.startsWith('postingtube_'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('Storage cleanup warning:', e);
+    }
+  },
+
+  clearUserData(userId: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const suffix = getUserSuffix(userId);
+      localStorage.removeItem(`pb_accounts_v4_${suffix}`);
+      localStorage.removeItem(`pb_posts_v4_${suffix}`);
+      localStorage.removeItem(`pb_media_v4_${suffix}`);
+      localStorage.removeItem(`pb_active_tab_${suffix}`);
+    } catch (e) {}
+  },
+
   getWorkspaces(userId?: string): Workspace[] {
     return INITIAL_WORKSPACES;
   },
@@ -42,10 +78,10 @@ export const StorageService = {
     // No-op
   },
 
-  getAccounts(workspaceId?: string): SocialAccount[] {
+  getAccounts(userId?: string): SocialAccount[] {
     if (typeof window === 'undefined') return [];
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+      const raw = localStorage.getItem(this.getAccountKey(userId));
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
@@ -55,26 +91,23 @@ export const StorageService = {
     }
   },
 
-  saveAccounts(accounts: SocialAccount[], workspaceId?: string) {
+  saveAccounts(accounts: SocialAccount[], userId?: string) {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-      // Clean up legacy workspace-specific account keys so stale deleted accounts never resurface
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith(STORAGE_KEYS.ACCOUNTS + '_') || key === 'pb_accounts' || key === 'pb_accounts_v2')) {
-          localStorage.removeItem(key);
-        }
-      }
+      localStorage.setItem(this.getAccountKey(userId), JSON.stringify(accounts));
+      // Purge legacy non-isolated keys to eliminate data leaks
+      localStorage.removeItem('pb_accounts_v3');
+      localStorage.removeItem('pb_accounts');
+      localStorage.removeItem('pb_accounts_v2');
     } catch (e) {
       console.error('Failed to save accounts to localStorage', e);
     }
   },
 
-  getPosts(workspaceId?: string): Post[] {
+  getPosts(userId?: string): Post[] {
     if (typeof window === 'undefined') return [];
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.POSTS);
+      const raw = localStorage.getItem(this.getPostKey(userId));
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
@@ -90,36 +123,34 @@ export const StorageService = {
     }
   },
 
-  savePosts(posts: Post[], workspaceId?: string) {
+  savePosts(posts: Post[], userId?: string) {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(posts));
-      // Clean up legacy workspace-specific post keys so stale deleted posts never resurface
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith(STORAGE_KEYS.POSTS + '_') || key === 'pb_posts' || key === 'pb_posts_v2')) {
-          localStorage.removeItem(key);
-        }
-      }
+      localStorage.setItem(this.getPostKey(userId), JSON.stringify(posts));
+      // Purge legacy non-isolated keys to eliminate data leaks
+      localStorage.removeItem('pb_posts_v3');
+      localStorage.removeItem('pb_posts');
+      localStorage.removeItem('pb_posts_v2');
     } catch (e) {
       console.error('Failed to save posts to localStorage', e);
     }
   },
 
-  getMedia(): PostMedia[] {
+  getMedia(userId?: string): PostMedia[] {
     if (typeof window === 'undefined') return [];
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.MEDIA);
+      const stored = localStorage.getItem(this.getMediaKey(userId));
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
   },
 
-  saveMedia(media: PostMedia[]) {
+  saveMedia(media: PostMedia[], userId?: string) {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEYS.MEDIA, JSON.stringify(media));
+      localStorage.setItem(this.getMediaKey(userId), JSON.stringify(media));
+      localStorage.removeItem('pb_media_v3');
     } catch (e) {
       console.error('Failed to save media to localStorage', e);
     }

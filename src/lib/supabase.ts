@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { StorageService } from '@/lib/storage';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -118,14 +119,19 @@ export function getGuestUser(): any | null {
 }
 
 /**
- * Sign out of Supabase & clear guest session
+ * Sign out of Supabase & completely purge all user session and cache state
  */
 export async function signOutUser() {
   if (typeof window !== 'undefined') {
     document.cookie = 'pb_auth_session=; path=/; max-age=0; SameSite=Lax';
+    StorageService.clearAllUserCaches();
     localStorage.removeItem('pb_guest_session');
   }
   if (supabase) {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Supabase signout warning:', e);
+    }
   }
 }

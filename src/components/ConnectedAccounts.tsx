@@ -29,6 +29,7 @@ interface ConnectedAccountsProps {
   onRefreshAccount: (id: string) => void;
   onNavigateToTab?: (tab: any) => void;
   onShowSuccessToast?: (message: string) => void;
+  authUser?: any;
 }
 
 interface DetectedPage {
@@ -51,6 +52,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   onRefreshAccount,
   onNavigateToTab,
   onShowSuccessToast,
+  authUser,
 }) => {
   // Modal state
   const [connectingPlatform, setConnectingPlatform] = useState<SocialPlatform | null>(null);
@@ -464,6 +466,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       const newAcc: SocialAccount = {
         id: `ig_${igId}`,
+        userId: authUser?.id,
         platform: 'instagram',
         username: cleanHandle,
         displayName: `@${cleanHandle}`,
@@ -540,6 +543,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const cleanHandle = (target.username || target.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
       const newAcc: SocialAccount = {
         id: `yt_${target.id}`,
+        userId: authUser?.id,
         platform: 'youtube',
         username: cleanHandle,
         displayName: target.name,
@@ -620,6 +624,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const cleanUsername = page.name.replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
       const newAcc: SocialAccount = {
         id: `fb_${page.id}`,
+        userId: authUser?.id,
         platform: 'facebook',
         username: cleanUsername,
         displayName: page.name,
@@ -688,6 +693,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     const clean = genericHandle.replace(/^@/, '').trim();
     const newAcc: SocialAccount = {
       id: `${connectingPlatform}_${clean.toLowerCase()}`,
+      userId: authUser?.id,
       platform: connectingPlatform,
       username: clean,
       displayName: clean,
@@ -1038,9 +1044,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   igStep === 'confirm' ? (
                     <button
                       onClick={() => {
-                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
-                          currentWorkspaceId || ''
-                        )}`;
+                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                       }}
                       className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer font-medium"
                     >
@@ -1072,9 +1076,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   fbStep === 'confirm' ? (
                     <button
                       onClick={() => {
-                        window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
-                          currentWorkspaceId || ''
-                        )}`;
+                        window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                       }}
                       className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer font-medium"
                     >
@@ -1202,9 +1204,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         {/* Green Connect Button (Image 1) - Direct Instagram OAuth */}
                         <button
                           onClick={() => {
-                            window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
-                              currentWorkspaceId || ''
-                            )}`;
+                            window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                           }}
                           className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] active:bg-[#199f4a] text-black transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-2"
                         >
@@ -1231,9 +1231,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <div className="mt-2.5 pt-2.5 border-t border-gray-800/80 text-center">
                           <button
                             onClick={() => {
-                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(
-                                currentWorkspaceId || ''
-                              )}`;
+                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                             }}
                             className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-medium cursor-pointer"
                           >
@@ -1333,9 +1331,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
-                            currentWorkspaceId || ''
-                          )}`;
+                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
                         className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-800/90 hover:bg-gray-700 border border-gray-700 text-white transition-colors cursor-pointer"
                       >
@@ -1435,9 +1431,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     <div className="space-y-2">
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(
-                            currentWorkspaceId || ''
-                          )}`;
+                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
                         className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black flex items-center justify-center space-x-2 shadow-sm transition-colors cursor-pointer"
                       >
@@ -1506,9 +1500,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         <div className="space-y-2 pt-1">
                           <button
                             onClick={() => {
-                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(
-                                currentWorkspaceId || ''
-                              )}`;
+                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                             }}
                             className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors cursor-pointer flex items-center justify-center space-x-2"
                           >
@@ -1799,9 +1791,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
-                            currentWorkspaceId || ''
-                          )}`;
+                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
                         className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-gray-950 font-bold transition-colors cursor-pointer shadow-sm"
                       >
@@ -1834,9 +1824,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       {/* Primary 1-Click Button */}
                       <button
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(
-                            currentWorkspaceId || ''
-                          )}`;
+                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
                         className="w-full py-3 px-4 rounded-xl font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer"
                       >
@@ -2118,7 +2106,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     </div>
 
                     <a
-                      href={`/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}`}
+                      href={`/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`}
                       className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                     >
                       <PlatformLogo platform="youtube" className="w-4 h-4" />
@@ -2179,7 +2167,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </div>
 
                   <a
-                    href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}${includeLinkedInOrg ? '&include_org=true' : ''}`}
+                    href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`}
                     className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
@@ -2241,6 +2229,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       const clean = genericHandle.trim().replace(/^@/, '') || 'threads_user';
                       const newAcc: SocialAccount = {
                         id: `th_${clean.toLowerCase()}`,
+                        userId: authUser?.id,
                         platform: 'threads',
                         username: clean,
                         displayName: `@${clean}`,
@@ -2350,6 +2339,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       const cleanUser = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
                       const newAcc: SocialAccount = {
                         id: `pin_${cleanUser || Date.now()}`,
+                        userId: authUser?.id,
                         platform: 'pinterest',
                         username: cleanUser,
                         displayName: `${clean} (Pinterest)`,

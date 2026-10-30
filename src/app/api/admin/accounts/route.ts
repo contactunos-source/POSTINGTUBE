@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
     const platform = url.searchParams.get('platform') || undefined;
     const status = url.searchParams.get('status') || undefined;
     const search = url.searchParams.get('search') || undefined;
+    const userId = url.searchParams.get('userId') || undefined;
 
-    const accounts = await AdminDataService.getConnectedAccounts({ platform, status, search });
+    const accounts = await AdminDataService.getConnectedAccounts({ platform, status, search, userId });
     return NextResponse.json({ success: true, accounts });
   } catch (err: any) {
     return NextResponse.json(

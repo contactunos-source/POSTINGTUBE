@@ -497,12 +497,12 @@ export const AdminDataService = {
 
     // Build rich profile view models
     const users: AdminCustomerProfile[] = paginated.map((p) => {
-      // Match connected accounts
-      const userAccounts = accounts;
-      // Match posts
-      const userPosts = posts;
-      // Match subscription
-      const userSub = subscriptions.find((s) => s.user_id === p.id);
+      // Match connected accounts strictly belonging to this customer
+      const userAccounts = accounts.filter((a) => a.user_id === p.id || a.user_id === p.email);
+      // Match posts strictly belonging to this customer
+      const userPosts = posts.filter((post) => post.user_id === p.id || post.user_id === p.email);
+      // Match subscription strictly belonging to this customer
+      const userSub = subscriptions.find((s) => s.user_id === p.id || s.user_id === p.email);
 
       let pubCount = 0;
       let schedCount = 0;
@@ -612,8 +612,10 @@ export const AdminDataService = {
     platform?: string;
     status?: string;
     search?: string;
+    userId?: string;
   }): Promise<Array<any>> {
     let accounts: any[] = [];
+    let profiles: any[] = [];
     if (supabase) {
       try {
         let query = supabase.from('connected_accounts').select('*').order('created_at', { ascending: false });
@@ -623,8 +625,15 @@ export const AdminDataService = {
         if (params.status && params.status !== 'all') {
           query = query.eq('status', params.status);
         }
-        const { data } = await query;
-        accounts = data || [];
+        if (params.userId && params.userId !== 'all') {
+          query = query.eq('user_id', params.userId);
+        }
+        const [{ data: accData }, { data: pData }] = await Promise.all([
+          query,
+          supabase.from('user_profiles').select('id, email, full_name'),
+        ]);
+        accounts = accData || [];
+        profiles = pData || [];
       } catch (e) {
         console.warn('getConnectedAccounts error:', e);
       }
@@ -640,22 +649,33 @@ export const AdminDataService = {
       );
     }
 
+    const profileMap = new Map<string, { email: string; name: string }>();
+    for (const pr of profiles) {
+      profileMap.set(pr.id, { email: pr.email, name: pr.full_name || pr.email });
+      profileMap.set(pr.email, { email: pr.email, name: pr.full_name || pr.email });
+    }
+
     // Never return raw access_token or refresh_token to client
-    return accounts.map((a) => ({
-      id: a.id,
-      platform: a.platform,
-      username: a.username,
-      displayName: a.display_name,
-      avatarUrl: a.avatar_url,
-      accountType: a.account_type || 'page',
-      status: a.status || 'connected',
-      followersCount: a.followers_count || 0,
-      pageId: a.page_id,
-      createdAt: a.created_at,
-      updatedAt: a.updated_at,
-      tokenStatus: a.status === 'expired' ? 'Expired' : 'Active & Authorized',
-      ownerEmail: 'onmansonu@gmail.com',
-    }));
+    return accounts.map((a) => {
+      const owner = (a.user_id && profileMap.get(a.user_id)) || { email: 'onmansonu@gmail.com', name: 'PostingTube Owner' };
+      return {
+        id: a.id,
+        userId: a.user_id || 'usr_owner_primary',
+        platform: a.platform,
+        username: a.username,
+        displayName: a.display_name,
+        avatarUrl: a.avatar_url,
+        accountType: a.account_type || 'page',
+        status: a.status || 'connected',
+        followersCount: a.followers_count || 0,
+        pageId: a.page_id,
+        createdAt: a.created_at,
+        updatedAt: a.updated_at,
+        tokenStatus: a.status === 'expired' ? 'Expired' : 'Active & Authorized',
+        ownerEmail: owner.email,
+        ownerName: owner.name,
+      };
+    });
   },
 
   /**
@@ -680,6 +700,7 @@ export const AdminDataService = {
     status?: string;
     platform?: string;
     search?: string;
+    userId?: string;
     page?: number;
     limit?: number;
   }): Promise<{ posts: any[]; total: number; page: number; limit: number }> {
@@ -687,17 +708,31 @@ export const AdminDataService = {
     const limit = params.limit || 20;
 
     let allPosts: any[] = [];
+    let profiles: any[] = [];
     if (supabase) {
       try {
         let query = supabase.from('posts').select('*').order('created_at', { ascending: false });
         if (params.status && params.status !== 'all') {
           query = query.eq('status', params.status);
         }
-        const { data } = await query;
-        allPosts = data || [];
+        if (params.userId && params.userId !== 'all') {
+          query = query.eq('user_id', params.userId);
+        }
+        const [{ data: postsData }, { data: pData }] = await Promise.all([
+          query,
+          supabase.from('user_profiles').select('id, email, full_name'),
+        ]);
+        allPosts = postsData || [];
+        profiles = pData || [];
       } catch (e) {
         console.warn('getPosts error:', e);
       }
+    }
+
+    const profileMap = new Map<string, { email: string; name: string }>();
+    for (const pr of profiles) {
+      profileMap.set(pr.id, { email: pr.email, name: pr.full_name || pr.email });
+      profileMap.set(pr.email, { email: pr.email, name: pr.full_name || pr.email });
     }
 
     if (params.search) {
@@ -718,8 +753,14 @@ export const AdminDataService = {
         ? Object.values(p.results).find((r: any) => r?.errorMessage)
         : null;
 
+      const owner = (p.user_id && profileMap.get(p.user_id)) || {
+        email: 'onmansonu@gmail.com',
+        name: 'PostingTube Customer',
+      };
+
       return {
         id: p.id,
+        userId: p.user_id || 'usr_owner_primary',
         content: p.content,
         media: p.media || [],
         targetAccountIds: p.target_account_ids || [],
@@ -732,8 +773,8 @@ export const AdminDataService = {
         collaborators: p.collaborators,
         results: p.results || {},
         lastError: (errorObj as any)?.errorMessage || null,
-        customerName: 'PostingTube Customer',
-        customerEmail: 'onmansonu@gmail.com',
+        customerName: owner.name,
+        customerEmail: owner.email,
       };
     });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Send,
   Search,
@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  User,
+  Layers,
 } from 'lucide-react';
 import { PostDetailModal } from './PostDetailModal';
 
@@ -27,6 +29,8 @@ interface PostsViewProps {
   onStatusFilter: (status: string) => void;
   onSearch: (query: string) => void;
   onRetryPost: (postId: string) => Promise<void>;
+  onOpenUserProfile?: (userEmailOrId: string) => void;
+  users?: Array<{ id: string; email: string; fullName?: string }>;
 }
 
 export const PostsView: React.FC<PostsViewProps> = ({
@@ -39,11 +43,60 @@ export const PostsView: React.FC<PostsViewProps> = ({
   onStatusFilter,
   onSearch,
   onRetryPost,
+  onOpenUserProfile,
+  users = [],
 }) => {
   const [search, setSearch] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState('all');
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // Derive unique customers from posts and passed users
+  const customerList = useMemo(() => {
+    const map = new Map<string, { email: string; name: string }>();
+    for (const u of users) {
+      if (u.email) {
+        map.set(u.email.toLowerCase(), { email: u.email, name: u.fullName || u.email });
+      }
+    }
+    for (const p of posts) {
+      if (p.customerEmail && !map.has(p.customerEmail.toLowerCase())) {
+        map.set(p.customerEmail.toLowerCase(), {
+          email: p.customerEmail,
+          name: p.customerName || p.customerEmail,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.email.localeCompare(b.email));
+  }, [posts, users]);
+
+  // Client-side customer filter
+  const displayedPosts = useMemo(() => {
+    if (selectedCustomer === 'all') return posts;
+    return posts.filter(
+      (p) =>
+        p.customerEmail?.toLowerCase() === selectedCustomer.toLowerCase() ||
+        p.userId === selectedCustomer
+    );
+  }, [posts, selectedCustomer]);
+
+  // Metric counts across currently loaded posts
+  const postMetrics = useMemo(() => {
+    let published = 0;
+    let scheduled = 0;
+    let draft = 0;
+    let failed = 0;
+
+    for (const p of posts) {
+      if (p.status === 'published') published++;
+      else if (p.status === 'scheduled') scheduled++;
+      else if (p.status === 'draft') draft++;
+      else if (p.status === 'failed') failed++;
+    }
+
+    return { total, published, scheduled, draft, failed };
+  }, [posts, total]);
 
   return (
     <div className="space-y-5">
@@ -66,6 +119,39 @@ export const PostsView: React.FC<PostsViewProps> = ({
         </a>
       </div>
 
+      {/* Metrics Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Recorded</div>
+          <div className="text-xl font-black text-gray-900 mt-1">{postMetrics.total}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">All customer posts</div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Published</div>
+          <div className="text-xl font-black text-emerald-600 mt-1">{postMetrics.published}</div>
+          <div className="text-[10px] text-emerald-600/80 mt-0.5 font-medium">Successfully live</div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Scheduled</div>
+          <div className="text-xl font-black text-blue-600 mt-1">{postMetrics.scheduled}</div>
+          <div className="text-[10px] text-blue-600/80 mt-0.5 font-medium">Queued in scheduler</div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Drafts &amp; Failed</div>
+          <div className="flex items-baseline space-x-1.5 mt-1">
+            <span className="text-xl font-black text-gray-700">{postMetrics.draft} drafts</span>
+            <span className="text-xs text-gray-400">/</span>
+            <span className={`text-xs font-bold ${postMetrics.failed > 0 ? 'text-rose-600' : 'text-gray-400'}`}>
+              {postMetrics.failed} failed
+            </span>
+          </div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Drafts &amp; errors</div>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-2xl border border-gray-200/90 shadow-2xs flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[200px]">
@@ -84,6 +170,24 @@ export const PostsView: React.FC<PostsViewProps> = ({
           </div>
         </div>
 
+        {/* Customer Filter */}
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-gray-400 font-medium">Customer:</span>
+          <select
+            value={selectedCustomer}
+            onChange={(e) => setSelectedCustomer(e.target.value)}
+            className="px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-hidden cursor-pointer max-w-[200px] truncate font-medium"
+          >
+            <option value="all">All Customers ({customerList.length})</option>
+            {customerList.map((c) => (
+              <option key={c.email} value={c.email}>
+                {c.name !== c.email ? `${c.name} (${c.email})` : c.email}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status Filter */}
         <div className="flex items-center space-x-2">
           <span className="text-xs text-gray-400 font-medium">Status:</span>
           <select
@@ -98,6 +202,40 @@ export const PostsView: React.FC<PostsViewProps> = ({
           </select>
         </div>
       </div>
+
+      {/* Selected Customer Filter Banner */}
+      {selectedCustomer !== 'all' && (
+        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-3.5 flex items-center justify-between text-xs">
+          <div className="flex items-center space-x-2.5">
+            <User className="w-4 h-4 text-emerald-700" />
+            <span className="text-emerald-950 font-medium">
+              Filtering posts for customer:{' '}
+              <strong className="font-mono text-emerald-900 font-bold">{selectedCustomer}</strong> (
+              {displayedPosts.length} posts found)
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {onOpenUserProfile && (
+              <button
+                type="button"
+                onClick={() => onOpenUserProfile(selectedCustomer)}
+                className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs inline-flex items-center space-x-1 transition-colors cursor-pointer shadow-xs"
+              >
+                <span>View Full Customer Profile</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelectedCustomer('all')}
+              className="px-2.5 py-1.5 rounded-xl text-gray-600 hover:bg-emerald-100 text-xs font-semibold cursor-pointer"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Posts Table */}
       <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs overflow-hidden">
@@ -121,14 +259,14 @@ export const PostsView: React.FC<PostsViewProps> = ({
                     Loading posts telemetry...
                   </td>
                 </tr>
-              ) : posts.length === 0 ? (
+              ) : displayedPosts.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-xs text-gray-400">
                     No posts found matching filter.
                   </td>
                 </tr>
               ) : (
-                posts.map((post) => {
+                displayedPosts.map((post) => {
                   const media = post.media && post.media.length > 0 ? post.media[0] : null;
                   return (
                     <tr
@@ -160,8 +298,32 @@ export const PostsView: React.FC<PostsViewProps> = ({
                       </td>
 
                       {/* Customer */}
-                      <td className="py-3 px-4 text-gray-600 font-mono text-[11px]">
-                        {post.customerEmail}
+                      <td
+                        className="py-3 px-4"
+                        onClick={(e) => {
+                          if (onOpenUserProfile && (post.customerEmail || post.userId)) {
+                            e.stopPropagation();
+                            onOpenUserProfile(post.customerEmail || post.userId);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-gray-700 font-mono text-[11px] truncate max-w-[170px]" title={post.customerEmail}>
+                            {post.customerEmail}
+                          </span>
+                          {onOpenUserProfile && (
+                            <button
+                              type="button"
+                              className="text-gray-400 hover:text-emerald-700 p-0.5 rounded-sm hover:bg-gray-100 transition-colors"
+                              title="View Customer Profile"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        {post.customerName && post.customerName !== post.customerEmail && (
+                          <span className="text-[10px] text-gray-400 block truncate">{post.customerName}</span>
+                        )}
                       </td>
 
                       {/* Destinations count */}
@@ -226,7 +388,7 @@ export const PostsView: React.FC<PostsViewProps> = ({
         {/* Pagination Bar */}
         <div className="p-3.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
           <div>
-            Showing <strong className="text-gray-900">{posts.length}</strong> of{' '}
+            Showing <strong className="text-gray-900">{displayedPosts.length}</strong> of{' '}
             <strong className="text-gray-900">{total}</strong> total posts
           </div>
 

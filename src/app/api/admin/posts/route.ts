@@ -12,10 +12,11 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = url.searchParams.get('status') || undefined;
     const search = url.searchParams.get('search') || undefined;
+    const userId = url.searchParams.get('userId') || undefined;
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
 
-    const result = await AdminDataService.getPosts({ status, search, page, limit });
+    const result = await AdminDataService.getPosts({ status, search, userId, page, limit });
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
     return NextResponse.json(
