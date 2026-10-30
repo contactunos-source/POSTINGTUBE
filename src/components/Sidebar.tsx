@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   Calendar,
@@ -10,11 +10,19 @@ import {
   ChevronDown,
   BarChart3,
   X,
+  Zap,
+  LogOut,
+  Building2,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
 import { PlatformLogo } from './SocialIcons';
 import { PostingTubeLogo } from './PostingTubeLogo';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { signOutUser } from '@/lib/supabase';
+import { UpgradePlanModal } from './UpgradePlanModal';
 
 export type ActiveTab =
   | 'new-post'
@@ -41,11 +49,13 @@ interface SidebarProps {
   totalPostsCount?: number;
   authUser?: any;
   accounts?: SocialAccount[];
+  workspaceId?: string;
   selectedInsightsAccountId?: string;
   onSelectInsightsAccount?: (accountId: string) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   onLogoClick?: () => void;
+  onUpgradeClick?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -58,23 +68,91 @@ export const Sidebar: React.FC<SidebarProps> = ({
   totalPostsCount = 0,
   authUser,
   accounts = [],
+  workspaceId,
   selectedInsightsAccountId = 'all',
   onSelectInsightsAccount,
   isMobileOpen = false,
   onCloseMobile,
   onLogoClick,
+  onUpgradeClick,
 }) => {
   const connectedAccounts = accounts.filter((a) => a.status === 'connected' || !a.status);
   const displayName =
     authUser?.user_metadata?.full_name ||
+    authUser?.user_metadata?.name ||
     authUser?.email?.split('@')[0] ||
-    'Admin User';
-  const displaySub = authUser?.email || 'Pro Plan';
+    'Creator';
+  const displaySub = authUser?.email || 'Creator Account';
   const avatarUrl = authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture;
+
+  // Profile Popover & Upgrade Modal States
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileTriggerRef = useRef<HTMLDivElement>(null);
+
+  // Close profile menu on outside click or Escape key
+  useClickOutside(profileMenuRef, () => setIsProfileMenuOpen(false), {
+    enabled: isProfileMenuOpen,
+    ignoreRefs: [profileTriggerRef],
+  });
+
+  // Dynamic user profile & subscription data from Supabase
+  const [profileData, setProfileData] = useState({
+    fullName: displayName,
+    email: authUser?.email || '',
+    avatarUrl: avatarUrl || '',
+    organizationName: 'My organization',
+    planName: 'Free plan',
+    planTier: 'Free',
+    planStatus: 'active',
+    channelsCount: connectedAccounts.length,
+  });
+
+  // Fetch verified profile, organization & subscription details from Supabase
+  useEffect(() => {
+    if (!authUser?.id && !authUser?.email) return;
+
+    const email = authUser.email || '';
+    const userId = authUser.id || '';
+
+    fetch(
+      `/api/user/profile-menu?userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(
+        email
+      )}&workspaceId=${encodeURIComponent(workspaceId || '')}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data?.profile) {
+          setProfileData((prev) => ({
+            ...prev,
+            ...data.profile,
+            channelsCount:
+              connectedAccounts.length > 0
+                ? connectedAccounts.length
+                : data.profile.channelsCount || 0,
+          }));
+        }
+      })
+      .catch((e) => console.warn('[ProfileMenu] Notice fetching dynamic profile:', e));
+  }, [authUser?.id, authUser?.email, workspaceId, connectedAccounts.length]);
+
+  const effectiveChannelsCount =
+    connectedAccounts.length > 0 ? connectedAccounts.length : profileData.channelsCount || 0;
 
   const handleTabClick = (tab: ActiveTab) => {
     setActiveTab(tab);
+    setIsProfileMenuOpen(false);
     onCloseMobile?.();
+  };
+
+  const handleOpenUpgrade = () => {
+    setIsProfileMenuOpen(false);
+    if (onUpgradeClick) {
+      onUpgradeClick();
+    } else {
+      setIsUpgradeModalOpen(true);
+    }
   };
 
   return (
@@ -258,32 +336,132 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Profile Footer */}
-        <div className="p-3 border-t border-gray-100">
+        {/* User Profile & Organization Footer */}
+        <div className="p-3 border-t border-gray-100 relative">
+          {/* Smooth Profile Popover Menu (Matching Reference Image) */}
+          {isProfileMenuOpen && (
+            <div
+              ref={profileMenuRef}
+              className="absolute bottom-full left-2 right-2 mb-2 bg-[#18191b] border border-zinc-800 rounded-2xl shadow-2xl p-4 text-white z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 font-sans select-none"
+            >
+              {/* User Profile Picture, Name, and Gmail */}
+              <div className="flex items-center space-x-3 pb-3 border-b border-zinc-800/80">
+                <UserAvatar
+                  name={profileData.fullName || displayName}
+                  avatarUrl={profileData.avatarUrl || avatarUrl}
+                  size="md"
+                  className="ring-2 ring-emerald-500/30 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-white truncate">
+                    {profileData.fullName || displayName}
+                  </div>
+                  <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                    {profileData.email || displaySub}
+                  </div>
+                </div>
+              </div>
+
+              {/* Organization & Subscription Status */}
+              <div className="pt-3 pb-1">
+                <div className="text-[11px] text-zinc-400 font-medium">Organization</div>
+                <div className="text-sm font-bold text-white tracking-tight truncate mt-0.5">
+                  {profileData.organizationName || 'My organization'}
+                </div>
+                <div className="text-xs text-zinc-400 mt-1 flex items-center space-x-1.5 font-medium">
+                  <span className="text-zinc-300">{profileData.planName}</span>
+                  <span>·</span>
+                  <span>
+                    {effectiveChannelsCount} {effectiveChannelsCount === 1 ? 'channel' : 'channels'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Upgrade Plan Button (Matching Reference Design) */}
+              <button
+                type="button"
+                onClick={handleOpenUpgrade}
+                className="w-full mt-3 py-2.5 px-3.5 rounded-xl bg-[#2a2b2e] hover:bg-[#343539] active:bg-[#202123] text-white text-xs font-semibold flex items-center justify-center space-x-2 border border-[#3e4046] shadow-xs transition-all cursor-pointer group"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Upgrade Plan</span>
+              </button>
+
+              {/* Secondary Navigation Links */}
+              <div className="mt-3 pt-2 border-t border-zinc-800/80 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleTabClick('settings')}
+                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Account Settings</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabClick('connections')}
+                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                >
+                  <Link2 className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Connected Channels</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsProfileMenuOpen(false);
+                    await signOutUser();
+                    window.location.href = '/login';
+                  }}
+                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* User Profile Card Button */}
           <div
-            onClick={() => handleTabClick('settings')}
-            className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+            ref={profileTriggerRef}
+            onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+            className={`flex items-center justify-between p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isProfileMenuOpen ? 'bg-gray-100 ring-1 ring-gray-200' : 'hover:bg-gray-100'
+            }`}
+            title="Open Profile & Organization menu"
           >
             <div className="flex items-center space-x-2.5 overflow-hidden">
               <UserAvatar
-                name={displayName}
-                avatarUrl={avatarUrl}
+                name={profileData.fullName || displayName}
+                avatarUrl={profileData.avatarUrl || avatarUrl}
                 size="md"
                 className="ring-1 ring-emerald-500/20"
               />
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-800 leading-tight truncate">
-                  {displayName}
+                  {profileData.fullName || displayName}
                 </div>
                 <div className="text-[10px] text-emerald-600 font-medium truncate">
-                  {displaySub}
+                  {profileData.email || displaySub}
                 </div>
               </div>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0 ml-1" />
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${
+                isProfileMenuOpen ? 'rotate-180 text-emerald-600' : ''
+              }`}
+            />
           </div>
         </div>
       </aside>
+
+      {/* Upgrade Plan In-App Modal */}
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        currentPlan={profileData.planTier}
+        channelsCount={effectiveChannelsCount}
+      />
     </>
   );
 };

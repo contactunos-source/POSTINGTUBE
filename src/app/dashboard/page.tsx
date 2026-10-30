@@ -907,6 +907,7 @@ export default function DashboardPage() {
         totalPostsCount={posts.length}
         authUser={authUser}
         accounts={accounts}
+        workspaceId={currentWorkspaceId}
         selectedInsightsAccountId={selectedInsightsAccountId}
         onSelectInsightsAccount={(accId) => {
           setSelectedInsightsAccountId(accId);
