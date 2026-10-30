@@ -31,7 +31,6 @@ import {
   Calendar,
   TrendingUp,
   Plus,
-  PanelLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -79,20 +78,6 @@ const AnalyticsView = dynamic(() => import('@/components/AnalyticsView').then((m
 });
 
 export default function DashboardPage() {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return StorageService.getSidebarCollapsed();
-    }
-    return false;
-  });
-
-  const toggleSidebarCollapse = () => {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      StorageService.setSidebarCollapsed(next);
-      return next;
-    });
-  };
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [mediaItems, setMediaItems] = useState<PostMedia[]>([]);
@@ -643,7 +628,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
-      {/* PostingTube Sidebar (Collapsible on Desktop, Responsive Drawer on Mobile) */}
+      {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -666,8 +651,6 @@ export default function DashboardPage() {
         onSelectInsightsAccount={(accId) => setSelectedInsightsAccountId(accId)}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={toggleSidebarCollapse}
       />
 
       {/* Main View Area */}
@@ -690,35 +673,19 @@ export default function DashboardPage() {
 
         {/* Top Header Bar */}
         <div className="bg-white border-b border-gray-200/80 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 font-sans gap-2">
-          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
-            {/* Desktop: When sidebar is collapsed, show PostingTube logo and toggle button to reappear */}
-            {isSidebarCollapsed && (
-              <div className="hidden lg:flex items-center space-x-2.5 min-w-0">
-                <PostingTubeLogo size="sm" />
-                <button
-                  type="button"
-                  onClick={toggleSidebarCollapse}
-                  className="w-8 h-8 rounded-full bg-[#27272a] hover:bg-black text-white flex items-center justify-center shrink-0 transition-colors shadow-xs cursor-pointer"
-                  title="Show sidebar"
-                  aria-label="Show sidebar"
-                >
-                  <PanelLeft className="w-4 h-4 text-white" strokeWidth={2} />
-                </button>
-              </div>
-            )}
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            {/* Hamburger Button on Mobile */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
-            {/* Mobile: Logo + Sidebar Toggle Button */}
-            <div className="lg:hidden flex items-center space-x-2 min-w-0">
+            {/* Mobile Brand */}
+            <div className="lg:hidden shrink-0">
               <PostingTubeLogo size="sm" />
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="w-8 h-8 rounded-full bg-[#27272a] hover:bg-black text-white flex items-center justify-center shrink-0 transition-colors shadow-xs cursor-pointer"
-                title="Toggle menu"
-                aria-label="Toggle menu"
-              >
-                <PanelLeft className="w-4 h-4 text-white" strokeWidth={2} />
-              </button>
             </div>
           </div>
 

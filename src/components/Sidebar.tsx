@@ -11,7 +11,6 @@ import {
   Cpu,
   BarChart3,
   X,
-  PanelLeft,
 } from 'lucide-react';
 import { SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
@@ -47,8 +46,6 @@ interface SidebarProps {
   onSelectInsightsAccount?: (accountId: string) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -65,8 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectInsightsAccount,
   isMobileOpen = false,
   onCloseMobile,
-  isCollapsed = false,
-  onToggleCollapse,
 }) => {
   const connectedAccounts = accounts.filter((a) => a.status === 'connected' || !a.status);
   const displayName =
@@ -93,26 +88,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'lg:hidden' : 'lg:flex'
-        } ${
-          isMobileOpen ? 'translate-x-0 shadow-2xl flex' : '-translate-x-full lg:translate-x-0'
+        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <PostingTubeLogo size="md" />
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="w-8 h-8 rounded-full bg-[#27272a] hover:bg-black text-white flex items-center justify-center shrink-0 transition-colors shadow-xs cursor-pointer"
-              title="Hide sidebar"
-              aria-label="Hide sidebar"
-            >
-              <PanelLeft className="w-4 h-4 text-white" strokeWidth={2} />
-            </button>
-          </div>
+          <PostingTubeLogo size="md" />
           <button
             onClick={onCloseMobile}
             className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0 ml-1"

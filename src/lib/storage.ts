@@ -23,28 +23,9 @@ const STORAGE_KEYS = {
   MEDIA: 'pb_media_v3',
   WORKSPACES: 'pb_workspaces_v3',
   ACTIVE_WORKSPACE: 'pb_active_workspace_id',
-  SIDEBAR_COLLAPSED: 'pb_sidebar_collapsed_v1',
 };
 
 export const StorageService = {
-  getSidebarCollapsed(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === 'true';
-    } catch {
-      return false;
-    }
-  },
-
-  setSidebarCollapsed(collapsed: boolean) {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, collapsed ? 'true' : 'false');
-    } catch (e) {
-      console.error('Failed to save sidebar collapsed state', e);
-    }
-  },
-
   getWorkspaces(userId?: string): Workspace[] {
     if (typeof window === 'undefined') return INITIAL_WORKSPACES;
     return INITIAL_WORKSPACES;
