@@ -356,6 +356,13 @@ export default function DashboardPage() {
 
       if (isOauthReturn) {
         handleTabChange('connections');
+        // Instantly refresh connected accounts from Supabase single source of truth
+        DatabaseService.getAccounts(currentUserIdRef.current || undefined).then((fresh) => {
+          if (fresh && fresh.length > 0) {
+            setAccounts(fresh);
+          }
+        }).catch((err) => console.warn('Failed to refresh accounts on OAuth return:', err));
+
         if (params.get('fb_connect_success') === 'true') {
           setSuccessToast('Facebook page connected successfully!');
         } else if (params.get('ig_connect_success') === 'true') {
@@ -804,6 +811,11 @@ export default function DashboardPage() {
   };
 
   const handleRefreshAccount = async (id: string) => {
+    if (id === 'all') {
+      const refreshed = await DatabaseService.getAccounts(authUser?.id);
+      setAccounts(refreshed);
+      return;
+    }
     const updatedAccounts = accounts.map((a) =>
       a.id === id ? { ...a, tokenExpiresAt: new Date(Date.now() + 60 * 86400 * 1000).toISOString() } : a
     );

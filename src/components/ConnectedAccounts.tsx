@@ -206,20 +206,23 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         setResultModal({
           isOpen: true,
           status: 'already_connected',
-          platform: 'linkedin',
+          platform: returningPlatform,
           accountName: connectedName,
           avatarUrl: connectedAvatar,
         });
         setConnectingPlatform(null);
-      } else if (isLiSuccess) {
+      } else if (isLiSuccess || isFbSuccess || isIgSuccess || isYtSuccess) {
         setResultModal({
           isOpen: true,
           status: 'success',
-          platform: 'linkedin',
-          accountName: connectedName,
+          platform: returningPlatform,
+          accountName: connectedName || (returningPlatform === 'facebook' ? 'Facebook Page' : returningPlatform === 'instagram' ? 'Instagram Account' : returningPlatform === 'youtube' ? 'YouTube Channel' : 'Account'),
           avatarUrl: connectedAvatar,
         });
         setConnectingPlatform(null);
+        if (onRefreshAccount) {
+          onRefreshAccount('all');
+        }
       } else if (authError) {
         setVerifyError(decodeURIComponent(authError));
         setResultModal({
@@ -232,40 +235,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       } else if (authNotice) {
         setToastMessage(decodeURIComponent(authNotice));
         setTimeout(() => setToastMessage(null), 4500);
-      } else if (isYtSuccess && discoveredJson) {
-        // STRICTLY YOUTUBE
-        try {
-          const parsedChannels: DetectedPage[] = JSON.parse(discoveredJson);
-          if (parsedChannels.length > 0) {
-            const first = parsedChannels[0];
-            const isDup = accounts.some(
-              (a) =>
-                a.platform === 'youtube' &&
-                (a.externalId === first.id ||
-                  a.pageId === first.id ||
-                  a.id === `yt_${first.id}` ||
-                  (a.username && first.username && a.username.toLowerCase() === first.username.toLowerCase()))
-            );
-
-            if (isDup) {
-              setResultModal({
-                isOpen: true,
-                status: 'already_connected',
-                platform: 'youtube',
-                accountName: first.name,
-                avatarUrl: first.avatarUrl,
-              });
-              setConnectingPlatform(null);
-            } else {
-              setDiscoveredPages(parsedChannels);
-              setSelectedPageIds(parsedChannels.map((p) => p.id));
-              setConnectingPlatform('youtube');
-              setYtStep('confirm');
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse discovered YouTube channels', e);
-        }
       } else if (noIgFound) {
         setResultModal({
           isOpen: true,
@@ -276,83 +245,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         });
         setConnectingPlatform(null);
         setDiscoveredPages([]);
-      } else if (isFbSuccess && discoveredJson) {
-        // STRICTLY FACEBOOK
-        try {
-          const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
-          if (parsedPages.length > 0) {
-            const fbOnly = parsedPages.filter((p) => p.platform !== 'instagram');
-            const targetPages = fbOnly.length > 0 ? fbOnly : parsedPages;
-            const first = targetPages[0];
-            const isDup = accounts.some(
-              (a) =>
-                a.platform === 'facebook' &&
-                (a.externalId === first.id || a.pageId === first.id || a.id === `fb_${first.id}`)
-            );
-
-            if (isDup) {
-              setResultModal({
-                isOpen: true,
-                status: 'already_connected',
-                platform: 'facebook',
-                accountName: first.name,
-                avatarUrl: first.avatarUrl,
-              });
-              setConnectingPlatform(null);
-            } else {
-              setDiscoveredPages(targetPages);
-              setSelectedPageIds(targetPages.map((p) => p.id));
-              setConnectingPlatform('facebook');
-              setFbStep('confirm');
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse discovered Facebook pages', e);
-        }
-      } else if (isIgSuccess && discoveredJson) {
-        // STRICTLY INSTAGRAM
-        try {
-          const parsedPages: DetectedPage[] = JSON.parse(discoveredJson);
-          if (parsedPages.length > 0) {
-            const first = parsedPages[0];
-            const isDup = accounts.some(
-              (a) =>
-                a.platform === 'instagram' &&
-                (a.externalId === first.id || a.pageId === first.id || a.id === `ig_${first.id}`)
-            );
-
-            if (isDup) {
-              setResultModal({
-                isOpen: true,
-                status: 'already_connected',
-                platform: 'instagram',
-                accountName: first.name,
-                avatarUrl: first.avatarUrl,
-              });
-              setConnectingPlatform(null);
-            } else {
-              setDiscoveredPages(parsedPages);
-              setSelectedPageIds(parsedPages.map((p) => p.id));
-              setConnectingPlatform('instagram');
-              setIgStep('confirm');
-              setNoInstagramFound(false);
-              if (parsedPages[0]?.name) {
-                setCustomIgHandle(parsedPages[0].name.replace(/^@/, ''));
-              }
-            }
-          } else {
-            setResultModal({
-              isOpen: true,
-              status: 'error',
-              platform: 'instagram',
-              errorMessage:
-                'No Instagram Business or Creator account found. Please ensure your Instagram is connected to a Facebook Page.',
-            });
-            setConnectingPlatform(null);
-          }
-        } catch (e) {
-          console.error('Failed to parse discovered Instagram accounts', e);
-        }
       }
 
       if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected) {

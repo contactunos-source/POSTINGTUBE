@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
   const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
   const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
+  const userId = req.nextUrl.searchParams.get('user_id') || '';
   const requestedMode = req.nextUrl.searchParams.get('mode'); // 'direct' | 'facebook'
 
   // Detect incoming request host and protocol dynamically
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
   if (useDirect) {
     const stateObj = {
       workspaceId,
+      userId,
       platform: 'instagram',
       mode: 'direct',
       returnUrl: requestOrigin,
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest) {
   const scopes = META_GRAPH_IG_SCOPES.join(',');
   const stateObj = {
     workspaceId,
+    userId,
     platform: 'instagram',
     mode: 'facebook',
     returnUrl: requestOrigin,

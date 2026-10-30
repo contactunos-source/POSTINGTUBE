@@ -17,6 +17,7 @@ const YOUTUBE_SCOPES = [
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
+  const userId = req.nextUrl.searchParams.get('user_id') || '';
 
   // Determine host and protocol dynamically
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
@@ -37,9 +38,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Create state parameter with workspace ID and CSRF random salt
+  // Create state parameter with workspace ID, user ID and CSRF random salt
   const stateObj = {
     workspaceId,
+    userId,
     platform: 'youtube',
     csrf: Math.random().toString(36).substring(2, 15),
     returnUrl: baseUrl,

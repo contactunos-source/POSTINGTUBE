@@ -30,8 +30,8 @@ export function mapDbPostToPost(row: any): Post {
     productTags: row.platform_overrides?.product_tags || row.product_tags || [],
     stickers: row.platform_overrides?.stickers || row.stickers || [],
     publishMode: row.platform_overrides?.publish_mode || row.publish_mode || 'automatic',
-    scheduledFor: row.scheduled_for || undefined,
-    publishedAt: row.published_at || undefined,
+    scheduledFor: row.scheduledFor || row.scheduled_for || undefined,
+    publishedAt: row.publishedAt || row.published_at || undefined,
     status: row.status || 'draft',
     results: row.results || {},
     analytics: row.analytics || (row.results ? Object.fromEntries(
@@ -51,15 +51,15 @@ export function mapDbPostToPost(row: any): Post {
 
 /**
  * Maps Post model to Supabase PostgreSQL row
+ * Strictly avoids user_id column as it does not exist on public.posts
  */
-export function mapPostToDbPost(post: Post, userId?: string): any {
-  const validWorkspaceId = (post.workspaceId && UUID_REGEX.test(post.workspaceId))
-    ? post.workspaceId
-    : DEFAULT_WORKSPACE_ID;
+export function mapPostToDbPost(post: Post, workspaceId: string = DEFAULT_WORKSPACE_ID): any {
+  const validWorkspaceId = (workspaceId && UUID_REGEX.test(workspaceId))
+    ? workspaceId
+    : ((post.workspaceId && UUID_REGEX.test(post.workspaceId)) ? post.workspaceId : DEFAULT_WORKSPACE_ID);
 
   return {
     id: post.id,
-    user_id: userId || post.userId || post.author?.id || null,
     workspace_id: validWorkspaceId,
     content: post.content,
     media: (post.media || []).map((m: any) => ({
@@ -131,9 +131,9 @@ export function mapDbAccountToAccount(row: any): SocialAccount {
 
 /**
  * Maps SocialAccount to Supabase row
+ * Strictly avoids user_id column as it does not exist on public.connected_accounts
  */
-export function mapAccountToDbAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID, userId?: string): any {
-  // If we have a refresh token or expiry, bundle them securely into access_token string as fallback
+export function mapAccountToDbAccount(account: SocialAccount, workspaceId: string = DEFAULT_WORKSPACE_ID): any {
   let tokenPayload = account.accessToken || '';
   if (account.refreshToken || account.tokenExpiresAt) {
     tokenPayload = JSON.stringify({
@@ -143,10 +143,11 @@ export function mapAccountToDbAccount(account: SocialAccount, workspaceId: strin
     });
   }
 
+  const validWorkspaceId = (workspaceId && UUID_REGEX.test(workspaceId)) ? workspaceId : DEFAULT_WORKSPACE_ID;
+
   const row: any = {
     id: account.id,
-    user_id: userId || account.userId || null,
-    workspace_id: workspaceId || DEFAULT_WORKSPACE_ID,
+    workspace_id: validWorkspaceId,
     platform: account.platform,
     username: account.username,
     display_name: account.displayName,
@@ -197,6 +198,90 @@ export async function getResolvedUserId(userId?: string): Promise<string | null>
   return null;
 }
 
+/**
+ * Resolves or creates a dedicated workspace for the active user.
+ * Ensures complete multi-tenant database isolation.
+ */
+export async function getUserWorkspaceId(userId?: string): Promise<string> {
+  const resolvedUser = await getResolvedUserId(userId);
+  if (!resolvedUser) {
+    return DEFAULT_WORKSPACE_ID;
+  }
+
+  if (supabase) {
+    try {
+      // 1. Check if user already has an assigned workspace in database
+      const { data: wsRows, error: wsErr } = await supabase
+        .from('workspaces')
+        .select('id, user_id, role')
+        .eq('user_id', resolvedUser)
+        .limit(1);
+
+      if (!wsErr && wsRows && wsRows.length > 0 && wsRows[0]?.id) {
+        return wsRows[0].id;
+      }
+
+      // Check if user is platform owner
+      let userEmail = '';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id === resolvedUser) {
+          userEmail = session.user.email || '';
+        }
+      } catch {}
+
+      if (!userEmail) {
+        try {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('email')
+            .eq('id', resolvedUser)
+            .maybeSingle();
+          if (profile?.email) {
+            userEmail = profile.email;
+          }
+        } catch {}
+      }
+
+      const ownerEmails = [
+        'onmansonu@gmail.com',
+        'admin@postingtube.com',
+        ...(process.env.OWNER_EMAILS ? process.env.OWNER_EMAILS.split(',') : []),
+        ...(process.env.NEXT_PUBLIC_OWNER_EMAIL ? [process.env.NEXT_PUBLIC_OWNER_EMAIL] : []),
+      ].map((e) => e.trim().toLowerCase());
+
+      if (userEmail && ownerEmails.includes(userEmail.toLowerCase())) {
+        return DEFAULT_WORKSPACE_ID;
+      }
+
+      // 2. If user is a valid UUID, provision a new isolated workspace
+      if (UUID_REGEX.test(resolvedUser)) {
+        const newWsId = crypto.randomUUID();
+        const { data: newWs, error: insertErr } = await supabase
+          .from('workspaces')
+          .insert({
+            id: newWsId,
+            user_id: resolvedUser,
+            name: 'Personal Workspace',
+            slug: `ws-${resolvedUser.slice(0, 8)}`,
+            role: 'owner',
+            created_at: new Date().toISOString(),
+          })
+          .select('id')
+          .maybeSingle();
+
+        if (!insertErr && newWs?.id) {
+          return newWs.id;
+        }
+      }
+    } catch (e) {
+      console.warn('[DatabaseService] getUserWorkspaceId error:', e);
+    }
+  }
+
+  return DEFAULT_WORKSPACE_ID;
+}
+
 export const DatabaseService = {
   /**
    * Ensures the root default workspace exists in Supabase so foreign keys never fail.
@@ -241,21 +326,24 @@ export const DatabaseService = {
   },
 
   /**
-   * Fetch posts directly from Supabase with strict user isolation (single source of truth).
+   * Fetch posts directly from Supabase with strict workspace & user isolation.
    */
-  async getPosts(userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<Post[]> {
+  async getPosts(userId?: string, workspaceId?: string): Promise<Post[]> {
     const resolvedUser = await getResolvedUserId(userId);
     if (!resolvedUser) {
-      // Unauthenticated or unknown user: return empty array to prevent data leak
       return [];
     }
+
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : await getUserWorkspaceId(resolvedUser);
 
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('posts')
           .select('*')
-          .eq('user_id', resolvedUser)
+          .eq('workspace_id', targetWsId)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
@@ -273,28 +361,36 @@ export const DatabaseService = {
   },
 
   /**
-   * Persist a post directly to Supabase and cache with strict user ownership.
+   * Persist a post directly to Supabase and cache with strict workspace isolation.
    */
-  async savePost(post: Post, userId?: string): Promise<void> {
+  async savePost(post: Post, userId?: string, workspaceId?: string): Promise<void> {
     const resolvedUser = await getResolvedUserId(userId || post.userId);
     if (resolvedUser) {
       post.userId = resolvedUser;
     }
 
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : ((post.workspaceId && UUID_REGEX.test(post.workspaceId))
+        ? post.workspaceId
+        : await getUserWorkspaceId(resolvedUser || undefined));
+
+    post.workspaceId = targetWsId;
+
     await this.ensureDefaultWorkspace();
 
-    // 1. Persist directly to Supabase with user_id
-    if (supabase && resolvedUser) {
+    // 1. Persist directly to Supabase with workspace_id
+    if (supabase) {
       try {
-        const dbPost = mapPostToDbPost(post, resolvedUser);
+        const dbPost = mapPostToDbPost(post, targetWsId);
         const { error: postErr } = await supabase.from('posts').upsert(dbPost);
         if (postErr) {
           console.error('Failed to upsert post to Supabase:', postErr);
         } else {
-          console.log('[Supabase] Post successfully persisted for user:', resolvedUser, post.id);
+          console.log('[Supabase] Post successfully persisted for workspace:', targetWsId, post.id);
         }
 
-        // If scheduled, also upsert background job queue for all target destinations with user ownership
+        // If scheduled, also upsert background job queue for all target destinations
         if (post.status === 'scheduled' && post.scheduledFor) {
           const targetIds = post.targetAccountIds && post.targetAccountIds.length > 0
             ? post.targetAccountIds
@@ -307,7 +403,6 @@ export const DatabaseService = {
               {
                 post_id: post.id,
                 account_id: accId,
-                user_id: resolvedUser,
                 scheduled_for: post.scheduledFor,
                 status: 'pending',
                 idempotency_key: idempotencyKey,
@@ -343,20 +438,18 @@ export const DatabaseService = {
   },
 
   /**
-   * Delete a post from Supabase and cache with user isolation.
+   * Delete a post from Supabase and cache with workspace isolation.
    */
-  async deletePost(id: string, userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+  async deletePost(id: string, userId?: string, workspaceId?: string): Promise<void> {
     const resolvedUser = await getResolvedUserId(userId);
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : await getUserWorkspaceId(resolvedUser || undefined);
+
     if (supabase) {
       try {
-        let jobQuery = supabase.from('scheduled_jobs').delete().eq('post_id', id);
-        let postQuery = supabase.from('posts').delete().eq('id', id);
-        if (resolvedUser) {
-          jobQuery = jobQuery.eq('user_id', resolvedUser);
-          postQuery = postQuery.eq('user_id', resolvedUser);
-        }
-        await jobQuery;
-        await postQuery;
+        await supabase.from('scheduled_jobs').delete().eq('post_id', id);
+        await supabase.from('posts').delete().eq('id', id).eq('workspace_id', targetWsId);
       } catch (err) {
         console.error('Failed to delete post from Supabase:', err);
       }
@@ -369,20 +462,24 @@ export const DatabaseService = {
   },
 
   /**
-   * Fetch accounts directly from Supabase with strict user isolation (single source of truth).
+   * Fetch accounts directly from Supabase with strict workspace isolation (single source of truth).
    */
-  async getAccounts(userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<SocialAccount[]> {
+  async getAccounts(userId?: string, workspaceId?: string): Promise<SocialAccount[]> {
     const resolvedUser = await getResolvedUserId(userId);
     if (!resolvedUser) {
       return [];
     }
+
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : await getUserWorkspaceId(resolvedUser);
 
     if (supabase) {
       try {
         const { data, error } = await supabase
           .from('connected_accounts')
           .select('*')
-          .eq('user_id', resolvedUser)
+          .eq('workspace_id', targetWsId)
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
@@ -400,27 +497,31 @@ export const DatabaseService = {
   },
 
   /**
-   * Persist a connected account to Supabase with strict duplicate prevention and user isolation.
+   * Persist a connected account to Supabase with strict duplicate prevention and workspace isolation.
    */
   async saveAccount(
     account: SocialAccount,
     userId?: string,
-    workspaceId: string = DEFAULT_WORKSPACE_ID
+    workspaceId?: string
   ): Promise<{ success: boolean; isDuplicate?: boolean; message?: string }> {
     const resolvedUser = await getResolvedUserId(userId || account.userId);
     if (resolvedUser) {
       account.userId = resolvedUser;
     }
 
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : await getUserWorkspaceId(resolvedUser || undefined);
+
     await this.ensureDefaultWorkspace();
 
-    // 1. Backend duplicate prevention: query database strictly scoped to this user
-    if (supabase && resolvedUser) {
+    // 1. Backend duplicate prevention: query database strictly scoped to this workspace
+    if (supabase) {
       try {
         const { data: existingRows, error: checkErr } = await supabase
           .from('connected_accounts')
           .select('id, platform, username, page_id')
-          .eq('user_id', resolvedUser)
+          .eq('workspace_id', targetWsId)
           .eq('platform', account.platform);
 
         if (!checkErr && Array.isArray(existingRows)) {
@@ -436,7 +537,7 @@ export const DatabaseService = {
           });
 
           if (isDbDuplicate) {
-            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected to your profile.`);
+            console.warn(`[Duplicate Prevention] ${account.platform} account "${account.username}" is already connected to workspace.`);
             return {
               success: false,
               isDuplicate: true,
@@ -473,10 +574,10 @@ export const DatabaseService = {
       }
     }
 
-    // 3. Save new account to Supabase with user_id
-    if (supabase && resolvedUser) {
+    // 3. Save new account to Supabase with targetWsId
+    if (supabase) {
       try {
-        const dbAcc = mapAccountToDbAccount(account, DEFAULT_WORKSPACE_ID, resolvedUser);
+        const dbAcc = mapAccountToDbAccount(account, targetWsId);
         const { error: upsertErr } = await supabase.from('connected_accounts').upsert(dbAcc);
         if (upsertErr) {
           console.warn('[Supabase] Initial account upsert warning:', upsertErr.message);
@@ -515,17 +616,21 @@ export const DatabaseService = {
   },
 
   /**
-   * Delete an account from Supabase and cache with user isolation.
+   * Delete an account from Supabase and cache with workspace isolation.
    */
-  async deleteAccount(id: string, userId?: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<void> {
+  async deleteAccount(id: string, userId?: string, workspaceId?: string): Promise<void> {
     const resolvedUser = await getResolvedUserId(userId);
+    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
+      ? workspaceId
+      : await getUserWorkspaceId(resolvedUser || undefined);
+
     if (supabase) {
       try {
-        let q = supabase.from('connected_accounts').delete().eq('id', id);
-        if (resolvedUser) {
-          q = q.eq('user_id', resolvedUser);
-        }
-        const { error } = await q;
+        const { error } = await supabase
+          .from('connected_accounts')
+          .delete()
+          .eq('id', id)
+          .eq('workspace_id', targetWsId);
         if (error) console.error('Failed to delete account from Supabase:', error);
       } catch (err) {
         console.error('Failed to delete account from Supabase:', err);

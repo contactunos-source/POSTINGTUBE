@@ -16,12 +16,18 @@ const FACEBOOK_SCOPES = [
 
 export async function GET(req: NextRequest) {
   const appId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+  
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+  const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+  const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
+
   const baseUrl =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
+  const userId = req.nextUrl.searchParams.get('user_id') || '';
 
   if (!appId) {
     return NextResponse.redirect(
@@ -35,7 +41,9 @@ export async function GET(req: NextRequest) {
 
   const stateObj = {
     workspaceId,
+    userId,
     platform: 'facebook',
+    returnUrl: requestOrigin,
   };
   const state = encodeURIComponent(JSON.stringify(stateObj));
 

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DatabaseService } from '@/lib/db';
+import { SocialAccount } from '@/types/social';
 
 interface DiscoveredYouTubeChannel {
   id: string;
@@ -29,12 +31,14 @@ export async function GET(req: NextRequest) {
     requestOrigin;
 
   let workspaceId = '';
+  let userId = '';
   let returnBaseUrl = defaultBaseUrl;
 
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      userId = parsed.userId || '';
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
     } catch {
       workspaceId = stateRaw;
@@ -147,10 +151,37 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 4. Return successful callback with discovered channels payload
+    // 4. Directly persist discovered channels to Supabase database
+    for (const ch of discoveredChannels) {
+      const cleanHandle = (ch.username || ch.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const ytAcc: SocialAccount = {
+        id: `yt_${ch.id}`,
+        userId: userId || undefined,
+        platform: 'youtube',
+        username: cleanHandle,
+        displayName: ch.name,
+        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+        accountType: 'channel',
+        status: 'connected',
+        followersCount: ch.followersCount || 0,
+        externalId: ch.id,
+        accessToken: ch.accessToken,
+        refreshToken: ch.refreshToken,
+        tokenExpiresAt: ch.tokenExpiresAt,
+        pageId: ch.id,
+      };
+
+      await DatabaseService.saveAccount(ytAcc, userId, workspaceId);
+    }
+
+    const firstChannel = discoveredChannels[0];
+
+    // 5. Return successful callback with discovered channels payload
     return makeRedirect({
       youtube_connect_success: 'true',
       platform: 'youtube',
+      connected_account_name: firstChannel ? firstChannel.name : 'YouTube Channel',
+      connected_account_avatar: firstChannel ? firstChannel.avatarUrl : '',
       discovered_channels: JSON.stringify(discoveredChannels),
     });
   } catch (err: unknown) {

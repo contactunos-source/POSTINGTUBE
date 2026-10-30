@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DatabaseService } from '@/lib/db';
+import { SocialAccount } from '@/types/social';
 
 /**
  * Dedicated Instagram OAuth Callback Route.
@@ -38,6 +40,7 @@ export async function GET(req: NextRequest) {
   const igAppSecret = process.env.INSTAGRAM_APP_SECRET || fbAppSecret;
 
   let workspaceId = '';
+  let userId = '';
   let authMode: 'direct' | 'facebook' = 'facebook';
   let returnBaseUrl = defaultBaseUrl;
   let activeRedirectUri = `${defaultBaseUrl}/api/auth/instagram/callback`;
@@ -46,6 +49,7 @@ export async function GET(req: NextRequest) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      userId = parsed.userId || '';
       if (parsed.mode === 'direct') {
         authMode = 'direct';
       }
@@ -148,6 +152,7 @@ export async function GET(req: NextRequest) {
       // Fetch user profile details
       let igUsername = '';
       let igAvatar = '';
+
       try {
         const profileRes = await fetch(
           `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
@@ -329,10 +334,35 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Persist discovered Instagram accounts directly to Supabase database
+    for (const ch of detectedChannels) {
+      const cleanUsername = (ch.name || 'instagram_account').replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const igAcc: SocialAccount = {
+        id: `ig_${ch.id}`,
+        userId: userId || undefined,
+        platform: 'instagram',
+        username: cleanUsername,
+        displayName: `@${cleanUsername}`,
+        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+        accountType: 'business',
+        status: 'connected',
+        followersCount: 0,
+        externalId: ch.id,
+        accessToken: ch.accessToken,
+        pageId: ch.id,
+      };
+
+      await DatabaseService.saveAccount(igAcc, userId, workspaceId);
+    }
+
+    const firstChannel = detectedChannels[0];
+
     // Redirect to Connections tab with genuinely discovered Instagram profiles
     return makeRedirect({
       ig_connect_success: 'true',
       platform: 'instagram',
+      connected_account_name: firstChannel ? firstChannel.name : 'Instagram Account',
+      connected_account_avatar: firstChannel ? firstChannel.avatarUrl : '',
       discovered_pages: JSON.stringify(detectedChannels),
     });
   } catch (err: unknown) {

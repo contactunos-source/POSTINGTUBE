@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DatabaseService } from '@/lib/db';
+import { SocialAccount } from '@/types/social';
 
 /**
  * Handles Pure Facebook OAuth 2.0 Callback.
  * - Exchanges code for user token
  * - Upgrades to 60-day long-lived token
  * - Discovers Facebook Pages managed by user
+ * - Directly persists discovered Facebook Pages into Supabase
  * - Strictly returns platform: 'facebook' (zero cross-linking with Instagram)
  */
 export async function GET(req: NextRequest) {
@@ -14,26 +17,35 @@ export async function GET(req: NextRequest) {
   const errorDescription = searchParams.get('error_description');
   const stateRaw = searchParams.get('state');
 
-  const baseUrl =
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+  const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+  const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
+
+  const defaultBaseUrl =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-  const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
+  const redirectUri = `${defaultBaseUrl}/api/auth/facebook/callback`;
   const appId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
   const appSecret = process.env.FACEBOOK_APP_SECRET;
 
   let workspaceId = '';
+  let userId = '';
+  let returnBaseUrl = defaultBaseUrl;
+
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      userId = parsed.userId || '';
+      if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
     } catch {
       workspaceId = stateRaw;
     }
   }
 
   const makeRedirect = (params: Record<string, string>) => {
-    const target = new URL('/dashboard', baseUrl);
+    const target = new URL('/dashboard', returnBaseUrl);
     target.searchParams.set('tab', 'connections');
     target.searchParams.set('platform', 'facebook');
     if (workspaceId) {
@@ -54,8 +66,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (error === 'invalid_scope' || errorDescription?.includes('Invalid Scopes')) {
-      const fallbackUrl = new URL('/api/auth/facebook', baseUrl);
+      const fallbackUrl = new URL('/api/auth/facebook', returnBaseUrl);
       if (workspaceId) fallbackUrl.searchParams.set('workspace_id', workspaceId);
+      if (userId) fallbackUrl.searchParams.set('user_id', userId);
       return NextResponse.redirect(fallbackUrl.toString());
     }
 
@@ -168,10 +181,35 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 6. Direct Supabase Persistence: Guarantee all discovered Facebook pages are stored
+    for (const ch of detectedChannels) {
+      const cleanUsername = (ch.name || 'facebook_page').toLowerCase().replace(/\s+/g, '_');
+      const fbAcc: SocialAccount = {
+        id: `fb_${ch.id}`,
+        userId: userId || undefined,
+        platform: 'facebook',
+        username: cleanUsername,
+        displayName: ch.name,
+        avatarUrl: ch.avatarUrl || 'https://images.unsplash.com/photo-1579208575657-c595a05383b7?w=100&auto=format&fit=crop&q=80',
+        accountType: 'page',
+        status: 'connected',
+        followersCount: 0,
+        externalId: ch.id,
+        accessToken: ch.accessToken,
+        pageId: ch.id,
+      };
+
+      await DatabaseService.saveAccount(fbAcc, userId, workspaceId);
+    }
+
+    const firstChannel = detectedChannels[0];
+
     // Redirect to Connections tab with discovered Facebook accounts
     return makeRedirect({
       fb_connect_success: 'true',
       platform: 'facebook',
+      connected_account_name: firstChannel ? firstChannel.name : 'Facebook Page',
+      connected_account_avatar: firstChannel ? firstChannel.avatarUrl : '',
       discovered_pages: JSON.stringify(detectedChannels),
     });
   } catch (err: unknown) {
