@@ -1095,6 +1095,11 @@ export const AdminDataService = {
       cancelledCount: number;
       successfulPayments: number;
       failedPayments: number;
+      freeUsersCount: number;
+      proSubscribersCount: number;
+      arpu: number;
+      totalPurchasedCapacity: number;
+      planBreakdown: { free: number; pro: number };
       providers: {
         razorpay: { active: number; revenue: number };
         stripe: { active: number; revenue: number };
@@ -1123,6 +1128,7 @@ export const AdminDataService = {
     let cancelledCount = 0;
     let successCount = 0;
     let failCount = 0;
+    let totalPurchasedCapacity = 0;
 
     const providers = {
       razorpay: { active: 0, revenue: 0 },
@@ -1134,11 +1140,33 @@ export const AdminDataService = {
         activeCount++;
         const monthly = sub.billing_interval === 'annual' ? Number(sub.amount) / 12 : Number(sub.amount);
         mrr += monthly;
+        totalPurchasedCapacity += Number(sub.channels_count || sub.channelsCount || 3);
         if (sub.provider === 'stripe') providers.stripe.active++;
         else providers.razorpay.active++;
       } else if (sub.status === 'cancelled') {
         cancelledCount++;
       }
+    }
+
+    // Fallback to local subscriptions store if empty
+    if (subscriptions.length === 0) {
+      const fs = await import('fs');
+      const path = await import('path');
+      try {
+        const subFile = path.join(process.cwd(), 'src', 'data', 'subscriptions.json');
+        if (fs.existsSync(subFile)) {
+          subscriptions = JSON.parse(fs.readFileSync(subFile, 'utf-8'));
+          for (const s of subscriptions) {
+            if (s.status === 'active' && s.planId === 'pro') {
+              activeCount++;
+              mrr += Number(s.amount || 0);
+              totalPurchasedCapacity += Number(s.channelsCount || 1);
+              if (s.provider === 'stripe') providers.stripe.active++;
+              else providers.razorpay.active++;
+            }
+          }
+        }
+      } catch {}
     }
 
     for (const txn of transactions) {
@@ -1152,6 +1180,31 @@ export const AdminDataService = {
       }
     }
 
+    if (transactions.length === 0) {
+      const fs = await import('fs');
+      const path = await import('path');
+      try {
+        const txnFile = path.join(process.cwd(), 'src', 'data', 'payment_transactions.json');
+        if (fs.existsSync(txnFile)) {
+          transactions = JSON.parse(fs.readFileSync(txnFile, 'utf-8'));
+          for (const t of transactions) {
+            if (t.status === 'succeeded') {
+              successCount++;
+              totalRevenue += Number(t.amount || 0);
+              if (t.provider === 'stripe') providers.stripe.revenue += Number(t.amount || 0);
+              else providers.razorpay.revenue += Number(t.amount || 0);
+            } else if (t.status === 'failed') {
+              failCount++;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const allProfiles = await fetchAggregatedUserProfiles();
+    const freeUsersCount = Math.max(1, allProfiles.length - activeCount);
+    const arpu = activeCount > 0 ? Math.round(mrr / activeCount) : 0;
+
     return {
       subscriptions,
       transactions,
@@ -1162,6 +1215,11 @@ export const AdminDataService = {
         cancelledCount,
         successfulPayments: successCount,
         failedPayments: failCount,
+        freeUsersCount,
+        proSubscribersCount: activeCount,
+        arpu,
+        totalPurchasedCapacity,
+        planBreakdown: { free: freeUsersCount, pro: activeCount },
         providers,
       },
     };

@@ -17,9 +17,11 @@ import {
   Check,
   AlertCircle,
   HelpCircle,
+  Zap,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 import { DeleteChannelModal } from './DeleteChannelModal';
+import { UpgradePlanModal } from '@/components/UpgradePlanModal';
 
 interface ConnectedAccountsProps {
   accounts: SocialAccount[];
@@ -95,6 +97,33 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   const [genericHandle, setGenericHandle] = useState('');
   const [genericToken, setGenericToken] = useState('');
   const [includeLinkedInOrg, setIncludeLinkedInOrg] = useState(false);
+
+  // Subscription and Limit Enforcement State
+  const [subscriptionData, setSubscriptionData] = useState<{ planId: string; channelsCount: number } | null>(null);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [channelLimitModal, setChannelLimitModal] = useState<{
+    isOpen: boolean;
+    limit: number;
+    current: number;
+    planId: string;
+  } | null>(null);
+
+  const fetchSubscription = () => {
+    const uId = authUser?.id || '';
+    const uEmail = authUser?.email || '';
+    fetch(`/api/billing/subscription?userId=${encodeURIComponent(uId)}&email=${encodeURIComponent(uEmail)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.subscription) {
+          setSubscriptionData(d.subscription);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchSubscription();
+  }, [authUser?.id, authUser?.email]);
 
   // UI Feedback
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
@@ -269,6 +298,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   };
 
   const handleStartConnect = (platform: SocialPlatform) => {
+    // Enforce channel limits based on plan (Free: 3 channels, Pro: purchased channelsCount)
+    const maxChannels = subscriptionData?.planId === 'pro' ? (subscriptionData.channelsCount || 1) : 3;
+    if (accounts.length >= maxChannels) {
+      setChannelLimitModal({
+        isOpen: true,
+        limit: maxChannels,
+        current: accounts.length,
+        planId: subscriptionData?.planId || 'free',
+      });
+      return;
+    }
+
     setConnectingPlatform(platform);
     setVerifyError(null);
     setShowHelp(false);
@@ -828,21 +869,40 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Connected Accounts</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Connected Accounts</h1>
+            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+              <span>{accounts.length} / {subscriptionData?.planId === 'pro' ? (subscriptionData.channelsCount || 1) : 3} channels</span>
+              <span className="text-emerald-400">•</span>
+              <span className="uppercase text-[10px] tracking-wide font-extrabold">{subscriptionData?.planId === 'pro' ? 'Pro' : 'Free'}</span>
+            </div>
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             Connect and manage your live Facebook Pages, Instagram accounts, and social channels.
           </p>
         </div>
 
-        <button
-          onClick={handleRefreshAll}
-          disabled={isRefreshingAll}
-          className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-2 transition-all cursor-pointer shadow-2xs w-full sm:w-fit justify-center disabled:opacity-50"
-          title="Re-synchronize connected accounts and channel profiles directly from database"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
-          <span>{isRefreshingAll ? 'Refreshing Accounts...' : 'Refresh Accounts'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {subscriptionData?.planId !== 'pro' && (
+            <button
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              <span>Upgrade Plan</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleRefreshAll}
+            disabled={isRefreshingAll}
+            className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-2 transition-all cursor-pointer shadow-2xs w-full sm:w-fit justify-center disabled:opacity-50"
+            title="Re-synchronize connected accounts and channel profiles directly from database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
+            <span>{isRefreshingAll ? 'Refreshing Accounts...' : 'Refresh Accounts'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Rows of Platforms */}
@@ -2321,6 +2381,63 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           }}
         />
       )}
+
+      {/* Channel Limit Reached Alert Modal */}
+      {channelLimitModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black text-gray-950">
+                Channel Limit Reached ({channelLimitModal.current}/{channelLimitModal.limit})
+              </h3>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                {channelLimitModal.planId === 'free'
+                  ? 'You have reached the Free plan limit of 3 connected social channels. Upgrade to the Pro plan for ₹199/month per channel to connect additional channels and unlock unlimited scheduling.'
+                  : `You have connected all ${channelLimitModal.limit} channels in your current Pro subscription. You can add more channels anytime for ₹199/month per channel.`}
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between text-xs">
+              <span className="text-gray-500 font-medium">Connected Channels</span>
+              <span className="font-bold text-gray-900">{accounts.length} / {channelLimitModal.limit} channels</span>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setChannelLimitModal(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setChannelLimitModal(null);
+                  setIsUpgradeModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center space-x-1.5 shadow-sm cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white" />
+                <span>{channelLimitModal.planId === 'free' ? 'Upgrade to Pro' : 'Add More Channels'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Plan Modal */}
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        currentPlan={subscriptionData?.planId === 'pro' ? 'Pro' : 'Free'}
+        channelsCount={subscriptionData?.channelsCount || Math.max(1, accounts.length)}
+        onPlanUpdated={fetchSubscription}
+      />
     </div>
   );
 };

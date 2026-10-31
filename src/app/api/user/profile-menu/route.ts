@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { SubscriptionService } from '@/lib/subscription';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -22,6 +23,13 @@ export async function GET(req: NextRequest) {
     let subscription: any = null;
     let workspace: any = null;
     let channelsCount = 0;
+
+    // Fetch verified subscription from SubscriptionService (dual-persistence: Supabase + JSON fallback)
+    try {
+      subscription = await SubscriptionService.getUserSubscription(userId, email);
+    } catch (e) {
+      console.warn('[ProfileMenuAPI] Error fetching subscription via SubscriptionService:', e);
+    }
 
     if (client) {
       // 1. Fetch user profile
@@ -105,7 +113,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Determine normalized plan name and actual status
-    let rawPlan = subscription?.plan_id || profile?.plan || 'free';
+    const rawPlan = subscription?.planId || subscription?.plan_id || profile?.plan || 'free';
     let planDisplayName = 'Free plan';
     let planTier: 'Free' | 'Pro' | 'Premium' = 'Free';
 

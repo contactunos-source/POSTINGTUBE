@@ -17,10 +17,22 @@ import {
   Laptop,
   LogOut,
   Loader2,
+  CreditCard,
+  Zap,
+  Sparkles,
+  Check,
+  Minus,
+  Plus,
+  RefreshCw,
+  Calendar,
+  ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase, signOutUser } from '@/lib/supabase';
 import { DeleteChannelModal } from '@/components/DeleteChannelModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
+import { UpgradePlanModal } from '@/components/UpgradePlanModal';
+import { PRICING_CONFIG } from '@/lib/pricing-config';
 
 interface SettingsViewProps {
   currentWorkspace: Workspace;
@@ -68,6 +80,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Settings Navigation Tab
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'billing'>('profile');
+
+  // Subscription & Billing States
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [usageData, setUsageData] = useState<any>(null);
+  const [billingTransactions, setBillingTransactions] = useState<any[]>([]);
+  const [isLoadingBilling, setIsLoadingBilling] = useState<boolean>(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState<boolean>(false);
+  const [channelsAdjustCount, setChannelsAdjustCount] = useState<number>(3);
+  const [isUpdatingChannels, setIsUpdatingChannels] = useState<boolean>(false);
+  const [isCancellingSub, setIsCancellingSub] = useState<boolean>(false);
+
+  // Fetch verified subscription & usage
+  const loadBillingDetails = async () => {
+    setIsLoadingBilling(true);
+    try {
+      const uId = authUser?.id || '';
+      const uEmail = authUser?.email || email || '';
+      const wsId = currentWorkspace?.id || '';
+      const res = await fetch(`/api/billing/subscription?userId=${encodeURIComponent(uId)}&email=${encodeURIComponent(uEmail)}&workspaceId=${encodeURIComponent(wsId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setSubscriptionData(data.subscription);
+          setUsageData(data.usage);
+          if (data.subscription?.channelsCount) {
+            setChannelsAdjustCount(data.subscription.channelsCount);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching billing details:', err);
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBillingDetails();
+  }, [authUser?.id, authUser?.email, currentWorkspace?.id]);
 
   // Initialize and load saved profile
   useEffect(() => {
@@ -348,6 +402,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
   const passwordStrength = getPasswordStrength();
 
+  const handleUpdateChannelCapacity = async () => {
+    setIsUpdatingChannels(true);
+    try {
+      const res = await fetch('/api/billing/change-channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: authUser?.id || subscriptionData?.userId,
+          email: authUser?.email || email,
+          newChannelsCount: channelsAdjustCount,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Channel capacity updated');
+        loadBillingDetails();
+      } else {
+        alert(data.error || 'Failed to update channel capacity');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error updating capacity');
+    } finally {
+      setIsUpdatingChannels(false);
+    }
+  };
+
+  const handleCancelPlan = async () => {
+    if (
+      !confirm(
+        'Are you sure you want to cancel your Pro plan? Your existing social channels and published posts will NOT be deleted, but your future capacity will return to the Free plan limits.'
+      )
+    ) {
+      return;
+    }
+    setIsCancellingSub(true);
+    try {
+      const res = await fetch('/api/billing/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: authUser?.id || subscriptionData?.userId,
+          email: authUser?.email || email,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Subscription cancelled');
+        loadBillingDetails();
+      } else {
+        alert(data.error || 'Failed to cancel subscription');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Cancellation error');
+    } finally {
+      setIsCancellingSub(false);
+    }
+  };
+
+  const isProPlan = subscriptionData?.planId === 'pro' && subscriptionData?.status === 'active';
+  const currencySymbol = subscriptionData?.currency === 'USD' ? '$' : '₹';
+  const pricePerChannel = subscriptionData?.pricePerChannel || (subscriptionData?.currency === 'USD' ? 3 : 199);
+  const totalAmount = subscriptionData?.amount || (subscriptionData?.channelsCount || 3) * pricePerChannel;
+
   return (
     <div className="p-3 sm:p-6 md:p-8 max-w-4xl mx-auto font-sans space-y-6">
       {/* Toast Alert */}
@@ -358,8 +475,290 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       )}
 
-      {/* Main Settings Card */}
-      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-4 sm:p-8 space-y-8">
+      {/* Top Settings Navigation Tabs */}
+      <div className="flex items-center space-x-2 border-b border-gray-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('profile')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSettingsTab === 'profile'
+              ? 'bg-gray-900 text-white shadow-xs'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          <User className="w-3.5 h-3.5" />
+          <span>General Profile</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('billing')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSettingsTab === 'billing'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Subscription &amp; Billing</span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase ${
+              isProPlan
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {isProPlan ? 'Pro Active' : 'Free Plan'}
+          </span>
+        </button>
+      </div>
+
+      {/* TAB 1: SUBSCRIPTION & BILLING MANAGEMENT */}
+      {activeSettingsTab === 'billing' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Plan Overview Card */}
+          <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-6 space-y-6">
+            <div className="flex items-start justify-between flex-wrap gap-4 border-b border-gray-100 pb-5">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2.5">
+                  <h2 className="text-xl font-black text-gray-950">
+                    {isProPlan ? 'Pro Plan' : 'Free Plan'}
+                  </h2>
+                  <span
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                      isProPlan
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {isProPlan ? 'Active Subscription' : 'Free Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {isProPlan
+                    ? `Configured for up to ${subscriptionData?.channelsCount || 3} connected social channels with unlimited scheduling.`
+                    : 'Free starter tier with 3 social accounts and 5 scheduled posts per channel.'}
+                </p>
+              </div>
+
+              <div>
+                {!isProPlan ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsUpgradeModalOpen(true)}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-white" />
+                    <span>Upgrade to Pro</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCancelPlan}
+                    disabled={isCancellingSub}
+                    className="px-4 py-2 rounded-xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isCancellingSub ? 'Cancelling...' : 'Cancel Subscription'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Metrics Breakdown Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Channel Capacity */}
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Channels Connected
+                </span>
+                <div className="text-2xl font-black text-gray-900">
+                  {usageData?.channels?.connected || accounts.length} /{' '}
+                  <span className="text-gray-500 text-base">
+                    {usageData?.channels?.limit || (isProPlan ? subscriptionData?.channelsCount : 3)}
+                  </span>
+                </div>
+                <span className="text-[11px] text-gray-500 block">
+                  {isProPlan ? 'Purchased capacity' : 'Max 3 channels on Free'}
+                </span>
+              </div>
+
+              {/* Scheduled Posts */}
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Scheduled Posts
+                </span>
+                <div className="text-2xl font-black text-gray-900">
+                  {isProPlan ? 'Unlimited' : `${usageData?.scheduledPosts?.total || 0} active`}
+                </div>
+                <span className="text-[11px] text-gray-500 block">
+                  {isProPlan ? 'No scheduled post limits' : 'Max 5 per channel'}
+                </span>
+              </div>
+
+              {/* Price Per Channel */}
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Price Per Channel
+                </span>
+                <div className="text-2xl font-black text-gray-900">
+                  {isProPlan ? `${currencySymbol}${pricePerChannel}` : `${currencySymbol}0`}
+                  <span className="text-xs text-gray-400 font-normal"> / mo</span>
+                </div>
+                <span className="text-[11px] text-gray-500 block">
+                  {isProPlan ? 'Monthly recurring' : 'Free forever'}
+                </span>
+              </div>
+
+              {/* Monthly Total */}
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Monthly Total
+                </span>
+                <div className="text-2xl font-black text-emerald-700">
+                  {isProPlan ? `${currencySymbol}${totalAmount}` : `${currencySymbol}0`}
+                  <span className="text-xs text-gray-400 font-normal"> / mo</span>
+                </div>
+                <span className="text-[11px] text-gray-500 block">
+                  {subscriptionData?.currentPeriodEnd
+                    ? `Next renewal: ${new Date(subscriptionData.currentPeriodEnd).toLocaleDateString()}`
+                    : 'Active'}
+                </span>
+              </div>
+            </div>
+
+            {/* Scheduled Posts per channel usage (for Free users) */}
+            {!isProPlan && usageData?.scheduledPosts?.byChannel && Object.keys(usageData.scheduledPosts.byChannel).length > 0 && (
+              <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2">
+                <span className="text-xs font-bold text-amber-950 block">
+                  Scheduled Posts Usage (5 Posts Limit Per Channel):
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {Object.entries(usageData.scheduledPosts.byChannel).map(([accId, item]: any) => (
+                    <div key={accId} className="p-2.5 bg-white rounded-lg border border-amber-200 text-xs flex items-center justify-between">
+                      <span className="font-semibold text-gray-800 truncate mr-2">{item.name}</span>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${item.scheduledCount >= 5 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {item.scheduledCount} / 5
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Channel Quantity Adjuster for Pro Plan Users */}
+            {isProPlan && (
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-950">Modify Channel Quantity</h3>
+                    <p className="text-xs text-gray-500">
+                      Add or remove connected channels anytime. Your total updates automatically.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-700 bg-white px-3 py-1 rounded-lg border border-gray-200">
+                    {currencySymbol}{pricePerChannel} × {channelsAdjustCount} = {currencySymbol}{channelsAdjustCount * pricePerChannel}/mo
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-3 max-w-sm">
+                  <button
+                    type="button"
+                    onClick={() => setChannelsAdjustCount((c) => Math.max(1, c - 1))}
+                    disabled={channelsAdjustCount <= 1}
+                    className="w-10 h-10 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 text-gray-800 flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  >
+                    <Minus className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+
+                  <div className="flex-1 text-center font-black text-lg text-gray-950 bg-white border border-gray-300 rounded-xl py-1.5 shadow-inner">
+                    {channelsAdjustCount} <span className="text-xs font-normal text-gray-400">channels</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setChannelsAdjustCount((c) => Math.min(100, c + 1))}
+                    disabled={channelsAdjustCount >= 100}
+                    className="w-10 h-10 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleUpdateChannelCapacity}
+                    disabled={isUpdatingChannels || channelsAdjustCount === subscriptionData?.channelsCount}
+                    className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {isUpdatingChannels ? 'Saving...' : 'Apply Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Payment & Invoicing History */}
+          <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-950">Payment &amp; Invoicing History</h3>
+                <p className="text-xs text-gray-500">Verified transaction receipts and automated renewals.</p>
+              </div>
+              <button
+                type="button"
+                onClick={loadBillingDetails}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                title="Refresh history"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            {billingTransactions.length === 0 ? (
+              <div className="p-8 text-center bg-gray-50 rounded-xl border border-gray-200/80 text-xs text-gray-500">
+                {isProPlan
+                  ? 'Your initial payment transaction has been processed. Official invoices will appear here upon next cycle.'
+                  : 'No payment transactions yet. Free plan does not incur any charges.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase">
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Provider</th>
+                      <th className="py-2.5 px-3">Payment ID</th>
+                      <th className="py-2.5 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-800">
+                    {billingTransactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-gray-50">
+                        <td className="py-3 px-3">{new Date(t.createdAt).toLocaleDateString()}</td>
+                        <td className="py-3 px-3 font-bold">
+                          {t.currency === 'USD' ? '$' : '₹'}{t.amount}
+                        </td>
+                        <td className="py-3 px-3 capitalize">{t.provider}</td>
+                        <td className="py-3 px-3 font-mono text-[11px] text-gray-500">{t.providerPaymentId}</td>
+                        <td className="py-3 px-3 text-right">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            {t.status.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: GENERAL PROFILE (ORIGINAL SETTINGS CONTENT) */}
+      {activeSettingsTab === 'profile' && (
+      /* Main Settings Card */
+      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-4 sm:p-8 space-y-8 animate-in fade-in duration-150">
         {/* Photo Section */}
         <div className="flex items-center space-x-4 sm:space-x-5">
           <div
@@ -793,6 +1192,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
       </div>
+      )}
 
       {/* Delete Connected Channel Modal (Requires typing DELETE CHANNEL) */}
       {channelToDelete && (
@@ -815,6 +1215,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         isOpen={isDeleteAccountModalOpen}
         onClose={() => setIsDeleteAccountModalOpen(false)}
         authUser={authUser}
+      />
+
+      {/* Upgrade Plan Modal */}
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        currentPlan={isProPlan ? 'Pro' : 'Free'}
+        channelsCount={subscriptionData?.channelsCount || 3}
+        onPlanUpdated={loadBillingDetails}
       />
     </div>
   );

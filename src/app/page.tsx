@@ -25,6 +25,7 @@ import {
   Lock,
   Eye,
   Plus,
+  Minus,
   Compass,
   Video,
   FileText,
@@ -118,6 +119,8 @@ const TESTIMONIALS = [
 export default function LandingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAnnual, setIsAnnual] = useState(true);
+  const [pricingCurrency, setPricingCurrency] = useState<'INR' | 'USD'>('INR');
+  const [landingChannelsCount, setLandingChannelsCount] = useState<number>(3);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   // Integration Arc Carousel active index
@@ -647,162 +650,219 @@ export default function LandingPage() {
             Simple Pricing
           </span>
           <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
-            Fair, predictable plans for creators and brands
+            Pay only for the channels you publish to
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 mt-2 max-w-md mx-auto">
-            Start completely free, upgrade as your social channels grow.
+            Start completely free, scale with Pro at just{' '}
+            <strong className="text-gray-900">₹199 per channel / month</strong> with unlimited scheduling.
           </p>
 
-          {/* Billing Switch */}
-          <div className="mt-8 inline-flex items-center space-x-2 bg-gray-100 p-1 rounded-full border border-gray-200">
+          {/* Currency Switcher */}
+          <div className="mt-6 inline-flex items-center space-x-1 bg-gray-100 p-1 rounded-full border border-gray-200 shadow-inner">
             <button
-              onClick={() => setIsAnnual(false)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                !isAnnual ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              onClick={() => setPricingCurrency('INR')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                pricingCurrency === 'INR' ? 'bg-white text-gray-950 shadow-xs' : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Monthly billing
+              🇮🇳 INR (₹)
             </button>
             <button
-              onClick={() => setIsAnnual(true)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                isAnnual ? 'bg-black text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              onClick={() => setPricingCurrency('USD')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                pricingCurrency === 'USD' ? 'bg-white text-gray-950 shadow-xs' : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              <span>Annual</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-white font-bold">
-                Save 25%
-              </span>
+              🇺🇸 USD ($)
             </button>
           </div>
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-          {/* Tier 1: Free */}
-          <div className="p-8 rounded-3xl bg-white border border-gray-200/80 flex flex-col justify-between shadow-xs">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch max-w-5xl mx-auto">
+          {/* Plan 1: Free */}
+          <div className="lg:col-span-5 p-8 rounded-3xl bg-white border border-gray-200 flex flex-col justify-between shadow-xs">
             <div>
-              <h3 className="text-base font-bold text-gray-900">Free Starter</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-950">Free Plan</h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  Starter
+                </span>
+              </div>
               <p className="text-xs text-gray-500 mt-1">For creators testing their first multi-channel workflow.</p>
+              
               <div className="mt-6 flex items-baseline space-x-1">
-                <span className="text-4xl font-extrabold text-gray-900">$0</span>
+                <span className="text-4xl font-extrabold text-gray-900">
+                  {pricingCurrency === 'INR' ? '₹0' : '$0'}
+                </span>
                 <span className="text-xs text-gray-500">/ forever</span>
               </div>
 
-              <div className="mt-8 space-y-3 text-xs text-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>3 Connected Social Accounts</span>
+              <div className="mt-8 space-y-3.5 text-xs text-gray-700">
+                <div className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-gray-950">Up to 3 connected channels</strong> (YouTube, Instagram, Facebook, X, LinkedIn)
+                  </span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>30 Scheduled Posts per month</span>
+                <div className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-gray-950">5 scheduled posts per channel</strong> (15 scheduled total)
+                  </span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Direct YouTube Studio &amp; Meta Publishing</span>
+                <div className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>1 user account login</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Multi-Tenant Isolated Workspace</span>
+                <div className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>Basic analytics &amp; post insights</span>
                 </div>
-              </div>
-            </div>
-
-            <Link
-              href="/login?mode=signup"
-              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
-            >
-              Get Started Free
-            </Link>
-          </div>
-
-          {/* Tier 2: Creator Pro (Featured) */}
-          <div className="p-8 rounded-3xl bg-white border-2 border-black flex flex-col justify-between relative shadow-lg">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-black text-white text-[10px] font-bold uppercase tracking-wider">
-              Most Popular
-            </div>
-
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Creator Pro</h3>
-              <p className="text-xs text-gray-500 mt-1">For active creators, podcasts, and digital businesses.</p>
-              <div className="mt-6 flex items-baseline space-x-1">
-                <span className="text-4xl font-extrabold text-gray-900">
-                  {isAnnual ? '$22' : '$29'}
-                </span>
-                <span className="text-xs text-gray-500">/ month</span>
-              </div>
-
-              <div className="mt-8 space-y-3 text-xs text-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>10 Connected Social Accounts</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Unlimited Scheduled Posts</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Autonomous 10s Scheduler Daemon</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>YouTube Studio &amp; Frame Extraction</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Auto First-Comment Link Drop</span>
+                <div className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>Core multi-platform publisher</span>
                 </div>
               </div>
             </div>
 
             <Link
               href="/login?mode=signup"
-              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-black hover:bg-gray-800 text-white flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+              className="mt-8 w-full py-3.5 rounded-2xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-900 flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
             >
-              <span>Start 14-Day Free Trial</span>
+              <span>Get Started Free</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          {/* Tier 3: Agency Scale */}
-          <div className="p-8 rounded-3xl bg-white border border-gray-200/80 flex flex-col justify-between shadow-xs">
+          {/* Plan 2: Pro Plan (Interactive Pay Per Channel) */}
+          <div className="lg:col-span-7 p-8 rounded-3xl bg-white border-2 border-emerald-600 flex flex-col justify-between relative shadow-xl">
+            <div className="absolute -top-3.5 left-8 px-3.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center space-x-1.5">
+              <Sparkles className="w-3 h-3 fill-white" />
+              <span>Recommended Pro Plan</span>
+            </div>
+
             <div>
-              <h3 className="text-base font-bold text-gray-900">Agency Scale</h3>
-              <p className="text-xs text-gray-500 mt-1">For marketing agencies managing multiple brands.</p>
-              <div className="mt-6 flex items-baseline space-x-1">
-                <span className="text-4xl font-extrabold text-gray-900">
-                  {isAnnual ? '$59' : '$79'}
-                </span>
-                <span className="text-xs text-gray-500">/ month</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-gray-950 flex items-center space-x-2">
+                    <span>Pro Plan</span>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Pay Per Channel
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Scale from 1 to 100 channels as your reach expands.</p>
+                </div>
               </div>
 
-              <div className="mt-8 space-y-3 text-xs text-gray-700">
+              {/* Price Calculation Box */}
+              <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-200/80 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider block">
+                    Total Monthly Investment
+                  </span>
+                  <div className="flex items-baseline space-x-1.5 mt-0.5">
+                    <span className="text-3xl sm:text-4xl font-black text-gray-950">
+                      {pricingCurrency === 'INR' ? '₹' : '$'}
+                      {(landingChannelsCount * (pricingCurrency === 'INR' ? 199 : 3)).toLocaleString()}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-600">/ month</span>
+                  </div>
+                  <span className="text-[11px] text-gray-500 block mt-0.5">
+                    {pricingCurrency === 'INR' ? '₹199' : '$3.00'} × {landingChannelsCount} {landingChannelsCount === 1 ? 'channel' : 'channels'}
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-gray-400 block">Billing</span>
+                  <span className="text-xs font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs inline-block mt-0.5">
+                    Monthly recurring
+                  </span>
+                </div>
+              </div>
+
+              {/* Interactive Channel Selector */}
+              <div className="mt-5 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-gray-900">
+                    Select Channels: <strong className="text-emerald-700 text-sm">{landingChannelsCount}</strong>
+                  </span>
+                  <span className="text-gray-400 text-[11px]">Min: 1 • Max: 100</span>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setLandingChannelsCount((c) => Math.max(1, c - 1))}
+                    disabled={landingChannelsCount <= 1}
+                    className="w-10 h-10 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 text-gray-800 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Minus className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+
+                  <div className="flex-1 text-center font-black text-xl text-gray-950 bg-gray-50 border border-gray-300 rounded-xl py-1.5 shadow-inner">
+                    {landingChannelsCount} <span className="text-xs font-normal text-gray-400">channels</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setLandingChannelsCount((c) => Math.min(100, c + 1))}
+                    disabled={landingChannelsCount >= 100}
+                    className="w-10 h-10 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                </div>
+
+                {/* Quick tiers */}
+                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 pt-1 text-[11px]">
+                  {[1, 3, 5, 10, 25, 50, 100].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setLandingChannelsCount(n)}
+                      className={`px-2 py-0.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                        landingChannelsCount === n
+                          ? 'bg-emerald-600 text-white font-bold'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      {n} ch
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feature Checklist */}
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-gray-700">
                 <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Unlimited Accounts &amp; Workspaces</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Connect up to {landingChannelsCount} channels</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Client-Level Data Partitioning</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="font-semibold text-gray-950">Unlimited scheduled posts</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Custom Webhooks &amp; REST API</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Advanced real-time analytics</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Priority 24/7 SLA Support</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Priority publishing engine</span>
                 </div>
               </div>
             </div>
 
             <Link
-              href="/login?mode=signup"
-              className="mt-8 w-full py-3 rounded-full text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-900 border border-gray-300 flex items-center justify-center transition-colors cursor-pointer"
+              href="/pricing"
+              className="mt-8 w-full py-3.5 rounded-2xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
             >
-              Contact Sales
+              <span>
+                Upgrade to Pro ({pricingCurrency === 'INR' ? '₹' : '$'}
+                {(landingChannelsCount * (pricingCurrency === 'INR' ? 199 : 3)).toLocaleString()} / mo)
+              </span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>

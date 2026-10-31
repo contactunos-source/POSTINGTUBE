@@ -645,6 +645,20 @@ export default function DashboardPage() {
         setPosts(refreshed);
       }
     } else {
+      if (action === 'schedule') {
+        const { SubscriptionService } = await import('@/lib/subscription');
+        const check = await SubscriptionService.checkCanSchedulePosts(
+          authUser?.id,
+          authUser?.email,
+          postData.targetAccountIds || [],
+          posts.filter((p) => p.id !== editingPost?.id)
+        );
+        if (!check.allowed) {
+          alert(check.reason || 'Scheduling limit reached for your plan (5 scheduled posts per channel on Free plan). Upgrade to Pro for unlimited scheduling.');
+          return;
+        }
+      }
+
       const newPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
         userId: authUser?.id,
@@ -1024,6 +1038,7 @@ export default function DashboardPage() {
           <CreatePostDashboard
             postType={createDashboardType}
             accounts={accounts}
+            allPosts={posts}
             initialPost={editingPost || undefined}
             onSave={async (postData, action) => {
               await handleSavePost(postData, action);

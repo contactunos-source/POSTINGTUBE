@@ -740,6 +740,28 @@ export const DatabaseService = {
             };
           }
         }
+
+        // New channel connection: enforce subscription channel capacity limit
+        const { count: currentTotalChannels } = await supabase
+          .from('connected_accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('workspace_id', targetWsId);
+
+        const { SubscriptionService } = await import('@/lib/subscription');
+        const limitCheck = await SubscriptionService.checkCanConnectChannel(
+          resolvedUser || undefined,
+          undefined,
+          currentTotalChannels || 0
+        );
+
+        if (!limitCheck.allowed) {
+          console.warn('[Channel Limit Blocked]:', limitCheck.reason);
+          return {
+            success: false,
+            isDuplicate: false,
+            message: limitCheck.reason,
+          };
+        }
       } catch (err) {
         console.error('Database duplicate check error:', err);
       }

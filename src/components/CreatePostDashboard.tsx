@@ -57,10 +57,12 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
+import { UpgradePlanModal } from '@/components/UpgradePlanModal';
 
 interface CreatePostDashboardProps {
   postType: 'text' | 'image' | 'video';
   accounts: SocialAccount[];
+  allPosts?: Post[];
   initialPost?: Partial<Post>;
   onSave: (postData: Partial<Post>, action: 'schedule' | 'publish-now' | 'draft') => Promise<void>;
   onBack: () => void;
@@ -131,11 +133,35 @@ const SUPPORTED_PLATFORMS: PlatformConfig[] = [
 export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   postType: initialPostType,
   accounts,
+  allPosts,
   initialPost,
   onSave,
   onBack,
   onGoToConnections,
 }) => {
+  // Subscription and scheduling limit states
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [scheduleLimitModal, setScheduleLimitModal] = useState<{
+    isOpen: boolean;
+    blockedChannels: { id: string; name: string; count: number }[];
+    canScheduleRemaining: boolean;
+  } | null>(null);
+  const [subscriptionData, setSubscriptionData] = useState<{ planId: string; channelsCount: number } | null>(null);
+
+  const fetchSubscription = () => {
+    fetch('/api/billing/subscription')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.subscription) {
+          setSubscriptionData(d.subscription);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchSubscription();
+  }, []);
   // Format Switcher (text / image / video)
   const [currentPostType, setCurrentPostType] = useState<'text' | 'image' | 'video'>(initialPostType);
 
@@ -581,6 +607,36 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     if (action === 'schedule' && !isScheduleValid) {
       alert('The selected schedule time is in the past. Please select a future date and time.');
       return;
+    }
+
+    // Per-channel scheduled post limit enforcement for Free plan (max 5 scheduled posts per channel)
+    if (action === 'schedule') {
+      const isFreePlan = !subscriptionData || subscriptionData.planId === 'free';
+      if (isFreePlan) {
+        const scheduledList = (allPosts || []).filter((p) => p.status === 'scheduled' && p.id !== initialPost?.id);
+        const blocked: { id: string; name: string; count: number }[] = [];
+
+        for (const chId of selectedAccountIds) {
+          const acc = accounts.find((a) => a.id === chId);
+          const count = scheduledList.filter((p) => (p.targetAccountIds || []).includes(chId)).length;
+          if (count >= 5) {
+            blocked.push({
+              id: chId,
+              name: acc?.displayName || acc?.username || 'Channel',
+              count,
+            });
+          }
+        }
+
+        if (blocked.length > 0) {
+          setScheduleLimitModal({
+            isOpen: true,
+            blockedChannels: blocked,
+            canScheduleRemaining: selectedAccountIds.length > blocked.length,
+          });
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
@@ -1774,6 +1830,80 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Scheduled Post Limit Modal for Free Plan */}
+      {scheduleLimitModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#1c1d22] text-gray-100 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-700/80 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-base font-bold text-white">
+                Scheduled Post Limit Reached (Free Plan)
+              </h3>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                The Free plan allows up to <span className="font-semibold text-white">5 scheduled posts per connected channel</span>. The following channel(s) have reached capacity:
+              </p>
+              <div className="space-y-1.5 pt-1">
+                {scheduleLimitModal.blockedChannels.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 border border-white/5 text-xs">
+                    <span className="font-medium text-gray-200">{c.name}</span>
+                    <span className="text-amber-400 font-bold font-mono">5 / 5 scheduled</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-500 pt-1">
+                Upgrade to Pro for unlimited scheduled posts, or uncheck these channels to continue scheduling for your other channels.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setScheduleLimitModal(null)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              {scheduleLimitModal.canScheduleRemaining && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blockedIds = scheduleLimitModal.blockedChannels.map((b) => b.id);
+                    setSelectedAccountIds((prev) => prev.filter((id) => !blockedIds.includes(id)));
+                    setScheduleLimitModal(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-200 bg-white/10 hover:bg-white/15 transition-colors cursor-pointer"
+                >
+                  Uncheck & Continue
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setScheduleLimitModal(null);
+                  setIsUpgradeModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white" />
+                <span>Upgrade to Pro</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Plan Modal */}
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        currentPlan={subscriptionData?.planId === 'pro' ? 'Pro' : 'Free'}
+        channelsCount={subscriptionData?.channelsCount || Math.max(1, accounts.length)}
+        onPlanUpdated={fetchSubscription}
+      />
     </div>
   );
 };

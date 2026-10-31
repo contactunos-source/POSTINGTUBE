@@ -1,0 +1,21 @@
+[
+  {
+    "id": "sub_free_0afc088a",
+    "userId": "0afc088a-e7b3-43a3-9506-f6e34630b0f1",
+    "userEmail": "noobsonu001@gmail.com",
+    "planId": "free",
+    "planName": "Free Plan",
+    "channelsCount": 3,
+    "pricePerChannel": 0,
+    "amount": 0,
+    "currency": "INR",
+    "billingInterval": "monthly",
+    "status": "active",
+    "provider": "manual",
+    "currentPeriodStart": "2026-10-30T11:39:26.569Z",
+    "currentPeriodEnd": "2027-10-30T11:39:26.569Z",
+    "cancelAtPeriodEnd": false,
+    "createdAt": "2026-10-30T11:39:26.569Z",
+    "updatedAt": "2026-10-30T11:39:26.569Z"
+  }
+]
