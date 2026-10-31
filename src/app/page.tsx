@@ -120,7 +120,7 @@ export default function LandingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAnnual, setIsAnnual] = useState(true);
   const [pricingCurrency, setPricingCurrency] = useState<'INR' | 'USD'>('INR');
-  const [landingChannelsCount, setLandingChannelsCount] = useState<number>(3);
+  const [landingChannelsCount, setLandingChannelsCount] = useState<number>(1);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   // Integration Arc Carousel active index
@@ -812,24 +812,6 @@ export default function LandingPage() {
                   >
                     <Plus className="w-4 h-4 stroke-[2.5]" />
                   </button>
-                </div>
-
-                {/* Quick tiers */}
-                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 pt-1 text-[11px]">
-                  {[1, 3, 5, 10, 25, 50, 100].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setLandingChannelsCount(n)}
-                      className={`px-2 py-0.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                        landingChannelsCount === n
-                          ? 'bg-emerald-600 text-white font-bold'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      {n} ch
-                    </button>
-                  ))}
                 </div>
               </div>
 

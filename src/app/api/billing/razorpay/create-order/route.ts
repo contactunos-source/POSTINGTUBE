@@ -4,11 +4,13 @@ import { PRICING_CONFIG } from '@/lib/subscription';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { channelsCount, userId, userEmail, currency = 'INR' } = body;
+    const { channelsCount, userId, userEmail, currency = 'INR', billingInterval = 'monthly' } = body;
 
+    const validatedInterval = billingInterval === 'yearly' ? 'yearly' : 'monthly';
+    const multiplier = validatedInterval === 'yearly' ? 12 : 1;
     const channels = Math.max(1, Math.min(100, Math.round(Number(channelsCount) || 1)));
     const pricePerChannel = PRICING_CONFIG.pro.pricePerChannelInr; // 199
-    const totalAmountInr = channels * pricePerChannel;
+    const totalAmountInr = channels * pricePerChannel * multiplier;
     const amountInPaise = totalAmountInr * 100;
 
     const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
             notes: {
               plan: 'pro',
               channelsCount: channels,
+              billingInterval: validatedInterval,
               userId: userId || 'customer',
               userEmail: userEmail || '',
             },

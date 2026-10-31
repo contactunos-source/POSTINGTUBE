@@ -75,11 +75,6 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
-        source: '/pricing',
-        destination: '/#pricing',
-        permanent: false,
-      },
-      {
         source: '/features',
         destination: '/#features',
         permanent: false,

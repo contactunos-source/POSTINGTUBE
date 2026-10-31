@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
       userId = '',
       userEmail = '',
       amount = 0,
+      billingInterval = 'monthly',
     } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id) {
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
       providerPaymentId: razorpay_payment_id,
       providerOrderId: razorpay_order_id,
       amount: totalAmount,
+      billingInterval: billingInterval === 'yearly' ? 'yearly' : 'monthly',
     });
 
     // 2. Record Succeeded Payment Transaction

@@ -356,6 +356,7 @@ export const SubscriptionService = {
     providerOrderId?: string;
     providerSubscriptionId?: string;
     amount: number;
+    billingInterval?: 'monthly' | 'yearly';
   }): Promise<CustomerSubscription> {
     const {
       userId,
@@ -367,12 +368,14 @@ export const SubscriptionService = {
       providerOrderId,
       providerSubscriptionId,
       amount,
+      billingInterval = 'monthly',
     } = params;
 
     const validatedChannels = Math.max(1, Math.min(100, Math.round(channelsCount)));
     const pricePerChannel = currency === 'USD' ? PRICING_CONFIG.pro.pricePerChannelUsd : PRICING_CONFIG.pro.pricePerChannelInr;
     const now = new Date().toISOString();
-    const periodEnd = new Date(Date.now() + 30 * 86400000).toISOString();
+    const periodDays = billingInterval === 'yearly' ? 365 : 30;
+    const periodEnd = new Date(Date.now() + periodDays * 86400000).toISOString();
 
     const subId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newSub: CustomerSubscription = {
@@ -385,7 +388,7 @@ export const SubscriptionService = {
       pricePerChannel,
       amount,
       currency,
-      billingInterval: 'monthly',
+      billingInterval,
       status: 'active',
       provider,
       providerPaymentId,
@@ -417,7 +420,7 @@ export const SubscriptionService = {
             price_per_channel: pricePerChannel,
             amount,
             currency,
-            billing_interval: 'monthly',
+            billing_interval: billingInterval,
             status: 'active',
             provider,
             provider_payment_id: providerPaymentId,

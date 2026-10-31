@@ -50,7 +50,7 @@ export interface CustomerSubscription {
   pricePerChannel: number;
   amount: number;
   currency: 'INR' | 'USD';
-  billingInterval: 'monthly';
+  billingInterval: 'monthly' | 'yearly';
   status: 'active' | 'cancelled' | 'expired' | 'past_due';
   provider: 'razorpay' | 'stripe' | 'manual';
   providerSubscriptionId?: string;

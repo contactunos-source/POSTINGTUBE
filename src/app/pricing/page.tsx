@@ -1,19 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Check,
   Zap,
-  ShieldCheck,
-  ArrowRight,
   Minus,
   Plus,
-  Sparkles,
-  HelpCircle,
-  CreditCard,
-  Lock,
   ArrowLeft,
   Loader2,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 import { PRICING_CONFIG } from '@/lib/pricing-config';
@@ -27,21 +24,27 @@ declare global {
 
 export default function PricingPage() {
   const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
-  const [channelsCount, setChannelsCount] = useState<number>(3);
+  const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [channelsCount, setChannelsCount] = useState<number>(1);
   const [isLoadingCheckout, setIsLoadingCheckout] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
 
+  // Rates
   const pricePerChannel =
     currency === 'INR'
       ? PRICING_CONFIG.pro.pricePerChannelInr
       : PRICING_CONFIG.pro.pricePerChannelUsd;
 
-  const totalMonthlyPrice = channelsCount * pricePerChannel;
   const currencySymbol = currency === 'INR' ? '₹' : '$';
 
-  // Load current auth session
+  // Calculations
+  const totalMonthlyPrice = channelsCount * pricePerChannel;
+  const totalYearlyPrice = channelsCount * pricePerChannel * 12;
+  const activePrice = billingInterval === 'yearly' ? totalYearlyPrice : totalMonthlyPrice;
+
+  // Load current session & subscription status
   useEffect(() => {
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -52,8 +55,11 @@ export default function PricingPage() {
             .then((data) => {
               if (data?.subscription?.planId) {
                 setCurrentPlan(data.subscription.planId);
-                if (data.subscription.channelsCount) {
+                if (data.subscription.channelsCount && data.subscription.channelsCount > 0) {
                   setChannelsCount(data.subscription.channelsCount);
+                }
+                if (data.subscription.billingInterval) {
+                  setBillingInterval(data.subscription.billingInterval);
                 }
               }
             })
@@ -63,7 +69,7 @@ export default function PricingPage() {
     }
   }, []);
 
-  // Dynamically load Razorpay checkout script
+  // Dynamically load Razorpay SDK
   const loadRazorpayScript = (): Promise<boolean> => {
     return new Promise((resolve) => {
       if (typeof window !== 'undefined' && window.Razorpay) {
@@ -89,13 +95,6 @@ export default function PricingPage() {
     }
   };
 
-  const handleChannelDirectInput = (val: string) => {
-    const num = parseInt(val, 10);
-    if (!isNaN(num)) {
-      setChannelsCount(Math.max(1, Math.min(100, num)));
-    }
-  };
-
   // Launch Checkout (Razorpay for INR, Stripe for USD)
   const handleUpgradeToPro = async () => {
     setIsLoadingCheckout(true);
@@ -112,7 +111,7 @@ export default function PricingPage() {
           throw new Error('Failed to load secure Razorpay payment gateway. Please check your internet connection.');
         }
 
-        // 1. Create order on backend
+        // 1. Create order on backend with selected interval
         const orderRes = await fetch('/api/billing/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,6 +120,7 @@ export default function PricingPage() {
             userId: effectiveUserId,
             userEmail: effectiveEmail,
             currency: 'INR',
+            billingInterval,
           }),
         });
 
@@ -137,7 +137,7 @@ export default function PricingPage() {
           amount: order.amount,
           currency: 'INR',
           name: 'PostingTube',
-          description: `Pro Plan (${channelsCount} ${channelsCount === 1 ? 'Channel' : 'Channels'}) - ₹${totalMonthlyPrice}/mo`,
+          description: `Pro Plan (${channelsCount} ${channelsCount === 1 ? 'Channel' : 'Channels'}) • ${billingInterval === 'yearly' ? 'Yearly' : 'Monthly'}`,
           order_id: order.id.startsWith('order_') ? order.id : undefined,
           prefill: {
             name: effectiveName,
@@ -159,7 +159,8 @@ export default function PricingPage() {
                   channelsCount,
                   userId: effectiveUserId,
                   userEmail: effectiveEmail,
-                  amount: totalMonthlyPrice,
+                  amount: activePrice,
+                  billingInterval,
                 }),
               });
 
@@ -202,6 +203,7 @@ export default function PricingPage() {
             channelsCount,
             userId: effectiveUserId,
             userEmail: effectiveEmail,
+            billingInterval,
           }),
         });
 
@@ -220,508 +222,415 @@ export default function PricingPage() {
     }
   };
 
-  const quickTierOptions = [1, 3, 5, 10, 25, 50, 100];
+  const isProActive = currentPlan === 'pro';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 text-gray-900 font-sans selection:bg-emerald-500 selection:text-white pb-24">
-      {/* Navigation Header */}
-      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#121316] text-gray-100 font-sans selection:bg-emerald-500 selection:text-white pb-20">
+      {/* Top Navbar */}
+      <header className="border-b border-[#22242a] bg-[#16171a]/90 backdrop-blur-md sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <PostingTubeLogo size="md" href="/" />
 
           <div className="flex items-center space-x-3">
-            <a
-              href="/dashboard"
-              className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center space-x-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Dashboard</span>
-            </a>
-            {!authUser && (
-              <a
-                href="/login"
-                className="text-xs font-bold bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-all shadow-xs"
+            {/* Currency Switcher */}
+            <div className="inline-flex items-center bg-[#202227] p-1 rounded-xl border border-[#2b2e35]">
+              <button
+                type="button"
+                onClick={() => setCurrency('INR')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  currency === 'INR'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
               >
-                Sign In
-              </a>
-            )}
+                ₹ INR
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('USD')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  currency === 'USD'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                $ USD
+              </button>
+            </div>
+
+            <Link
+              href="/dashboard"
+              className="text-xs font-semibold text-gray-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#202227] hover:bg-[#2b2e35] border border-[#2b2e35] transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+              <span>Back to Dashboard</span>
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Header */}
-      <section className="pt-12 pb-6 px-4 text-center max-w-4xl mx-auto space-y-4">
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Simple, Transparent Pricing</span>
-        </div>
+      {/* Main Centered Pricing Card (Matching Buffer-style Reference Layout) */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12">
+        <div className="bg-[#18191c] border border-[#282a2e] rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+          {/* Header & Controls Row */}
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 pb-8 border-b border-[#25272c]">
+            {/* Left: Heading & Status Text */}
+            <div className="space-y-1.5 max-w-lg">
+              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Change your Plan
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
+                You&apos;re on the{' '}
+                <strong className="text-white font-bold">
+                  {isProActive ? 'Pro' : 'Free'}
+                </strong>{' '}
+                plan with {isProActive ? `${channelsCount} channels` : 'up to 3 channels'}. Add
+                or remove channels to customize your plan.
+              </p>
+            </div>
 
-        <h1 className="text-3xl sm:text-5xl font-black text-gray-950 tracking-tight">
-          Pay only for the channels you publish to.
-        </h1>
-
-        <p className="text-sm sm:text-base text-gray-600 max-w-2xl mx-auto">
-          Start 100% free with up to 3 social accounts, or scale with Pro at just{' '}
-          <strong className="text-gray-900">₹199 per channel / month</strong> with unlimited scheduling.
-        </p>
-
-        {/* Currency Switcher */}
-        <div className="pt-4 flex justify-center">
-          <div className="bg-gray-100 p-1 rounded-full border border-gray-200 inline-flex items-center space-x-1 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setCurrency('INR')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                currency === 'INR'
-                  ? 'bg-white text-gray-950 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              🇮🇳 INR (₹)
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                currency === 'USD'
-                  ? 'bg-white text-gray-950 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              🇺🇸 USD ($)
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Error alert if any */}
-      {checkoutError && (
-        <div className="max-w-2xl mx-auto px-4 mb-6">
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-medium flex items-center justify-between">
-            <span>⚠️ {checkoutError}</span>
-            <button
-              onClick={() => setCheckoutError(null)}
-              className="text-rose-500 hover:text-rose-700 font-bold ml-2"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Pricing Cards Grid */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          {/* ================= PLAN 1: FREE PLAN ================= */}
-          <div className="lg:col-span-5 bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 flex flex-col justify-between shadow-xs relative">
-            <div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-950">Free Plan</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Perfect for getting started and testing workflows.</p>
-                </div>
-                {currentPlan === 'free' && (
-                  <span className="text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                    Current Plan
-                  </span>
-                )}
-              </div>
-
-              {/* Price display */}
-              <div className="mt-6 flex items-baseline space-x-1">
-                <span className="text-4xl sm:text-5xl font-black text-gray-950">
-                  {currencySymbol}0
+            {/* Right: Channel Counter & Billing Switcher */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {/* Channel Quantity Selector Badge */}
+              <div className="inline-flex items-center space-x-2 bg-[#202227] border border-[#2f323a] rounded-xl px-2.5 py-1.5">
+                <button
+                  type="button"
+                  onClick={handleDecrement}
+                  disabled={channelsCount <= 1}
+                  aria-label="Decrease channel quantity"
+                  className="w-6 h-6 rounded-md bg-[#2b2e36] hover:bg-[#353942] active:scale-95 disabled:opacity-30 disabled:hover:bg-[#2b2e36] text-gray-200 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed text-xs font-bold"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-xs font-bold text-gray-200 min-w-[85px] text-center font-mono">
+                  {channelsCount} {channelsCount === 1 ? 'channel' : 'channels'}
                 </span>
-                <span className="text-xs text-gray-500 font-medium">/ forever</span>
+                <button
+                  type="button"
+                  onClick={handleIncrement}
+                  disabled={channelsCount >= 100}
+                  aria-label="Increase channel quantity"
+                  className="w-6 h-6 rounded-md bg-[#2b2e36] hover:bg-[#353942] active:scale-95 disabled:opacity-30 disabled:hover:bg-[#2b2e36] text-gray-200 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed text-xs font-bold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
               </div>
 
-              <div className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg inline-block border border-emerald-200/60">
-                No credit card required
+              {/* Billing Switcher (Pay Monthly / Pay Yearly) */}
+              <div className="inline-flex items-center bg-[#202227] p-1 rounded-xl border border-[#2f323a]">
+                <button
+                  type="button"
+                  onClick={() => setBillingInterval('monthly')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    billingInterval === 'monthly'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Pay Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingInterval('yearly')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    billingInterval === 'yearly'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Pay Yearly
+                </button>
               </div>
-
-              {/* Feature Checklist */}
-              <div className="mt-8 space-y-3.5 text-xs text-gray-700">
-                <div className="flex items-start space-x-2.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span>
-                    <strong className="text-gray-950">Up to 3 connected channels</strong> (YouTube, Instagram, Facebook, X, LinkedIn)
-                  </span>
-                </div>
-
-                <div className="flex items-start space-x-2.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span>
-                    <strong className="text-gray-950">5 scheduled posts per channel</strong> (15 scheduled total across 3 channels)
-                  </span>
-                </div>
-
-                <div className="flex items-start space-x-2.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span>1 user account login</span>
-                </div>
-
-                <div className="flex items-start space-x-2.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span>Basic post insights & publishing confirmation</span>
-                </div>
-
-                <div className="flex items-start space-x-2.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
-                  </div>
-                  <span>Core PostingTube publishing and multi-platform preview</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <a
-                href="/dashboard"
-                className="w-full py-3.5 rounded-2xl text-xs font-bold text-gray-800 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2 cursor-pointer shadow-xs"
-              >
-                <span>{currentPlan === 'free' ? 'Continue on Free' : 'Start Free'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
             </div>
           </div>
 
-          {/* ================= PLAN 2: PRO PLAN (INTERACTIVE) ================= */}
-          <div className="lg:col-span-7 bg-white rounded-3xl border-2 border-emerald-600 p-6 sm:p-8 flex flex-col justify-between shadow-xl relative">
-            {/* Recommended Pill */}
-            <div className="absolute -top-3.5 left-8 px-3.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center space-x-1.5">
-              <Sparkles className="w-3 h-3 fill-white" />
-              <span>Recommended Pro Plan</span>
-            </div>
-
-            <div>
-              <div className="flex items-start justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="text-xl font-black text-gray-950 flex items-center space-x-2">
-                    <span>Pro Plan</span>
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Pay Per Connected Channel
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Select the exact number of channels you need. Scale anytime up to 100 channels.
-                  </p>
-                </div>
-
-                {currentPlan === 'pro' && (
-                  <span className="text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    Active Subscription
-                  </span>
-                )}
-              </div>
-
-              {/* Dynamic Price Display */}
-              <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-200/80 flex items-center justify-between flex-wrap gap-4">
-                <div>
-                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block">
-                    Total Monthly Investment
-                  </span>
-                  <div className="flex items-baseline space-x-1.5 mt-0.5">
-                    <span className="text-3xl sm:text-5xl font-black text-gray-950 tracking-tight">
-                      {currencySymbol}{totalMonthlyPrice.toLocaleString()}
-                    </span>
-                    <span className="text-xs font-semibold text-gray-600">/ month</span>
-                  </div>
-                  <span className="text-[11px] text-gray-500 block mt-0.5">
-                    {currencySymbol}{pricePerChannel} × {channelsCount} {channelsCount === 1 ? 'channel' : 'channels'}
-                  </span>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[11px] text-gray-500 block">Billing Interval</span>
-                  <span className="text-xs font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-2xs inline-block mt-0.5">
-                    Monthly recurring
-                  </span>
-                </div>
-              </div>
-
-              {/* Interactive Channel Selector */}
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <label htmlFor="channel-quantity-input" className="font-bold text-gray-900 flex items-center space-x-1.5">
-                    <span>Select Connected Channels:</span>
-                    <span className="text-emerald-700 font-extrabold text-sm">{channelsCount}</span>
-                  </label>
-                  <span className="text-gray-400 text-[11px]">Min: 1 • Max: 100 channels</span>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  {/* Minus button */}
-                  <button
-                    type="button"
-                    onClick={handleDecrement}
-                    disabled={channelsCount <= PRICING_CONFIG.pro.minChannels}
-                    className="w-11 h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-800 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
-                    aria-label="Decrease channel count"
-                  >
-                    <Minus className="w-4 h-4 stroke-[2.5]" />
-                  </button>
-
-                  {/* Quantity center display with manual input */}
-                  <div className="flex-1 relative">
-                    <input
-                      id="channel-quantity-input"
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={channelsCount}
-                      onChange={(e) => handleChannelDirectInput(e.target.value)}
-                      className="w-full h-11 text-center font-black text-xl text-gray-950 bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-inner"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium pointer-events-none hidden sm:inline">
-                      channels
-                    </span>
-                  </div>
-
-                  {/* Plus button */}
-                  <button
-                    type="button"
-                    onClick={handleIncrement}
-                    disabled={channelsCount >= PRICING_CONFIG.pro.maxChannels}
-                    className="w-11 h-11 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
-                    aria-label="Increase channel count"
-                  >
-                    <Plus className="w-4 h-4 stroke-[2.5]" />
-                  </button>
-                </div>
-
-                {/* Quick Selection Buttons */}
-                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1.5 pt-1">
-                  <span className="text-[10px] text-gray-400 font-medium mr-1">Quick choose:</span>
-                  {quickTierOptions.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setChannelsCount(n)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        channelsCount === n
-                          ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      {n} {n === 1 ? 'ch' : 'channels'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pro Features Checklist */}
-              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-700">
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-gray-950">Up to {channelsCount} channels</strong> connected
-                  </span>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-gray-950">Unlimited scheduled posts</strong>
-                  </span>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>Advanced real-time analytics</span>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>Official Meta &amp; YouTube APIs</span>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>Persistent customer data &amp; tokens</span>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>Priority publishing queue</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Upgrade CTA Button */}
-            <div className="mt-8 space-y-2.5">
+          {/* Checkout Error Alert */}
+          {checkoutError && (
+            <div className="mt-6 p-4 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-200 text-xs flex items-center justify-between">
+              <span>{checkoutError}</span>
               <button
                 type="button"
-                onClick={handleUpgradeToPro}
-                disabled={isLoadingCheckout}
-                className="w-full py-4 rounded-2xl text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+                onClick={() => setCheckoutError(null)}
+                className="text-rose-400 hover:text-white font-bold ml-3"
               >
-                {isLoadingCheckout ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Preparing Secure Checkout...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 fill-white" />
-                    <span>
-                      Upgrade to Pro ({currencySymbol}{totalMonthlyPrice.toLocaleString()} / mo)
-                    </span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                Dismiss
               </button>
+            </div>
+          )}
 
-              <div className="flex items-center justify-center space-x-2 text-[11px] text-gray-500">
-                <Lock className="w-3.5 h-3.5 text-gray-400" />
-                <span>
-                  {currency === 'INR'
-                    ? 'Secure checkout powered by Razorpay (UPI, Cards, NetBanking)'
-                    : 'Secure international checkout powered by Stripe'}
+          {/* The Two Plans: Free and Pro (Side-by-Side Responsive Grid) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch mt-8">
+            {/* ============================================================== */}
+            {/* PLAN 1: FREE PLAN CARD */}
+            {/* ============================================================== */}
+            <div
+              className={`bg-[#1c1d22] border rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-all ${
+                !isProActive
+                  ? 'border-emerald-500/40 shadow-md shadow-emerald-950/20'
+                  : 'border-[#292c33]'
+              }`}
+            >
+              <div className="space-y-6">
+                {/* Header Row */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white tracking-tight">Free</h2>
+                    <div className="text-3xl font-black text-white mt-2">
+                      {currencySymbol}0{' '}
+                      <span className="text-xs font-normal text-gray-400">/ forever</span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Connect up to 3 channels
+                    </div>
+                  </div>
+
+                  {!isProActive && (
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                      Current Plan
+                    </span>
+                  )}
+                </div>
+
+                {/* Free Plan Action Button */}
+                <div className="pt-2">
+                  {!isProActive ? (
+                    <div className="w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-400 bg-white/5 border border-white/10 text-center select-none">
+                      Current Plan Active
+                    </div>
+                  ) : (
+                    <Link
+                      href="/dashboard?tab=settings"
+                      className="block w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 text-center transition-colors"
+                    >
+                      Downgrade to Free
+                    </Link>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#2a2c33]" />
+
+                {/* Features Checkmarks List */}
+                <div className="space-y-3">
+                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                    Included in Free:
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-gray-300">
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Up to 3 connected social channels</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>5 scheduled posts per connected channel</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>1 user account</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Basic analytics</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Core scheduling and publishing access</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="pt-6 text-[11px] text-gray-500">
+                Forever free • No credit card required
+              </div>
+            </div>
+
+            {/* ============================================================== */}
+            {/* PLAN 2: PRO PLAN CARD (PROMINENT & HIGHLIGHTED) */}
+            {/* ============================================================== */}
+            <div
+              className={`bg-[#1c1d22] border-2 rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-all relative ${
+                isProActive
+                  ? 'border-emerald-500 shadow-xl shadow-emerald-950/40'
+                  : 'border-emerald-500/70 shadow-xl shadow-emerald-950/30'
+              }`}
+            >
+              <div className="space-y-6">
+                {/* Header Row */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h2 className="text-xl font-bold text-white tracking-tight">Pro</h2>
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Recommended
+                      </span>
+                    </div>
+
+                    {/* Price Display */}
+                    <div className="text-3xl font-black text-white mt-2">
+                      {currencySymbol}
+                      {activePrice.toLocaleString()}{' '}
+                      <span className="text-xs font-normal text-gray-400">
+                        / {billingInterval === 'yearly' ? 'year' : 'month'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-gray-400 mt-1">
+                      {channelsCount} {channelsCount === 1 ? 'channel' : 'channels'} • billed{' '}
+                      {billingInterval}
+                      {billingInterval === 'yearly' && (
+                        <span className="text-emerald-400 ml-1.5 font-medium">
+                          ({currencySymbol}{totalMonthlyPrice.toLocaleString()}/mo)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {isProActive && (
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                      Current Plan
+                    </span>
+                  )}
+                </div>
+
+                {/* Centralized Pro Channel Selector (Matching Reference Design) */}
+                <div className="p-4 rounded-xl bg-black/40 border border-white/10 flex flex-col items-center justify-center space-y-2">
+                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                    Select Channels to Connect
+                  </span>
+
+                  <div className="flex items-center space-x-4">
+                    <button
+                      type="button"
+                      onClick={handleDecrement}
+                      disabled={channelsCount <= 1}
+                      aria-label="Decrease channel quantity"
+                      className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-white/10 text-white flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+
+                    <div className="min-w-[130px] text-center">
+                      <div className="text-2xl font-black text-white tracking-tight font-mono">
+                        {channelsCount}
+                      </div>
+                      <div className="text-[11px] text-gray-400">
+                        {channelsCount === 1 ? 'Social Channel' : 'Social Channels'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleIncrement}
+                      disabled={channelsCount >= 100}
+                      aria-label="Increase channel quantity"
+                      className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-white/10 text-white flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] text-emerald-400/90 font-medium">
+                    {currencySymbol}{pricePerChannel} per channel / month
+                  </span>
+                </div>
+
+                {/* Pro Plan CTA Button */}
+                <div>
+                  {isProActive ? (
+                    <Link
+                      href="/dashboard?tab=settings"
+                      className="w-full py-3.5 px-6 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md text-center"
+                    >
+                      <span>Manage Pro Subscription</span>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isLoadingCheckout}
+                      onClick={handleUpgradeToPro}
+                      className="w-full py-3.5 px-6 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+                    >
+                      {isLoadingCheckout ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Preparing Secure Checkout...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 fill-white" />
+                          <span>Upgrade to Pro</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#2a2c33]" />
+
+                {/* Features Checkmarks List */}
+                <div className="space-y-3">
+                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                    Everything in Free, plus:
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-gray-200">
+                    <li className="flex items-start space-x-2.5">
+                      <span className="text-emerald-400 font-bold text-sm leading-none mt-0.5">
+                        ∞
+                      </span>
+                      <span className="font-medium text-white">Unlimited posts</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <span className="text-emerald-400 font-bold text-sm leading-none mt-0.5">
+                        ∞
+                      </span>
+                      <span>
+                        Unlimited scheduling{' '}
+                        <span className="text-gray-400 text-[11px]">
+                          (subject to platform/API restrictions)
+                        </span>
+                      </span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>1 user account</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Advanced analytics</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Publishing performance tracking</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Post management and publishing history</span>
+                    </li>
+                    <li className="flex items-start space-x-2.5">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Supported social platform integrations</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Footer Trust Note */}
+              <div className="pt-6 flex items-center justify-between text-[11px] text-gray-500 border-t border-white/5 mt-6">
+                <span className="flex items-center space-x-1">
+                  <Lock className="w-3 h-3 text-emerald-500" />
+                  <span>Secure 256-bit encryption</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Cancel anytime</span>
                 </span>
               </div>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Examples Pricing Table Section */}
-      <section className="max-w-4xl mx-auto px-4 mt-16">
-        <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-950">Channel Pricing Examples</h3>
-              <p className="text-xs text-gray-500">Clear breakdown of monthly investment by channel count.</p>
-            </div>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              {currencySymbol}{pricePerChannel} per channel / month
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-3">Channels Connected</th>
-                  <th className="py-2.5 px-3">Post Limit</th>
-                  <th className="py-2.5 px-3 text-right">Monthly Total ({currency})</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-800 font-medium">
-                {[1, 2, 3, 5, 10, 25, 50, 100].map((count) => {
-                  const price = count * pricePerChannel;
-                  return (
-                    <tr key={count} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-3 font-bold text-gray-950">
-                        {count} {count === 1 ? 'Channel' : 'Channels'}
-                      </td>
-                      <td className="py-3 px-3 text-emerald-700 font-semibold">Unlimited Posts</td>
-                      <td className="py-3 px-3 text-right font-black text-gray-900 text-sm">
-                        {currencySymbol}{price.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChannelsCount(count);
-                            window.scrollTo({ top: 300, behavior: 'smooth' });
-                          }}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Select
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature Comparison Table */}
-      <section className="max-w-4xl mx-auto px-4 mt-12">
-        <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
-          <h3 className="text-base font-bold text-gray-950">Plan Feature Comparison</h3>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase">
-                  <th className="py-3 px-3">Feature</th>
-                  <th className="py-3 px-3 text-center">Free Plan</th>
-                  <th className="py-3 px-3 text-center text-emerald-700 font-black">Pro Plan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-800">
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Connected Channels</td>
-                  <td className="py-3 px-3 text-center text-gray-600">Up to 3</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">1 to 100 (Custom)</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Scheduled Posts Limit</td>
-                  <td className="py-3 px-3 text-center text-gray-600">5 per channel</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">Unlimited</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Analytics &amp; Engagement Tracking</td>
-                  <td className="py-3 px-3 text-center text-gray-600">Basic</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">Advanced Real-Time</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Supported Platforms</td>
-                  <td className="py-3 px-3 text-center text-gray-600">FB, IG, YT, X, LinkedIn</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">All Platforms</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Publishing Engine Queue</td>
-                  <td className="py-3 px-3 text-center text-gray-600">Standard</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">Priority Engine</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-semibold">Support</td>
-                  <td className="py-3 px-3 text-center text-gray-600">Community</td>
-                  <td className="py-3 px-3 text-center font-bold text-emerald-700">Priority Support</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Trust & Guarantee Banner */}
-      <section className="max-w-4xl mx-auto px-4 mt-12 text-center">
-        <div className="p-6 rounded-3xl bg-slate-100/70 border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-3 text-left">
-            <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-gray-900">Zero-Lock In Guarantee</div>
-              <div className="text-[11px] text-gray-500">
-                Cancel or modify your channel quantity anytime. Existing accounts are always preserved.
-              </div>
-            </div>
-          </div>
-
-          <a
-            href="/dashboard"
-            className="px-5 py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-bold text-gray-800 transition-colors shadow-2xs shrink-0"
-          >
-            Go to App
-          </a>
-        </div>
-      </section>
+      </main>
     </div>
   );
 }
