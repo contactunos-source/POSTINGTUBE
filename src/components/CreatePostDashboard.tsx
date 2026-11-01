@@ -34,7 +34,6 @@ import {
   Loader2,
   AlertCircle,
   FileUp,
-  Smile,
   Hash,
   Link as LinkIcon,
   MessageSquare,
@@ -371,21 +370,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   });
   const [isScheduleValid, setIsScheduleValid] = useState(true);
 
-  // Right column tab: 'schedule' or 'preview'
-  const [activeRightTab, setActiveRightTab] = useState<'schedule' | 'preview'>('schedule');
-
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const emojiButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Close emoji picker on click-outside or Escape key
-  useClickOutside(emojiPickerRef, () => setShowEmojiPicker(false), {
-    enabled: showEmojiPicker,
-    ignoreRefs: [emojiButtonRef],
-  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -1058,7 +1045,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Top Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/80">
           <div>
@@ -1714,43 +1701,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         placeholder="What would you like to share? Write your post caption and hashtags..."
                         className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
                       />
-
-                      {/* Emoji Picker Bar */}
-                      {showEmojiPicker && (
-                        <div
-                          ref={emojiPickerRef}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-2 overflow-x-auto text-base"
-                        >
-                          {['🚀', '💡', '🔥', '✨', '📈', '🎯', '🙌', '❤️', '👀', '⚡', '👏', '🎉', '👇', '💬', '🌟'].map(
-                            (em) => (
-                              <button
-                                key={em}
-                                type="button"
-                                onClick={() => setMainCaption(mainCaption + ' ' + em)}
-                                className="hover:scale-125 transition-transform p-1 cursor-pointer"
-                              >
-                                {em}
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )}
-
-                      {/* Footer Toolbar: Emoji Picker */}
-                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            ref={emojiButtonRef}
-                            type="button"
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5 border border-gray-200/80 bg-gray-50/50"
-                            title="Insert Emoji"
-                          >
-                            <Smile className="w-4 h-4 text-amber-500" />
-                            <span className="text-xs font-medium text-gray-600">Emoji</span>
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1971,127 +1921,99 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
           </div>
 
-          {/* RIGHT COLUMN: Redesigned Scheduling Engine & Live Feed Preview */}
-          <div className="space-y-4">
-            {/* Tab switch between Schedule Settings and Live Preview */}
-            <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200/80">
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('schedule')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                  activeRightTab === 'schedule'
-                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Scheduling</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('preview')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                  activeRightTab === 'preview'
-                    ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Live Feed Preview</span>
-              </button>
-            </div>
-
-            {activeRightTab === 'schedule' ? (
-              /* Redesigned Scheduling Engine Card */
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
-                {/* Publishing Mode Switcher (Schedule vs Instant) */}
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
-                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('schedule')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'schedule'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Schedule
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('instant')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'instant'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Instant
-                    </button>
-                  </div>
+          {/* RIGHT COLUMN: Dedicated Scheduling Section & Dedicated Live Feed Preview Section */}
+          <div className="space-y-6">
+            {/* 1. SCHEDULING SECTION (Unchanged functionality & layout with modern time picker) */}
+            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
+              {/* Publishing Mode Switcher (Schedule vs Instant) */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
+                <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode('schedule')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                      scheduleMode === 'schedule'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    Schedule
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode('instant')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                      scheduleMode === 'instant'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    Instant
+                  </button>
                 </div>
+              </div>
 
-                {scheduleMode === 'schedule' ? (
-                  <div className="space-y-5">
-                    {/* Professional Date & Time Picker Component */}
-                    <ScheduleDatePicker
-                      scheduledDate={scheduledDate}
-                      scheduledTime={scheduledTime}
-                      onDateChange={(d) => setScheduledDate(d)}
-                      onTimeChange={(t) => setScheduledTime(t)}
-                      onValidationChange={(valid) => setIsScheduleValid(valid)}
-                    />
+              {scheduleMode === 'schedule' ? (
+                <div className="space-y-5">
+                  {/* Professional Date & Time Picker Component */}
+                  <ScheduleDatePicker
+                    scheduledDate={scheduledDate}
+                    scheduledTime={scheduledTime}
+                    onDateChange={(d) => setScheduledDate(d)}
+                    onTimeChange={(t) => setScheduledTime(t)}
+                    onValidationChange={(valid) => setIsScheduleValid(valid)}
+                  />
 
-                    {/* Schedule Post Action Button */}
-                    <button
-                      type="button"
-                      disabled={isSubmitting || !isScheduleValid}
-                      onClick={() => handleExecute('schedule')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
-                    </button>
-                  </div>
-                ) : (
-                  /* Instant Live Dispatch Mode */
-                  <div className="space-y-4">
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-                      <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                        <span>
-                          Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
-                        </span>
-                      </div>
+                  {/* Schedule Post Action Button */}
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !isScheduleValid}
+                    onClick={() => handleExecute('schedule')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
+                  </button>
+                </div>
+              ) : (
+                /* Instant Live Dispatch Mode */
+                <div className="space-y-4">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
+                    <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block font-semibold">Immediate Live Dispatch</strong>
+                      <span>
+                        Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
+                      </span>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => handleExecute('publish-now')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
-                    </button>
                   </div>
-                )}
 
-                {/* Status Bar */}
-                <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
-                  <span className="flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>
-                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
-                    </span>
-                  </span>
-                  <span>Supabase Queue Active</span>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleExecute('publish-now')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
+                  </button>
                 </div>
+              )}
 
-                {/* Secondary Save to Draft */}
+              {/* Status Bar */}
+              <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
+                <span className="flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>
+                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
+                  </span>
+                </span>
+                <span>Supabase Queue Active</span>
+              </div>
+
+              {/* Action Buttons: Save to Draft & Exit */}
+              <div className="space-y-2 pt-1 border-t border-gray-100">
                 <button
                   type="button"
                   disabled={isSubmitting}
@@ -2101,129 +2023,119 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <Save className="w-3.5 h-3.5 text-gray-500" />
                   <span>Save as Draft</span>
                 </button>
+
+                {/* Bottom Exit Button */}
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="w-full py-2 px-4 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                  title="Exit to Dashboard"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Exit to Dashboard</span>
+                </button>
               </div>
-            ) : (
-              /* Platform-Specific Live Feed Preview */
-              <div className="space-y-4">
-                {/* Platform Preview Selector Bar */}
-                <div className="bg-white p-3 rounded-2xl border border-gray-200/90 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center space-x-1.5">
-                      <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-xs font-bold text-gray-800">Platform Preview</span>
-                    </div>
-                    <span className="text-[11px] text-gray-400 font-medium">
-                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} selected
-                    </span>
-                  </div>
+            </div>
 
-                  {/* Account / Platform Selector Tabs */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                    {selectedAccountIds.length > 1 ? (
-                      selectedAccountIds.map((accId) => {
-                        const acc = accounts.find((a) => a.id === accId);
-                        if (!acc) return null;
-                        const isActive = previewAccount?.id === acc.id;
-                        const hasCustomCaption = Boolean(
-                          accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
-                        );
-                        return (
-                          <button
-                            key={acc.id}
-                            type="button"
-                            onClick={() => {
-                              setActivePreviewAccountId(acc.id);
-                              setActivePreviewPlatform(acc.platform);
-                            }}
-                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                              isActive
-                                ? 'bg-gray-900 text-white shadow-xs'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                            }`}
-                          >
-                            <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
-                            <span className="truncate max-w-[110px]">{acc.displayName || acc.username}</span>
-                            {hasCustomCaption && (
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
-                                title="Customized caption"
-                              />
-                            )}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      (selectedPlatforms.length > 0
-                        ? selectedPlatforms
-                        : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
-                      ).map((platform) => {
-                        const isActive = activePreviewPlatform === platform;
-                        const hasCustomCaption = Boolean(
-                          previewAccount &&
-                            (accountCaptions[previewAccount.id]?.caption?.trim() ||
-                              accountCaptions[previewAccount.id]?.title?.trim())
-                        );
-                        const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                        const platformName = config?.name || platform;
-
-                        return (
-                          <button
-                            key={platform}
-                            type="button"
-                            onClick={() => setActivePreviewPlatform(platform)}
-                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                              isActive
-                                ? 'bg-gray-900 text-white shadow-xs'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                            }`}
-                          >
-                            <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
-                            <span className="capitalize">{platformName}</span>
-                            {hasCustomCaption && (
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
-                                title="Customized caption"
-                              />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
+            {/* 2. DEDICATED LIVE FEED PREVIEW SECTION */}
+            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Eye className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
                 </div>
+                <span className="text-[11px] text-gray-400 font-medium">
+                  {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} selected
+                </span>
+              </div>
 
-                {/* Authentic Platform-Specific Post Preview */}
-                <PostPreview
-                  post={previewPostData}
-                  selectedPlatform={activePreviewPlatform}
-                  activeAccount={previewAccount}
-                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
-                  aspectRatio={aspectRatio}
-                  mediaFitMode={mediaFitMode}
-                />
+              {/* Platform Preview Selector Bar */}
+              <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                  {selectedAccountIds.length > 1 ? (
+                    selectedAccountIds.map((accId) => {
+                      const acc = accounts.find((a) => a.id === accId);
+                      if (!acc) return null;
+                      const isActive = previewAccount?.id === acc.id;
+                      const hasCustomCaption = Boolean(
+                        accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
+                      );
+                      return (
+                        <button
+                          key={acc.id}
+                          type="button"
+                          onClick={() => {
+                            setActivePreviewAccountId(acc.id);
+                            setActivePreviewPlatform(acc.platform);
+                          }}
+                          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                          <span className="truncate max-w-[100px]">{acc.displayName || acc.username}</span>
+                          {hasCustomCaption && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
+                              title="Customized caption"
+                            />
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    (selectedPlatforms.length > 0
+                      ? selectedPlatforms
+                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
+                    ).map((platform) => {
+                      const isActive = activePreviewPlatform === platform;
+                      const hasCustomCaption = Boolean(
+                        previewAccount &&
+                          (accountCaptions[previewAccount.id]?.caption?.trim() ||
+                            accountCaptions[previewAccount.id]?.title?.trim())
+                      );
+                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+                      const platformName = config?.name || platform;
 
-                {/* Quick Action Footer */}
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveRightTab('schedule')}
-                    className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                    <span>Configure Scheduling</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => handleExecute(scheduleMode === 'schedule' ? 'schedule' : 'publish-now')}
-                    className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{scheduleMode === 'schedule' ? 'Schedule' : 'Publish Live'}</span>
-                  </button>
+                      return (
+                        <button
+                          key={platform}
+                          type="button"
+                          onClick={() => setActivePreviewPlatform(platform)}
+                          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
+                          <span className="capitalize">{platformName}</span>
+                          {hasCustomCaption && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
+                              title="Customized caption"
+                            />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
-            )}
+
+              {/* Authentic Platform-Specific Post Preview with Real-time Updates */}
+              <PostPreview
+                post={previewPostData}
+                selectedPlatform={activePreviewPlatform}
+                activeAccount={previewAccount}
+                previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
+                aspectRatio={aspectRatio}
+                mediaFitMode={mediaFitMode}
+              />
+            </div>
           </div>
         </div>
       </div>

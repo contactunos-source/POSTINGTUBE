@@ -836,49 +836,38 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
               </div>
 
-              {/* Week Timeline Body: Aligned Time Gutter & 24 Complete Hourly Time Slot Rows */}
+              {/* Week Timeline Body: Perfectly Synchronized Row-by-Row CSS Grid */}
               <div className="max-h-[800px] overflow-y-auto">
-                <div className="grid grid-cols-[68px_repeat(7,1fr)] divide-x divide-gray-200/80 relative min-h-[1440px]">
-                  {/* Left Column: Fixed Time Gutter with Clear Phase Labels covering all 24 Hours */}
-                  <div className="divide-y divide-gray-100/90 bg-gray-50/50">
-                    {timeSlots.map((slot) => (
-                      <div
-                        key={slot.hour}
-                        className="h-16 min-h-[64px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none"
-                      >
-                        <span className="text-[11px] font-bold text-gray-900 leading-tight">
-                          {slot.label}
-                        </span>
-                        <span
-                          className={`text-[8.5px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
-                            slot.phase === 'morning'
-                              ? 'text-amber-700 bg-amber-50/80'
-                              : slot.phase === 'afternoon'
-                              ? 'text-sky-700 bg-sky-50/80'
-                              : slot.phase === 'evening'
-                              ? 'text-purple-700 bg-purple-50/80'
-                              : 'text-indigo-700 bg-indigo-50/80'
-                          }`}
-                        >
-                          {slot.periodLabel}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 7 Columns: Each Day Divided into 24 Hourly Time Slots */}
-                  {weekDays.map((day) => {
-                    const dayPosts = getPostsForDay(day);
-                    const isCurrentDay = isToday(day);
-
+                <div className="grid grid-cols-[68px_repeat(7,1fr)] relative">
+                  {timeSlots.map((slot) => {
                     return (
-                      <div
-                        key={day.toISOString()}
-                        className={`divide-y divide-gray-100/90 flex flex-col ${
-                          isCurrentDay ? 'bg-emerald-50/10' : ''
-                        }`}
-                      >
-                        {timeSlots.map((slot) => {
+                      <React.Fragment key={slot.hour}>
+                        {/* Column 0: Time Gutter Cell strictly aligned to this hour row */}
+                        <div className="border-b border-r border-gray-200/80 bg-gray-50/50 min-h-[68px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none">
+                          <span className="text-[11px] font-bold text-gray-900 leading-tight">
+                            {slot.label}
+                          </span>
+                          <span
+                            className={`text-[8.5px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
+                              slot.phase === 'morning'
+                                ? 'text-amber-700 bg-amber-50/80'
+                                : slot.phase === 'afternoon'
+                                ? 'text-sky-700 bg-sky-50/80'
+                                : slot.phase === 'evening'
+                                ? 'text-purple-700 bg-purple-50/80'
+                                : 'text-indigo-700 bg-indigo-50/80'
+                            }`}
+                          >
+                            {slot.periodLabel}
+                          </span>
+                        </div>
+
+                        {/* Columns 1-7: Day Cells for this specific hour row */}
+                        {weekDays.map((day, dayIdx) => {
+                          const dayPosts = getPostsForDay(day);
+                          const isCurrentDay = isToday(day);
+                          const isLastDay = dayIdx === weekDays.length - 1;
+
                           // Filter posts scheduled specifically in this 1-hour slot
                           const slotPosts = dayPosts.filter((post) => {
                             const time = post.scheduledFor || post.publishedAt || post.createdAt;
@@ -891,7 +880,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                           return (
                             <div
-                              key={slot.hour}
+                              key={`${day.toISOString()}_${slot.hour}`}
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -909,7 +898,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 target.setHours(slot.hour, 0, 0, 0);
                                 onCreateAtDate(target);
                               }}
-                              className={`min-h-[64px] p-1.5 relative transition-all group cursor-pointer overflow-visible ${
+                              className={`min-h-[68px] p-1.5 relative transition-all group cursor-pointer border-b border-gray-100/90 ${
+                                !isLastDay ? 'border-r border-gray-200/80' : ''
+                              } ${
+                                isCurrentDay ? 'bg-emerald-50/10' : ''
+                              } ${
                                 isSlotDropTarget
                                   ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
                                   : 'hover:bg-gray-50/70'
@@ -917,7 +910,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             >
                               {/* Post Cards scheduled in this exact slot */}
                               {slotPosts.length > 0 ? (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-0.5">
                                   {slotPosts.map((post) => (
                                     <div
                                       key={post.id}
@@ -929,7 +922,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </div>
                               ) : (
                                 /* Clean interactive hover to schedule at this slot */
-                                <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity">
+                                <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity min-h-[48px]">
                                   <span className="text-[10px] font-semibold text-gray-400 group-hover:text-emerald-700 flex items-center space-x-1">
                                     <Plus className="w-2.5 h-2.5 text-emerald-600" />
                                     <span>{slot.label}</span>
@@ -939,7 +932,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             </div>
                           );
                         })}
-                      </div>
+                      </React.Fragment>
                     );
                   })}
                 </div>

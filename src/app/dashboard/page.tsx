@@ -1006,7 +1006,7 @@ export default function DashboardPage() {
                   title="Sign out"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span className="hidden sm:inline">Exit</span>
+                  <span className="hidden sm:inline">Sign out</span>
                 </button>
               </div>
             ) : (

@@ -29,7 +29,16 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
   onValidationChange,
 }) => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isHourOpen, setIsHourOpen] = useState(false);
+  const [isMinuteOpen, setIsMinuteOpen] = useState(false);
+
   const calendarRef = useRef<HTMLDivElement>(null);
+  const hourRef = useRef<HTMLDivElement>(null);
+  const minuteRef = useRef<HTMLDivElement>(null);
+
+  // Close custom time dropdowns on click outside
+  useClickOutside(hourRef, () => setIsHourOpen(false), { enabled: isHourOpen });
+  useClickOutside(minuteRef, () => setIsMinuteOpen(false), { enabled: isMinuteOpen });
 
   // Parse current selected date or fallback to tomorrow
   const selectedDateObj = useMemo(() => {
@@ -320,66 +329,142 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
           )}
         </div>
 
-        {/* 12-Hour Time Selector Field */}
+        {/* Modern SaaS 12-Hour Time Selector Field */}
         <div>
           <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
             <Clock className="w-3.5 h-3.5 text-gray-400" />
             <span>Publishing Time</span>
           </label>
-          <div className="flex items-center space-x-2 bg-gray-50/80 border border-gray-200 rounded-xl p-2">
-            {/* Hour Dropdown */}
-            <select
-              value={hour12}
-              onChange={(e) => handleTimeUpdate(parseInt(e.target.value, 10), minute, period as 'AM' | 'PM')}
-              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, '0')}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center space-x-2 bg-gray-50/80 border border-gray-200/90 rounded-xl p-1.5">
+            {/* Custom Hour Picker */}
+            <div className="relative" ref={hourRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHourOpen(!isHourOpen);
+                  setIsMinuteOpen(false);
+                }}
+                className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                  isHourOpen
+                    ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-800'
+                    : 'bg-white border-gray-200 hover:border-gray-300 text-gray-900'
+                }`}
+                title="Select hour"
+              >
+                <span className="font-mono text-sm tracking-wide">{String(hour12).padStart(2, '0')}</span>
+                <ChevronRight className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isHourOpen ? 'rotate-90 text-emerald-600' : ''}`} />
+              </button>
 
-            <span className="font-bold text-gray-400 text-sm">:</span>
+              {/* Hour Dropdown Popover */}
+              {isHourOpen && (
+                <div className="absolute top-[40px] left-0 z-50 w-44 bg-white rounded-xl border border-gray-200 shadow-xl p-2 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1.5 pb-1 mb-1 border-b border-gray-100">
+                    Hour
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => {
+                      const isSelected = h === hour12;
+                      return (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => {
+                            handleTimeUpdate(h, minute, period as 'AM' | 'PM');
+                            setIsHourOpen(false);
+                          }}
+                          className={`py-1.5 rounded-lg text-xs font-semibold font-mono text-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                              : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          {String(h).padStart(2, '0')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
-            {/* Minute Dropdown (5-min intervals or any 0-59) */}
-            <select
-              value={minute}
-              onChange={(e) => handleTimeUpdate(hour12, parseInt(e.target.value, 10), period as 'AM' | 'PM')}
-              className="bg-white border border-gray-200 text-gray-900 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
-            >
-              {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
-                <option key={m} value={m}>
-                  {String(m).padStart(2, '0')}
-                </option>
-              ))}
-            </select>
+            <span className="font-bold text-gray-400 text-sm select-none">:</span>
 
-            {/* AM / PM Segmented Control with clear phase guidance */}
+            {/* Custom Minute Picker */}
+            <div className="relative" ref={minuteRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMinuteOpen(!isMinuteOpen);
+                  setIsHourOpen(false);
+                }}
+                className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                  isMinuteOpen
+                    ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-800'
+                    : 'bg-white border-gray-200 hover:border-gray-300 text-gray-900'
+                }`}
+                title="Select minute"
+              >
+                <span className="font-mono text-sm tracking-wide">{String(minute).padStart(2, '0')}</span>
+                <ChevronRight className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isMinuteOpen ? 'rotate-90 text-emerald-600' : ''}`} />
+              </button>
+
+              {/* Minute Dropdown Popover */}
+              {isMinuteOpen && (
+                <div className="absolute top-[40px] left-0 z-50 w-44 bg-white rounded-xl border border-gray-200 shadow-xl p-2 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1.5 pb-1 mb-1 border-b border-gray-100">
+                    Minute
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
+                      const isSelected = m === minute;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            handleTimeUpdate(hour12, m, period as 'AM' | 'PM');
+                            setIsMinuteOpen(false);
+                          }}
+                          className={`py-1.5 rounded-lg text-xs font-semibold font-mono text-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                              : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          {String(m).padStart(2, '0')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* AM / PM Segmented Control */}
             <div className="flex items-center bg-gray-200/70 p-0.5 rounded-lg text-xs font-bold ml-auto">
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'AM')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer text-xs ${
                   period === 'AM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
                 title="AM: Morning / Midnight"
               >
-                AM (Morning)
+                AM
               </button>
               <button
                 type="button"
                 onClick={() => handleTimeUpdate(hour12, minute, 'PM')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer text-xs ${
                   period === 'PM'
                     ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-800'
                 }`}
                 title="PM: Afternoon / Evening / Night"
               >
-                PM (Afternoon / Evening)
+                PM
               </button>
             </div>
           </div>
