@@ -338,25 +338,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User Profile & Organization Footer */}
         <div className="p-3 border-t border-gray-100 relative">
-          {/* Smooth Profile Popover Menu (Matching Reference Image) */}
+          {/* Smooth Profile Popover Menu (Clean White Theme) */}
           {isProfileMenuOpen && (
             <div
               ref={profileMenuRef}
-              className="absolute bottom-full left-2 right-2 mb-2 bg-[#18191b] border border-zinc-800 rounded-2xl shadow-2xl p-4 text-white z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 font-sans select-none"
+              className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200/90 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] p-4 text-gray-900 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 font-sans select-none"
             >
               {/* User Profile Picture, Name, and Gmail */}
-              <div className="flex items-center space-x-3 pb-3 border-b border-zinc-800/80">
+              <div className="flex items-center space-x-3 pb-3 border-b border-gray-100">
                 <UserAvatar
                   name={profileData.fullName || displayName}
                   avatarUrl={profileData.avatarUrl || avatarUrl}
                   size="md"
-                  className="ring-2 ring-emerald-500/30 shrink-0"
+                  className="ring-2 ring-emerald-500/20 shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-white truncate">
+                  <div className="text-xs font-bold text-gray-900 truncate">
                     {profileData.fullName || displayName}
                   </div>
-                  <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                  <div className="text-[11px] text-gray-500 truncate mt-0.5">
                     {profileData.email || displaySub}
                   </div>
                 </div>
@@ -364,12 +364,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Organization & Subscription Status */}
               <div className="pt-3 pb-1">
-                <div className="text-[11px] text-zinc-400 font-medium">Organization</div>
-                <div className="text-sm font-bold text-white tracking-tight truncate mt-0.5">
+                <div className="text-[11px] text-gray-400 font-medium">Organization</div>
+                <div className="text-sm font-bold text-gray-900 tracking-tight truncate mt-0.5">
                   {profileData.organizationName || 'My organization'}
                 </div>
-                <div className="text-xs text-zinc-400 mt-1 flex items-center space-x-1.5 font-medium">
-                  <span className="text-zinc-300">{profileData.planName}</span>
+                <div className="text-xs text-gray-500 mt-1.5 flex items-center space-x-1.5 font-medium">
+                  <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70 text-[11px]">
+                    {profileData.planName}
+                  </span>
                   <span>·</span>
                   <span>
                     {effectiveChannelsCount} {effectiveChannelsCount === 1 ? 'channel' : 'channels'}
@@ -377,32 +379,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
 
-              {/* Upgrade Plan Button (Matching Reference Design) */}
+              {/* Upgrade Plan Button (Clean White Theme Design) */}
               <button
                 type="button"
                 onClick={handleOpenUpgrade}
-                className="w-full mt-3 py-2.5 px-3.5 rounded-xl bg-[#2a2b2e] hover:bg-[#343539] active:bg-[#202123] text-white text-xs font-semibold flex items-center justify-center space-x-2 border border-[#3e4046] shadow-xs transition-all cursor-pointer group"
+                className="w-full mt-3 py-2.5 px-3.5 rounded-xl bg-gray-900 hover:bg-black active:bg-gray-800 text-white text-xs font-semibold flex items-center justify-center space-x-2 shadow-xs transition-all cursor-pointer group"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform" />
                 <span>Upgrade Plan</span>
               </button>
 
               {/* Secondary Navigation Links */}
-              <div className="mt-3 pt-2 border-t border-zinc-800/80 space-y-0.5">
+              <div className="mt-3 pt-2 border-t border-gray-100 space-y-0.5">
                 <button
                   type="button"
                   onClick={() => handleTabClick('settings')}
-                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  className="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs text-gray-700 hover:text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                  <Settings className="w-3.5 h-3.5 text-gray-400" />
                   <span>Account Settings</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTabClick('connections')}
-                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  className="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs text-gray-700 hover:text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <Link2 className="w-3.5 h-3.5 text-zinc-400" />
+                  <Link2 className="w-3.5 h-3.5 text-gray-400" />
                   <span>Connected Channels</span>
                 </button>
                 <button
@@ -412,9 +414,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     await signOutUser();
                     window.location.href = '/login';
                   }}
-                  className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                  className="w-full flex items-center space-x-2 px-2.5 py-2 rounded-xl text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
                   <span>Sign Out</span>
                 </button>
               </div>
