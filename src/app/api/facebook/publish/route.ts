@@ -64,6 +64,16 @@ export async function POST(req: NextRequest) {
         (mediaUrl && /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl)) ||
         (mediaUrl && mediaUrl.startsWith('data:video/'));
 
+      // Guard against browser-local temporary blob URLs
+      if (mediaUrl && mediaUrl.startsWith('blob:')) {
+        return {
+          error: {
+            message: `Media file has not finished uploading to server yet. Please re-save or replace your media in the composer before publishing.`,
+            code: 400,
+          },
+        };
+      }
+
       // 1. Text-Only Feed Post
       if (!mediaUrl) {
         const feedUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanPageId)}/feed`;

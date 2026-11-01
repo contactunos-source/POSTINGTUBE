@@ -75,6 +75,16 @@ export async function POST(req: NextRequest) {
       /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl) ||
       mediaUrl.startsWith('data:video/');
 
+    if (mediaUrl && mediaUrl.startsWith('blob:')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Media file has not finished uploading to server yet. Please re-save or replace your media in the composer before publishing.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const isLocalFile = mediaUrl.startsWith('/uploads/');
 
     // Determine the base API endpoint (graph.instagram.com for IG tokens, graph.facebook.com for Meta EAA tokens)

@@ -298,27 +298,52 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Hours array for week and day timeline with unambiguous morning/afternoon/evening/night labels
+  // Complete 24-Hour Timeline Slots covering the entire day (12 AM Midnight through 11 PM Night)
   const timeSlots = [
     { hour: 0, label: '12 AM', periodLabel: 'Midnight', phase: 'night' as const },
+    { hour: 1, label: '1 AM', periodLabel: 'Late Night', phase: 'night' as const },
     { hour: 2, label: '2 AM', periodLabel: 'Late Night', phase: 'night' as const },
-    { hour: 4, label: '4 AM', periodLabel: 'Early Morning', phase: 'night' as const },
+    { hour: 3, label: '3 AM', periodLabel: 'Late Night', phase: 'night' as const },
+    { hour: 4, label: '4 AM', periodLabel: 'Early Morning', phase: 'morning' as const },
+    { hour: 5, label: '5 AM', periodLabel: 'Early Morning', phase: 'morning' as const },
     { hour: 6, label: '6 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 7, label: '7 AM', periodLabel: 'Morning', phase: 'morning' as const },
     { hour: 8, label: '8 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 9, label: '9 AM', periodLabel: 'Morning', phase: 'morning' as const },
     { hour: 10, label: '10 AM', periodLabel: 'Morning', phase: 'morning' as const },
+    { hour: 11, label: '11 AM', periodLabel: 'Morning', phase: 'morning' as const },
     { hour: 12, label: '12 PM', periodLabel: 'Noon', phase: 'afternoon' as const },
+    { hour: 13, label: '1 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
     { hour: 14, label: '2 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
+    { hour: 15, label: '3 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
     { hour: 16, label: '4 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
+    { hour: 17, label: '5 PM', periodLabel: 'Evening', phase: 'evening' as const },
     { hour: 18, label: '6 PM', periodLabel: 'Evening', phase: 'evening' as const },
+    { hour: 19, label: '7 PM', periodLabel: 'Evening', phase: 'evening' as const },
     { hour: 20, label: '8 PM', periodLabel: 'Night', phase: 'night' as const },
+    { hour: 21, label: '9 PM', periodLabel: 'Night', phase: 'night' as const },
     { hour: 22, label: '10 PM', periodLabel: 'Night', phase: 'night' as const },
+    { hour: 23, label: '11 PM', periodLabel: 'Night', phase: 'night' as const },
   ];
+
+  // Helper to determine per-account publish status for a post
+  const getAccountPublishStatus = (postItem: Post, account: SocialAccount) => {
+    if (postItem.status === 'scheduled') return 'scheduled';
+    if (postItem.status === 'draft') return 'draft';
+
+    const res = postItem.results?.[account.id] || postItem.results?.[account.platform];
+    if (res?.status === 'failed') return 'failed';
+    if (res?.status === 'action_required') return 'action_required';
+    if (res?.status === 'success') return 'success';
+
+    if (postItem.status === 'failed') return 'failed';
+    if (postItem.status === 'published') return 'success';
+    return 'pending';
+  };
 
   // Helper for rendering post card (matches the reference image layout in our clean brand theme)
   const renderPostCard = (post: Post, options: { compact?: boolean; showDragHandle?: boolean } = {}) => {
     const postAccounts = getAccountsForPost(post);
-    const primaryAccount = postAccounts[0];
-    const platforms = Array.from(new Set(postAccounts.map((a) => a.platform)));
     const istParts = getIstTimeParts(post.scheduledFor || post.publishedAt || post.createdAt);
     const timeStr = istParts.timeStr;
     const media = post.media && post.media.length > 0 ? post.media[0] : null;
@@ -356,63 +381,92 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           setRescheduleDateInput(formatToDateTimeLocal(post.scheduledFor));
           setRescheduleSuccessMsg(null);
         }}
-        className={`group/card bg-white border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md hover:border-emerald-500 cursor-pointer ${
+        className={`group/card bg-white border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
           post.status === 'published'
             ? 'border-emerald-200/90 hover:border-emerald-400'
             : post.status === 'scheduled'
             ? 'border-gray-200/90 hover:border-emerald-500'
             : post.status === 'draft'
             ? 'border-amber-200/90 hover:border-amber-400'
-            : 'border-rose-200/90 hover:border-rose-400'
+            : 'border-rose-200/90 hover:border-rose-400 bg-rose-50/15'
         }`}
       >
-        {/* Top Header: Platform Icon + Time + Status Indicator */}
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center space-x-1.5 min-w-0">
-            {/* Primary Platform Icon */}
-            <div className="w-4 h-4 rounded-full bg-white border border-gray-200/80 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-              <PlatformLogo platform={primaryAccount?.platform || 'facebook'} className="w-3 h-3" />
-            </div>
-
-            {/* Exact Time Display with Period Phase */}
-            <div className="flex items-center space-x-1 shrink-0">
-              <span className="text-[11px] font-bold text-gray-900 tracking-tight">
-                {timeStr}
-              </span>
-              <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
-                {istParts.periodLabel}
-              </span>
-            </div>
-
-            {/* Additional platform chips cleanly separated without overlapping */}
-            {platforms.length > 1 && (
-              <div className="flex items-center space-x-1 pl-0.5 shrink-0">
-                {platforms.slice(1, 4).map((pl) => (
-                  <div
-                    key={pl}
-                    className="w-4 h-4 rounded-full bg-white border border-gray-200/90 flex items-center justify-center p-0.5 shrink-0 shadow-2xs"
-                    title={`Target platform: ${pl}`}
-                  >
-                    <PlatformLogo platform={pl} className="w-3 h-3" />
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Top Header: Time on left, Account Badges with Red Icon for Failed Accounts on right */}
+        <div className="flex items-center justify-between mb-1.5 gap-1.5 min-w-0">
+          {/* Exact Time Display with Period Phase */}
+          <div className="flex items-center space-x-1 shrink-0">
+            <span className="text-[11px] font-bold text-gray-900 tracking-tight">
+              {timeStr}
+            </span>
+            <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
+              {istParts.periodLabel}
+            </span>
           </div>
 
-          {/* Status Dot */}
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              post.status === 'published'
-                ? 'bg-emerald-500'
-                : post.status === 'scheduled'
-                ? 'bg-sky-500'
-                : post.status === 'draft'
-                ? 'bg-amber-500'
-                : 'bg-rose-500'
-            }`}
-            title={`Status: ${post.status}`}
-          />
+          {/* Targeted Social Media Icons: Red border + badge if account hasn't posted or failed */}
+          <div className="flex items-center space-x-1 shrink-0">
+            {postAccounts.map((acc) => {
+              const status = getAccountPublishStatus(post, acc);
+              const isFailed = status === 'failed';
+              const isAction = status === 'action_required';
+              const isSuccess = status === 'success';
+              const err = post.results?.[acc.id]?.errorMessage || post.results?.[acc.platform]?.errorMessage;
+
+              return (
+                <div
+                  key={acc.id}
+                  className={`relative w-4.5 h-4.5 rounded-full flex items-center justify-center p-0.5 shadow-2xs transition-all ${
+                    isFailed
+                      ? 'bg-rose-50 border border-rose-500 text-rose-600 ring-1 ring-rose-400/50'
+                      : isAction
+                      ? 'bg-amber-50 border border-amber-400 text-amber-600'
+                      : isSuccess
+                      ? 'bg-emerald-50 border border-emerald-300 text-emerald-700'
+                      : 'bg-white border border-gray-200/90 text-gray-700'
+                  }`}
+                  title={`${acc.displayName || acc.username || acc.platform} (${acc.platform}): ${
+                    isFailed
+                      ? `Failed / Not posted ${err ? `— ${err}` : ''}`
+                      : isAction
+                      ? 'Action required'
+                      : isSuccess
+                      ? 'Published successfully'
+                      : 'Scheduled'
+                  }`}
+                >
+                  <PlatformLogo platform={acc.platform} className={`w-3 h-3 ${isFailed ? 'text-rose-600' : ''}`} />
+                  {isFailed && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-600 border border-white shadow-xs flex items-center justify-center"
+                      title="Failed / Not posted"
+                    >
+                      <span className="w-0.5 h-0.5 rounded-full bg-white" />
+                    </span>
+                  )}
+                  {isAction && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-white shadow-xs"
+                      title="Action required"
+                    />
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Overall Post Status Dot */}
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ml-0.5 ${
+                post.status === 'published'
+                  ? 'bg-emerald-500'
+                  : post.status === 'scheduled'
+                  ? 'bg-sky-500'
+                  : post.status === 'draft'
+                  ? 'bg-amber-500'
+                  : 'bg-rose-500 ring-2 ring-rose-200 animate-pulse'
+              }`}
+              title={`Status: ${post.status}`}
+            />
+          </div>
         </div>
 
         {/* Content Body: Caption Preview on left, Thumbnail on right (matches reference image) */}
@@ -793,21 +847,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
               </div>
 
-              {/* Week Timeline Body: Aligned Time Gutter & 12 Accurate Time Slot Rows */}
-              <div className="max-h-[780px] overflow-y-auto">
-                <div className="grid grid-cols-[68px_repeat(7,1fr)] divide-x divide-gray-200/80 relative min-h-[768px]">
-                  {/* Left Column: Fixed Time Gutter with Clear Phase Labels */}
+              {/* Week Timeline Body: Aligned Time Gutter & 24 Complete Hourly Time Slot Rows */}
+              <div className="max-h-[800px] overflow-y-auto">
+                <div className="grid grid-cols-[68px_repeat(7,1fr)] divide-x divide-gray-200/80 relative min-h-[1440px]">
+                  {/* Left Column: Fixed Time Gutter with Clear Phase Labels covering all 24 Hours */}
                   <div className="divide-y divide-gray-100/90 bg-gray-50/50">
                     {timeSlots.map((slot) => (
                       <div
                         key={slot.hour}
-                        className="h-18 min-h-[72px] flex flex-col justify-start items-end pr-2.5 pt-2 select-none"
+                        className="h-16 min-h-[64px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none"
                       >
                         <span className="text-[11px] font-bold text-gray-900 leading-tight">
                           {slot.label}
                         </span>
                         <span
-                          className={`text-[9px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
+                          className={`text-[8.5px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
                             slot.phase === 'morning'
                               ? 'text-amber-700 bg-amber-50/80'
                               : slot.phase === 'afternoon'
@@ -823,7 +877,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     ))}
                   </div>
 
-                  {/* 7 Columns: Each Day Divided into the Exact Matching 12 Time Slots */}
+                  {/* 7 Columns: Each Day Divided into 24 Hourly Time Slots */}
                   {weekDays.map((day) => {
                     const dayPosts = getPostsForDay(day);
                     const isCurrentDay = isToday(day);
@@ -836,11 +890,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         }`}
                       >
                         {timeSlots.map((slot) => {
-                          // Filter posts scheduled specifically in this 2-hour slot window (e.g. 14:00 - 15:59 for 2 PM)
+                          // Filter posts scheduled specifically in this 1-hour slot
                           const slotPosts = dayPosts.filter((post) => {
                             const time = post.scheduledFor || post.publishedAt || post.createdAt;
                             const parts = getIstTimeParts(time);
-                            return parts.hour24 >= slot.hour && parts.hour24 < slot.hour + 2;
+                            return parts.hour24 === slot.hour;
                           });
 
                           const slotDropKey = `${day.toISOString()}_${slot.hour}`;
@@ -866,7 +920,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 target.setHours(slot.hour, 0, 0, 0);
                                 onCreateAtDate(target);
                               }}
-                              className={`h-18 min-h-[72px] p-1.5 relative transition-all group cursor-pointer overflow-visible ${
+                              className={`min-h-[64px] p-1.5 relative transition-all group cursor-pointer overflow-visible ${
                                 isSlotDropTarget
                                   ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
                                   : 'hover:bg-gray-50/70'
@@ -1341,17 +1395,66 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 Targeted Accounts
               </span>
               <div className="flex flex-wrap gap-2">
-                {getAccountsForPost(inspectedPost).map((acc) => (
-                  <div
-                    key={acc.id}
-                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 text-xs text-gray-800 font-semibold"
-                  >
-                    <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
-                    <span>{acc.displayName || acc.username}</span>
-                  </div>
-                ))}
+                {getAccountsForPost(inspectedPost).map((acc) => {
+                  const status = getAccountPublishStatus(inspectedPost, acc);
+                  const isFailed = status === 'failed';
+                  const isAction = status === 'action_required';
+                  const isSuccess = status === 'success';
+
+                  return (
+                    <div
+                      key={acc.id}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${
+                        isFailed
+                          ? 'border-rose-300 bg-rose-50 text-rose-700'
+                          : isAction
+                          ? 'border-amber-300 bg-amber-50 text-amber-700'
+                          : isSuccess
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-gray-200 bg-gray-50 text-gray-800'
+                      }`}
+                    >
+                      <PlatformLogo platform={acc.platform} className={`w-3.5 h-3.5 ${isFailed ? 'text-rose-600' : ''}`} />
+                      <span>{acc.displayName || acc.username}</span>
+                      {isFailed && (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded">
+                          Failed
+                        </span>
+                      )}
+                      {isAction && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.2 rounded">
+                          Action Required
+                        </span>
+                      )}
+                      {isSuccess && (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.2 rounded">
+                          Published
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Publishing Error Alert if any account failed */}
+            {getAccountsForPost(inspectedPost).some((acc) => getAccountPublishStatus(inspectedPost, acc) === 'failed') && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                <span className="text-xs font-bold text-rose-800 block">
+                  Publishing Alert
+                </span>
+                {getAccountsForPost(inspectedPost)
+                  .filter((acc) => getAccountPublishStatus(inspectedPost, acc) === 'failed')
+                  .map((acc) => {
+                    const err = inspectedPost.results?.[acc.id]?.errorMessage || inspectedPost.results?.[acc.platform]?.errorMessage;
+                    return (
+                      <p key={acc.id} className="text-[11px] text-rose-700">
+                        <strong className="capitalize">{acc.platform} ({acc.displayName || acc.username}):</strong> {err || 'Failed to publish to this account.'}
+                      </p>
+                    );
+                  })}
+              </div>
+            )}
 
             {/* Media Asset Preview */}
             {inspectedPost.media && inspectedPost.media.length > 0 && (() => {

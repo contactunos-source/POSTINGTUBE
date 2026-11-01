@@ -214,6 +214,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isReplacingRef = useRef(false);
 
   // Platform-Specific Feature Options
   const [instagramAiLabel, setInstagramAiLabel] = useState<boolean>(
@@ -463,12 +464,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
-  // File Upload Handler
+  // File Upload Handler (with complete Replacement support)
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const isReplacing = isReplacingRef.current;
+    isReplacingRef.current = false;
     setIsUploading(true);
 
-    for (const file of Array.from(files)) {
+    const filesArray = Array.from(files);
+    // If user clicked Replace, take the first chosen file and replace existing media
+    const targetFiles = isReplacing ? [filesArray[0]] : filesArray;
+
+    for (let i = 0; i < targetFiles.length; i++) {
+      const file = targetFiles[i];
       const isVideoFile = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
       const localBlobUrl = URL.createObjectURL(file);
       const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -482,7 +490,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         size: file.size,
         aspectRatio: isVideoFile ? '9:16' : '1:1',
       };
-      setMediaList((prev) => [...prev, tempMedia]);
+
+      if (isReplacing) {
+        setMediaList([tempMedia]);
+      } else {
+        setMediaList((prev) => [...prev, tempMedia]);
+      }
 
       if (isVideoFile && currentPostType !== 'video') {
         setCurrentPostType('video');
@@ -504,6 +517,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 : item
             )
           );
+        } else {
+          console.error('Media upload server error:', data.error);
         }
       } catch (err) {
         console.error('Media upload error:', err);
@@ -603,6 +618,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
+    if (isUploading) {
+      alert('Your media file is currently uploading to the server. Please wait a few seconds for the upload to complete before scheduling or publishing.');
+      return;
+    }
+
     // Schedule validation
     if (action === 'schedule' && !isScheduleValid) {
       alert('The selected schedule time is in the past. Please select a future date and time.');
@@ -641,6 +661,54 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Safety check: resolve any temporary local blob: URLs so Facebook/Instagram APIs receive real server URLs
+      let finalMediaList = [...mediaList];
+      const hasBlobUrls = finalMediaList.some((m) => m.url && m.url.startsWith('blob:'));
+      if (hasBlobUrls) {
+        try {
+          finalMediaList = await Promise.all(
+            finalMediaList.map(async (item) => {
+              if (item.url && item.url.startsWith('blob:')) {
+                try {
+                  const blobRes = await fetch(item.url);
+                  const blobData = await blobRes.blob();
+                  const fileObj = new File([blobData], item.name || 'upload.jpg', {
+                    type: blobData.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+                  });
+                  const formData = new FormData();
+                  formData.append('file', fileObj);
+                  const uploadRes = await fetch('/api/media/upload', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const uploadJson = await uploadRes.json();
+                  if (uploadJson.success && uploadJson.url) {
+                    return {
+                      ...item,
+                      url: uploadJson.url,
+                      thumbnailUrl: uploadJson.thumbnailUrl || uploadJson.url,
+                    };
+                  }
+                } catch (uploadErr) {
+                  console.error('Pre-submit blob upload error:', uploadErr);
+                }
+              }
+              return item;
+            })
+          );
+          setMediaList(finalMediaList);
+        } catch (err) {
+          console.error('Error resolving blob URLs:', err);
+        }
+      }
+
+      const stillHasBlob = finalMediaList.some((m) => m.url && m.url.startsWith('blob:'));
+      if (stillHasBlob && action !== 'draft') {
+        setIsSubmitting(false);
+        alert('Media upload to server could not be completed. Please wait a moment or replace the image.');
+        return;
+      }
+
       const scheduledIso =
         action === 'schedule'
           ? formatLocalToUtcIso(scheduledDate, scheduledTime)
@@ -700,7 +768,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       const payload: Partial<Post> = {
         content: mainCaption,
         targetAccountIds: selectedAccountIds,
-        media: mediaList,
+        media: finalMediaList,
         postType: currentPostType === 'video' ? 'reel' : 'post',
         platformOverrides: platformOverrides,
         accountOverrides: accountOverrides,
@@ -869,7 +937,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   ref={fileInputRef}
                   accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
                   multiple
-                  onChange={(e) => handleFiles(e.target.files)}
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = '';
+                  }}
                   className="hidden"
                 />
 
@@ -1026,8 +1097,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20"
+                          onClick={() => {
+                            isReplacingRef.current = true;
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                              fileInputRef.current.click();
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
                         >
                           <Upload className="w-3 h-3" />
                           <span>Replace</span>
