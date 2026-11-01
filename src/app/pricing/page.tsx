@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Check,
-  Zap,
   Minus,
   Plus,
   ArrowLeft,
   Loader2,
   Lock,
   ShieldCheck,
+  Zap,
 } from 'lucide-react';
 import { PostingTubeLogo } from '@/components/PostingTubeLogo';
 import { PRICING_CONFIG } from '@/lib/pricing-config';
@@ -39,7 +39,7 @@ export default function PricingPage() {
 
   const currencySymbol = currency === 'INR' ? '₹' : '$';
 
-  // Calculations
+  // Dynamic pricing calculations
   const totalMonthlyPrice = channelsCount * pricePerChannel;
   const totalYearlyPrice = channelsCount * pricePerChannel * 12;
   const activePrice = billingInterval === 'yearly' ? totalYearlyPrice : totalMonthlyPrice;
@@ -144,7 +144,7 @@ export default function PricingPage() {
             email: effectiveEmail,
           },
           theme: {
-            color: '#059669', // Emerald brand theme
+            color: '#09090b', // Sleek black theme matching reference button
           },
           handler: async function (response: any) {
             try {
@@ -225,22 +225,22 @@ export default function PricingPage() {
   const isProActive = currentPlan === 'pro';
 
   return (
-    <div className="min-h-screen bg-[#121316] text-gray-100 font-sans selection:bg-emerald-500 selection:text-white pb-20">
-      {/* Top Navbar */}
-      <header className="border-b border-[#22242a] bg-[#16171a]/90 backdrop-blur-md sticky top-0 z-40">
+    <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans selection:bg-gray-900 selection:text-white pb-24">
+      {/* Navigation Bar */}
+      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <PostingTubeLogo size="md" href="/" />
 
           <div className="flex items-center space-x-3">
             {/* Currency Switcher */}
-            <div className="inline-flex items-center bg-[#202227] p-1 rounded-xl border border-[#2b2e35]">
+            <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200">
               <button
                 type="button"
                 onClick={() => setCurrency('INR')}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   currency === 'INR'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-white text-gray-950 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 ₹ INR
@@ -248,10 +248,10 @@ export default function PricingPage() {
               <button
                 type="button"
                 onClick={() => setCurrency('USD')}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   currency === 'USD'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-white text-gray-950 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 $ USD
@@ -260,263 +260,219 @@ export default function PricingPage() {
 
             <Link
               href="/dashboard"
-              className="text-xs font-semibold text-gray-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#202227] hover:bg-[#2b2e35] border border-[#2b2e35] transition-colors"
+              className="text-xs font-semibold text-gray-600 hover:text-gray-950 flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-2xs"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+              <ArrowLeft className="w-3.5 h-3.5 text-gray-500" />
               <span>Back to Dashboard</span>
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Main Centered Pricing Card (Matching Buffer-style Reference Layout) */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12">
-        <div className="bg-[#18191c] border border-[#282a2e] rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-          {/* Header & Controls Row */}
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 pb-8 border-b border-[#25272c]">
-            {/* Left: Heading & Status Text */}
-            <div className="space-y-1.5 max-w-lg">
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Change your Plan
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
-                You&apos;re on the{' '}
-                <strong className="text-white font-bold">
-                  {isProActive ? 'Pro' : 'Free'}
-                </strong>{' '}
-                plan with {isProActive ? `${channelsCount} channels` : 'up to 3 channels'}. Add
-                or remove channels to customize your plan.
-              </p>
-            </div>
+      {/* Main Content Container */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-12 sm:pt-16">
+        {/* Centered Page Header (Matching Reference Design) */}
+        <div className="text-center max-w-xl mx-auto space-y-3 mb-10">
+          <h1 className="text-3xl sm:text-5xl font-black text-gray-950 tracking-tight">
+            Choose the Plan That Fits Your Growth
+          </h1>
+          <p className="text-sm sm:text-base text-gray-500 leading-relaxed font-normal">
+            Start free, or scale your social media workflow with PostingTube Pro.
+          </p>
 
-            {/* Right: Channel Counter & Billing Switcher */}
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              {/* Channel Quantity Selector Badge */}
-              <div className="inline-flex items-center space-x-2 bg-[#202227] border border-[#2f323a] rounded-xl px-2.5 py-1.5">
-                <button
-                  type="button"
-                  onClick={handleDecrement}
-                  disabled={channelsCount <= 1}
-                  aria-label="Decrease channel quantity"
-                  className="w-6 h-6 rounded-md bg-[#2b2e36] hover:bg-[#353942] active:scale-95 disabled:opacity-30 disabled:hover:bg-[#2b2e36] text-gray-200 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed text-xs font-bold"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-xs font-bold text-gray-200 min-w-[85px] text-center font-mono">
-                  {channelsCount} {channelsCount === 1 ? 'channel' : 'channels'}
+          {/* Billing Switcher (Pay Monthly / Pay Yearly) */}
+          <div className="pt-2 flex justify-center">
+            <div className="inline-flex items-center bg-white p-1 rounded-full border border-gray-200/90 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setBillingInterval('monthly')}
+                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                  billingInterval === 'monthly'
+                    ? 'bg-gray-950 text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-950'
+                }`}
+              >
+                Pay Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingInterval('yearly')}
+                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer ${
+                  billingInterval === 'yearly'
+                    ? 'bg-gray-950 text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-950'
+                }`}
+              >
+                Pay Yearly
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Checkout Error Alert */}
+        {checkoutError && (
+          <div className="mb-8 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-2xs">
+            <span>{checkoutError}</span>
+            <button
+              type="button"
+              onClick={() => setCheckoutError(null)}
+              className="text-rose-600 hover:text-rose-900 font-bold ml-3"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Pricing Cards Grid (Exact Reference Card Architecture) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start max-w-3xl mx-auto">
+          {/* ================================================================ */}
+          {/* CARD 1: FREE PLAN */}
+          {/* ================================================================ */}
+          <div className="bg-white rounded-[26px] border border-gray-200/90 shadow-sm p-3.5 space-y-6">
+            {/* Top Elevated Pod Card (Matching Reference Screenshot) */}
+            <div className="bg-[#f3f4f6] border border-gray-200/60 rounded-[20px] p-6 shadow-[0_8px_20px_-6px_rgba(0,0,0,0.06)] space-y-4">
+              <div className="flex items-center justify-between">
+                {/* Pill Tag */}
+                <span className="bg-white border border-gray-200 text-gray-800 text-[11px] font-semibold tracking-wide uppercase px-3 py-1 rounded-full shadow-2xs">
+                  Starter
                 </span>
-                <button
-                  type="button"
-                  onClick={handleIncrement}
-                  disabled={channelsCount >= 100}
-                  aria-label="Increase channel quantity"
-                  className="w-6 h-6 rounded-md bg-[#2b2e36] hover:bg-[#353942] active:scale-95 disabled:opacity-30 disabled:hover:bg-[#2b2e36] text-gray-200 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed text-xs font-bold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
+
+                {!isProActive && (
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Current Plan
+                  </span>
+                )}
               </div>
 
-              {/* Billing Switcher (Pay Monthly / Pay Yearly) */}
-              <div className="inline-flex items-center bg-[#202227] p-1 rounded-xl border border-[#2f323a]">
-                <button
-                  type="button"
-                  onClick={() => setBillingInterval('monthly')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    billingInterval === 'monthly'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Pay Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingInterval('yearly')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    billingInterval === 'yearly'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Pay Yearly
-                </button>
+              {/* Price */}
+              <div>
+                <div className="text-4xl font-extrabold text-gray-950 tracking-tight">
+                  {currencySymbol}0
+                  <span className="text-sm font-medium text-gray-500">/month</span>
+                </div>
+                <div className="text-xs text-gray-500 font-medium mt-1">
+                  Everything you need to get started.
+                </div>
+              </div>
+
+              {/* CTA Button (Black pill button matching reference design) */}
+              <div className="pt-2">
+                {!isProActive ? (
+                  <div className="w-full py-3 px-5 rounded-full text-xs sm:text-sm font-bold text-gray-500 bg-white/80 border border-gray-200 text-center select-none shadow-2xs">
+                    Current Plan Active
+                  </div>
+                ) : (
+                  <Link
+                    href="/dashboard?tab=settings"
+                    className="block w-full py-3 px-5 rounded-full text-xs sm:text-sm font-bold text-gray-800 hover:text-black bg-white hover:bg-gray-50 border border-gray-300 text-center transition-colors shadow-2xs"
+                  >
+                    Downgrade to Free
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* Lower Card: Feature List with Minimal Clean Checkmarks */}
+            <div className="px-3 pb-4 space-y-3">
+              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                What&apos;s Included:
+              </div>
+              <ul className="space-y-3 text-xs sm:text-sm text-gray-600">
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Up to 3 connected social channels</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>5 scheduled posts per connected channel</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>1 user account</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Basic analytics</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Core scheduling and publishing access</span>
+                </li>
+              </ul>
+
+              <div className="pt-3 text-[11px] text-gray-400 border-t border-gray-100">
+                Forever free • No credit card required
               </div>
             </div>
           </div>
 
-          {/* Checkout Error Alert */}
-          {checkoutError && (
-            <div className="mt-6 p-4 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-200 text-xs flex items-center justify-between">
-              <span>{checkoutError}</span>
-              <button
-                type="button"
-                onClick={() => setCheckoutError(null)}
-                className="text-rose-400 hover:text-white font-bold ml-3"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
+          {/* ================================================================ */}
+          {/* CARD 2: PRO PLAN (HERO CARD WITH FLOATING TOP POD) */}
+          {/* ================================================================ */}
+          <div className="bg-white rounded-[26px] border-2 border-gray-900 shadow-md p-3.5 space-y-6 relative">
+            {/* Top Elevated Pod Card (With Soft Pastel Gradient Wash matching Reference Professional Card) */}
+            <div className="bg-gradient-to-b from-[#e8ecf8] via-[#eef2fa] to-[#f4f6fa] border border-[#d6def0] rounded-[20px] p-6 shadow-[0_12px_24px_-8px_rgba(30,41,59,0.12)] space-y-4">
+              <div className="flex items-center justify-between">
+                {/* Pill Tag */}
+                <span className="bg-white/90 border border-indigo-200 text-indigo-950 text-[11px] font-bold tracking-wide uppercase px-3 py-1 rounded-full shadow-2xs">
+                  PROFESSIONAL
+                </span>
 
-          {/* The Two Plans: Free and Pro (Side-by-Side Responsive Grid) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch mt-8">
-            {/* ============================================================== */}
-            {/* PLAN 1: FREE PLAN CARD */}
-            {/* ============================================================== */}
-            <div
-              className={`bg-[#1c1d22] border rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-all ${
-                !isProActive
-                  ? 'border-emerald-500/40 shadow-md shadow-emerald-950/20'
-                  : 'border-[#292c33]'
-              }`}
-            >
-              <div className="space-y-6">
-                {/* Header Row */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-white tracking-tight">Free</h2>
-                    <div className="text-3xl font-black text-white mt-2">
-                      {currencySymbol}0{' '}
-                      <span className="text-xs font-normal text-gray-400">/ forever</span>
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Connect up to 3 channels
-                    </div>
-                  </div>
-
-                  {!isProActive && (
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
-                      Current Plan
-                    </span>
-                  )}
-                </div>
-
-                {/* Free Plan Action Button */}
-                <div className="pt-2">
-                  {!isProActive ? (
-                    <div className="w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-400 bg-white/5 border border-white/10 text-center select-none">
-                      Current Plan Active
-                    </div>
-                  ) : (
-                    <Link
-                      href="/dashboard?tab=settings"
-                      className="block w-full py-3 px-4 rounded-xl text-xs font-bold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 text-center transition-colors"
-                    >
-                      Downgrade to Free
-                    </Link>
-                  )}
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-[#2a2c33]" />
-
-                {/* Features Checkmarks List */}
-                <div className="space-y-3">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Included in Free:
-                  </div>
-                  <ul className="space-y-2.5 text-xs text-gray-300">
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Up to 3 connected social channels</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>5 scheduled posts per connected channel</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>1 user account</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Basic analytics</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Core scheduling and publishing access</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="pt-6 text-[11px] text-gray-500">
-                Forever free • No credit card required
-              </div>
-            </div>
-
-            {/* ============================================================== */}
-            {/* PLAN 2: PRO PLAN CARD (PROMINENT & HIGHLIGHTED) */}
-            {/* ============================================================== */}
-            <div
-              className={`bg-[#1c1d22] border-2 rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-all relative ${
-                isProActive
-                  ? 'border-emerald-500 shadow-xl shadow-emerald-950/40'
-                  : 'border-emerald-500/70 shadow-xl shadow-emerald-950/30'
-              }`}
-            >
-              <div className="space-y-6">
-                {/* Header Row */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h2 className="text-xl font-bold text-white tracking-tight">Pro</h2>
-                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        Recommended
-                      </span>
-                    </div>
-
-                    {/* Price Display */}
-                    <div className="text-3xl font-black text-white mt-2">
-                      {currencySymbol}
-                      {activePrice.toLocaleString()}{' '}
-                      <span className="text-xs font-normal text-gray-400">
-                        / {billingInterval === 'yearly' ? 'year' : 'month'}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-gray-400 mt-1">
-                      {channelsCount} {channelsCount === 1 ? 'channel' : 'channels'} • billed{' '}
-                      {billingInterval}
-                      {billingInterval === 'yearly' && (
-                        <span className="text-emerald-400 ml-1.5 font-medium">
-                          ({currencySymbol}{totalMonthlyPrice.toLocaleString()}/mo)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {isProActive && (
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
-                      Current Plan
-                    </span>
-                  )}
-                </div>
-
-                {/* Centralized Pro Channel Selector (Matching Reference Design) */}
-                <div className="p-4 rounded-xl bg-black/40 border border-white/10 flex flex-col items-center justify-center space-y-2">
-                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Select Channels to Connect
+                {isProActive && (
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Current Plan
                   </span>
+                )}
+              </div>
 
-                  <div className="flex items-center space-x-4">
+              {/* Price */}
+              <div>
+                <div className="text-4xl font-extrabold text-gray-950 tracking-tight">
+                  {currencySymbol}
+                  {activePrice.toLocaleString()}
+                  <span className="text-sm font-medium text-gray-600">
+                    /{billingInterval === 'yearly' ? 'year' : 'month'}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600 font-medium mt-1">
+                  More channels. More flexibility. Unlimited posts.
+                </div>
+                {billingInterval === 'yearly' && (
+                  <div className="text-[11px] text-indigo-900 font-semibold mt-0.5">
+                    Equivalent to {currencySymbol}{totalMonthlyPrice.toLocaleString()}/month
+                  </div>
+                )}
+              </div>
+
+              {/* Centered, Unified, Compact Channel Selector (Refined UX) */}
+              <div className="pt-1 pb-1 space-y-1.5 text-center">
+                <div className="text-[11px] font-bold text-gray-700 tracking-tight">
+                  How many channels do you need?
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  Choose your channel limit. You can adjust it whenever you need.
+                </div>
+
+                {/* Compact Unified Control */}
+                <div className="pt-1 flex items-center justify-center">
+                  <div className="inline-flex items-center space-x-2 bg-white/90 border border-gray-300 rounded-full px-2 py-1 shadow-2xs">
                     <button
                       type="button"
                       onClick={handleDecrement}
                       disabled={channelsCount <= 1}
                       aria-label="Decrease channel quantity"
-                      className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-white/10 text-white flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
+                      className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 disabled:opacity-30 disabled:hover:bg-gray-100 text-gray-800 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
                     >
-                      <Minus className="w-4 h-4" />
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
 
-                    <div className="min-w-[130px] text-center">
-                      <div className="text-2xl font-black text-white tracking-tight font-mono">
+                    <div className="px-3 min-w-[100px] text-center font-mono">
+                      <span className="text-base font-black text-gray-950">
                         {channelsCount}
-                      </div>
-                      <div className="text-[11px] text-gray-400">
-                        {channelsCount === 1 ? 'Social Channel' : 'Social Channels'}
-                      </div>
+                      </span>{' '}
+                      <span className="text-xs font-semibold text-gray-600 font-sans">
+                        {channelsCount === 1 ? 'channel' : 'channels'}
+                      </span>
                     </div>
 
                     <button
@@ -524,106 +480,98 @@ export default function PricingPage() {
                       onClick={handleIncrement}
                       disabled={channelsCount >= 100}
                       aria-label="Increase channel quantity"
-                      className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-white/10 text-white flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
+                      className="w-7 h-7 rounded-full bg-gray-900 hover:bg-black active:scale-95 disabled:opacity-30 disabled:hover:bg-gray-900 text-white flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed font-bold"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
-                  <span className="text-[11px] text-emerald-400/90 font-medium">
-                    {currencySymbol}{pricePerChannel} per channel / month
-                  </span>
                 </div>
 
-                {/* Pro Plan CTA Button */}
-                <div>
-                  {isProActive ? (
-                    <Link
-                      href="/dashboard?tab=settings"
-                      className="w-full py-3.5 px-6 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md text-center"
-                    >
-                      <span>Manage Pro Subscription</span>
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={isLoadingCheckout}
-                      onClick={handleUpgradeToPro}
-                      className="w-full py-3.5 px-6 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-emerald-950/50 disabled:opacity-50"
-                    >
-                      {isLoadingCheckout ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Preparing Secure Checkout...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-4 h-4 fill-white" />
-                          <span>Upgrade to Pro</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-[#2a2c33]" />
-
-                {/* Features Checkmarks List */}
-                <div className="space-y-3">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Everything in Free, plus:
-                  </div>
-                  <ul className="space-y-2.5 text-xs text-gray-200">
-                    <li className="flex items-start space-x-2.5">
-                      <span className="text-emerald-400 font-bold text-sm leading-none mt-0.5">
-                        ∞
-                      </span>
-                      <span className="font-medium text-white">Unlimited posts</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <span className="text-emerald-400 font-bold text-sm leading-none mt-0.5">
-                        ∞
-                      </span>
-                      <span>
-                        Unlimited scheduling{' '}
-                        <span className="text-gray-400 text-[11px]">
-                          (subject to platform/API restrictions)
-                        </span>
-                      </span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>1 user account</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Advanced analytics</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Publishing performance tracking</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Post management and publishing history</span>
-                    </li>
-                    <li className="flex items-start space-x-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Supported social platform integrations</span>
-                    </li>
-                  </ul>
+                <div className="text-[10px] font-medium text-gray-500">
+                  {currencySymbol}{pricePerChannel} per channel / month
                 </div>
               </div>
 
-              {/* Footer Trust Note */}
-              <div className="pt-6 flex items-center justify-between text-[11px] text-gray-500 border-t border-white/5 mt-6">
+              {/* Action Button (Deep Black Pill Button Matching Reference Design) */}
+              <div className="pt-2">
+                {isProActive ? (
+                  <Link
+                    href="/dashboard?tab=settings"
+                    className="block w-full py-3.5 px-5 rounded-full text-xs sm:text-sm font-bold text-white bg-gray-900 hover:bg-black text-center transition-all shadow-md cursor-pointer"
+                  >
+                    Manage Pro Subscription
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isLoadingCheckout}
+                    onClick={handleUpgradeToPro}
+                    className="w-full py-3.5 px-5 rounded-full text-xs sm:text-sm font-bold text-white bg-gradient-to-b from-[#24262b] to-[#09090b] hover:from-[#18191c] hover:to-[#000000] active:scale-[0.99] transition-all cursor-pointer shadow-md flex items-center justify-center space-x-2 disabled:opacity-50"
+                  >
+                    {isLoadingCheckout ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Preparing Checkout...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        <span>Upgrade to Pro</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Lower Card: Feature List with Minimal Clean Checkmarks */}
+            <div className="px-3 pb-4 space-y-3">
+              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                Everything in Free, plus:
+              </div>
+              <ul className="space-y-3 text-xs sm:text-sm text-gray-700">
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span className="font-semibold text-gray-950">Unlimited posts</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>
+                    Unlimited scheduling{' '}
+                    <span className="text-gray-400 text-xs">
+                      (subject to platform/API restrictions)
+                    </span>
+                  </span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>1 user account</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Advanced analytics</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Publishing performance tracking</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Post management and publishing history</span>
+                </li>
+                <li className="flex items-start space-x-2.5">
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>Supported social media platform integrations</span>
+                </li>
+              </ul>
+
+              <div className="pt-3 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100">
                 <span className="flex items-center space-x-1">
-                  <Lock className="w-3 h-3 text-emerald-500" />
-                  <span>Secure 256-bit encryption</span>
+                  <Lock className="w-3 h-3 text-gray-400" />
+                  <span>256-bit encryption</span>
                 </span>
                 <span className="flex items-center space-x-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Cancel anytime</span>
                 </span>
               </div>
