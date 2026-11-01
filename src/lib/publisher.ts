@@ -22,16 +22,32 @@ export interface PublishExecutionSummary {
   >;
 }
 
+export interface PublishProgressUpdate {
+  accountId: string;
+  account: SocialAccount;
+  status: 'waiting' | 'publishing' | 'success' | 'failed';
+  currentStep: number;
+  totalSteps: number;
+  publishedCount: number;
+  failedCount: number;
+  statusMessage: string;
+  results: PublishExecutionSummary['results'];
+}
+
+export type PublishProgressCallback = (update: PublishProgressUpdate) => void;
+
 // In-memory mutex to prevent simultaneous concurrent publishing of the exact same post
 const activePublishingPosts = new Set<string>();
 
 /**
  * Execute publishing across all target accounts for a post.
- * Features strict idempotency, duplicate prevention, and per-destination isolation.
+ * Features sequential execution, real-time progress callbacks, strict idempotency,
+ * and clear failure statuses for unsupported platform actions like YouTube image posting.
  */
 export async function executePostPublish(
   post: Post,
-  accounts: SocialAccount[]
+  accounts: SocialAccount[],
+  onProgress?: PublishProgressCallback
 ): Promise<PublishExecutionSummary> {
   // 1. Guard against concurrent worker / interval executions
   if (activePublishingPosts.has(post.id)) {
@@ -73,114 +89,205 @@ export async function executePostPublish(
     let publishedCount = 0;
     let failedCount = 0;
 
-    // 5. Execute all destination accounts CONCURRENTLY using Promise.allSettled
-    // This prevents slow/processing destinations (like large video uploads to YouTube)
-    // from blocking or delaying fast platforms (like Facebook or Instagram).
-    await Promise.allSettled(
-      targetAccounts.map(async (account) => {
-        // Strict Idempotency: If this account already published successfully in a previous run, do NOT publish again!
-        if (results[account.id]?.status === 'success') {
-          publishedCount++;
-          console.info(
-            `[Idempotency] Account ${account.displayName || account.username} (${account.platform}) already published for post #${post.id}. Skipping duplicate.`
-          );
-          return;
-        }
+    // Notify initial state: all accounts queued
+    targetAccounts.forEach((account, idx) => {
+      onProgress?.({
+        accountId: account.id,
+        account,
+        status: results[account.id]?.status === 'success' ? 'success' : 'waiting',
+        currentStep: idx,
+        totalSteps: targetAccounts.length,
+        publishedCount,
+        failedCount,
+        statusMessage: 'In publishing queue...',
+        results,
+      });
+    });
 
-        const dispatchStartTime = Date.now();
-        const attemptedAt = new Date().toISOString();
+    // 5. Execute destination accounts sequentially with real-time progress updates
+    for (let i = 0; i < targetAccounts.length; i++) {
+      const account = targetAccounts[i];
 
-        try {
-          const adapter = getAdapterForPlatform(account.platform);
-          const override =
-            post.accountOverrides?.[account.id] ||
-            post.platformOverrides?.[account.id] ||
-            post.platformOverrides?.[account.platform];
+      // Strict Idempotency: If this account already published successfully in a previous run, do NOT publish again!
+      if (results[account.id]?.status === 'success') {
+        publishedCount++;
+        onProgress?.({
+          accountId: account.id,
+          account,
+          status: 'success',
+          currentStep: i + 1,
+          totalSteps: targetAccounts.length,
+          publishedCount,
+          failedCount,
+          statusMessage: `Already published to ${account.displayName || account.username}`,
+          results,
+        });
+        continue;
+      }
 
-          // Validate post for this specific platform
-          const validation = adapter.validatePost(post, override);
-          if (!validation.valid) {
-            failedCount++;
-            results[account.id] = {
-              status: 'failed',
-              platform: account.platform,
-              accountName: account.displayName || account.username,
-              errorMessage: validation.errors.join('; '),
-              timestamp: attemptedAt,
-            };
-            return;
-          }
+      const dispatchStartTime = Date.now();
+      const attemptedAt = new Date().toISOString();
 
-          // Execute platform adapter
-          const res: PublishResult = await adapter.publish(account, post, override);
-          const latencyMs = Date.now() - dispatchStartTime;
-          const finishedAt = new Date().toISOString();
+      // Notify progress: account publishing started
+      onProgress?.({
+        accountId: account.id,
+        account,
+        status: 'publishing',
+        currentStep: i + 1,
+        totalSteps: targetAccounts.length,
+        publishedCount,
+        failedCount,
+        statusMessage: `Publishing to ${account.displayName || account.platform}...`,
+        results,
+      });
 
-          if (res.isAssistedCommunityPost) {
-            results[account.id] = {
-              status: 'action_required',
-              platform: account.platform,
-              accountName: account.displayName || account.username,
-              externalPostUrl: res.externalPostUrl,
-              errorMessage: res.errorMessage,
-              actionType: 'community_assist',
-              timestamp: finishedAt,
-            };
-            console.info(
-              `[Assisted YouTube Community] Post #${post.id} -> ${account.displayName}: 1-Click Community Publisher ready.`
-            );
-          } else if (res.success) {
-            publishedCount++;
-            results[account.id] = {
-              status: 'success',
-              platform: account.platform,
-              accountName: account.displayName || account.username,
-              externalPostId: res.externalPostId,
-              externalPostUrl: res.externalPostUrl,
-              publishedAt: finishedAt,
-              timestamp: finishedAt,
-            };
-            console.info(
-              `[Published Successfully] Post #${post.id} -> ${account.displayName} (${account.platform}) in ${latencyMs}ms.`
-            );
-          } else {
-            failedCount++;
-            results[account.id] = {
-              status: 'failed',
-              platform: account.platform,
-              accountName: account.displayName || account.username,
-              errorMessage: res.errorMessage || 'Unknown publishing failure',
-              timestamp: finishedAt,
-            };
-            console.warn(
-              `[Publish Failed] Post #${post.id} -> ${account.displayName} (${account.platform}): ${res.errorMessage}`
-            );
-          }
-        } catch (err: unknown) {
+      try {
+        const adapter = getAdapterForPlatform(account.platform);
+        const override =
+          post.accountOverrides?.[account.id] ||
+          post.platformOverrides?.[account.id] ||
+          post.platformOverrides?.[account.platform];
+
+        // Validate post for this specific platform
+        const validation = adapter.validatePost(post, override);
+        if (!validation.valid) {
           failedCount++;
-          const message = err instanceof Error ? err.message : 'Publishing execution failed';
           results[account.id] = {
             status: 'failed',
             platform: account.platform,
             accountName: account.displayName || account.username,
-            errorMessage: message,
-            timestamp: new Date().toISOString(),
+            errorMessage: validation.errors.join('; '),
+            timestamp: attemptedAt,
           };
-          console.error(`[Publish Exception] Post #${post.id} -> ${account.displayName}:`, err);
+          onProgress?.({
+            accountId: account.id,
+            account,
+            status: 'failed',
+            currentStep: i + 1,
+            totalSteps: targetAccounts.length,
+            publishedCount,
+            failedCount,
+            statusMessage: `Validation failed: ${validation.errors.join('; ')}`,
+            results,
+          });
+          continue;
         }
-      })
-    );
 
-    const hasAssisted = Object.values(results).some((r) => r.status === 'action_required');
+        // Execute platform adapter
+        const res: PublishResult = await adapter.publish(account, post, override);
+        const latencyMs = Date.now() - dispatchStartTime;
+        const finishedAt = new Date().toISOString();
+
+        if (res.isAssistedCommunityPost) {
+          // Official YouTube Data API v3 does not permit direct 3rd-party image posting.
+          // Clearly mark as failed with explanation so user sees red status and can use manual Community link.
+          failedCount++;
+          results[account.id] = {
+            status: 'failed',
+            platform: account.platform,
+            accountName: account.displayName || account.username,
+            externalPostUrl: res.externalPostUrl,
+            errorMessage:
+              'Official YouTube Data API v3 does not permit direct 3rd-party image publishing. Use YouTube Studio or the manual Community tab.',
+            actionType: 'community_assist',
+            timestamp: finishedAt,
+          };
+          onProgress?.({
+            accountId: account.id,
+            account,
+            status: 'failed',
+            currentStep: i + 1,
+            totalSteps: targetAccounts.length,
+            publishedCount,
+            failedCount,
+            statusMessage: 'Direct image posting unsupported by YouTube API',
+            results,
+          });
+          console.warn(
+            `[Assisted YouTube Community] Post #${post.id} -> ${account.displayName}: Marked as failed for direct API posting with manual fallback.`
+          );
+        } else if (res.success) {
+          publishedCount++;
+          results[account.id] = {
+            status: 'success',
+            platform: account.platform,
+            accountName: account.displayName || account.username,
+            externalPostId: res.externalPostId,
+            externalPostUrl: res.externalPostUrl,
+            publishedAt: finishedAt,
+            timestamp: finishedAt,
+          };
+          onProgress?.({
+            accountId: account.id,
+            account,
+            status: 'success',
+            currentStep: i + 1,
+            totalSteps: targetAccounts.length,
+            publishedCount,
+            failedCount,
+            statusMessage: `Published successfully to ${account.displayName || account.platform}`,
+            results,
+          });
+          console.info(
+            `[Published Successfully] Post #${post.id} -> ${account.displayName} (${account.platform}) in ${latencyMs}ms.`
+          );
+        } else {
+          failedCount++;
+          results[account.id] = {
+            status: 'failed',
+            platform: account.platform,
+            accountName: account.displayName || account.username,
+            errorMessage: res.errorMessage || 'Unknown publishing failure',
+            timestamp: finishedAt,
+          };
+          onProgress?.({
+            accountId: account.id,
+            account,
+            status: 'failed',
+            currentStep: i + 1,
+            totalSteps: targetAccounts.length,
+            publishedCount,
+            failedCount,
+            statusMessage: res.errorMessage || 'Publishing failed',
+            results,
+          });
+          console.warn(
+            `[Publish Failed] Post #${post.id} -> ${account.displayName} (${account.platform}): ${res.errorMessage}`
+          );
+        }
+      } catch (err: unknown) {
+        failedCount++;
+        const message = err instanceof Error ? err.message : 'Publishing execution failed';
+        results[account.id] = {
+          status: 'failed',
+          platform: account.platform,
+          accountName: account.displayName || account.username,
+          errorMessage: message,
+          timestamp: new Date().toISOString(),
+        };
+        onProgress?.({
+          accountId: account.id,
+          account,
+          status: 'failed',
+          currentStep: i + 1,
+          totalSteps: targetAccounts.length,
+          publishedCount,
+          failedCount,
+          statusMessage: message,
+          results,
+        });
+        console.error(`[Publish Exception] Post #${post.id} -> ${account.displayName}:`, err);
+      }
+    }
+
     let overallStatus: PostStatus = 'published';
     if (publishedCount === 0 && failedCount > 0) {
       overallStatus = 'failed';
-    } else if (publishedCount === 0 && hasAssisted) {
-      // If only YouTube was targeted for an image post, do not mark as published
-      overallStatus = 'draft';
-    } else if (failedCount > 0 || hasAssisted) {
+    } else if (failedCount > 0 && publishedCount > 0) {
       // Partial success: keep as published so completed platforms are live
       overallStatus = 'published';
+    } else if (publishedCount === 0 && failedCount === 0) {
+      overallStatus = 'draft';
     }
 
     return {

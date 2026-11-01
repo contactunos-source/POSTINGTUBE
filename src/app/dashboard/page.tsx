@@ -596,7 +596,8 @@ export default function DashboardPage() {
 
   const handleSavePost = async (
     postData: Partial<Post>,
-    action: 'schedule' | 'publish-now' | 'draft'
+    action: 'schedule' | 'publish-now' | 'draft',
+    onProgress?: (update: any) => void
   ) => {
     if (action === 'publish-now') {
       const tempPost: Post = {
@@ -626,7 +627,7 @@ export default function DashboardPage() {
         },
       };
 
-      const summary = await executePostPublish(tempPost, accounts);
+      const summary = await executePostPublish(tempPost, accounts, onProgress);
       const finalPost: Post = {
         ...tempPost,
         status: summary.overallStatus,
@@ -644,6 +645,7 @@ export default function DashboardPage() {
         const refreshed = await DatabaseService.getPosts(authUser.id, currentWorkspaceId);
         setPosts(refreshed);
       }
+      return summary;
     } else {
       if (action === 'schedule') {
         const { SubscriptionService } = await import('@/lib/subscription');
@@ -1040,9 +1042,12 @@ export default function DashboardPage() {
             accounts={accounts}
             allPosts={posts}
             initialPost={editingPost || undefined}
-            onSave={async (postData, action) => {
-              await handleSavePost(postData, action);
-              handleTabChange('posts-all');
+            onSave={async (postData, action, onProgress) => {
+              const res = await handleSavePost(postData, action, onProgress);
+              if (action !== 'publish-now') {
+                handleTabChange('posts-all');
+              }
+              return res;
             }}
             onBack={handleBackFromComposer}
             onGoToConnections={() => handleTabChange('connections')}

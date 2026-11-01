@@ -28,6 +28,7 @@ import {
   Calendar,
   Copy,
   Info,
+  AlertCircle,
   X,
   Play,
   ArrowUpDown,
@@ -865,10 +866,10 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                                         if (isYtAssist) {
                                           return (
                                             <span
-                                              className="inline-flex items-center text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200/60"
-                                              title="Assisted YouTube Community Post ready"
+                                              className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200/60"
+                                              title="Official YouTube Data API v3 does not permit direct automated image publishing"
                                             >
-                                              ℹ Community Post Ready
+                                              ✕ Failed (Image Unsupported)
                                             </span>
                                           );
                                         }
@@ -972,13 +973,13 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                           {postAccounts.some((acc) =>
                             isYouTubeCommunityIssue(acc, post.results?.[acc.id] || post.results?.[acc.platform])
                           ) && (
-                            <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3 text-xs text-amber-900 space-y-1">
-                              <div className="font-bold flex items-center space-x-1.5 text-amber-950">
-                                <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                <span>YouTube Community Image Post Ready</span>
+                            <div className="bg-rose-50 border border-rose-200/90 rounded-xl p-3 text-xs text-rose-900 space-y-1">
+                              <div className="font-bold flex items-center space-x-1.5 text-rose-950">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <span>YouTube Publishing Unsupported for Images</span>
                               </div>
-                              <p className="text-[11px] text-amber-800 leading-relaxed">
-                                Official YouTube Data API v3 does not permit direct third-party publishing for Community tab image posts. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and open your channel&apos;s Community tab directly.
+                              <p className="text-[11px] text-rose-800 leading-relaxed">
+                                Official YouTube Data API v3 does not permit direct automated 3rd-party image publishing. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and post on your channel directly.
                               </p>
                             </div>
                           )}

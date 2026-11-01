@@ -31,6 +31,8 @@ import {
   Search,
   Filter,
   CheckCircle2,
+  Loader2,
+  AlertCircle,
   FileUp,
   Smile,
   Hash,
@@ -64,7 +66,11 @@ interface CreatePostDashboardProps {
   accounts: SocialAccount[];
   allPosts?: Post[];
   initialPost?: Partial<Post>;
-  onSave: (postData: Partial<Post>, action: 'schedule' | 'publish-now' | 'draft') => Promise<void>;
+  onSave: (
+    postData: Partial<Post>,
+    action: 'schedule' | 'publish-now' | 'draft',
+    onProgress?: (update: any) => void
+  ) => Promise<any>;
   onBack: () => void;
   onGoToConnections?: () => void;
 }
@@ -129,6 +135,88 @@ const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     placeholder: 'Describe your pin with descriptive keywords, tags, and link in bio...',
   },
 ];
+
+export interface MediaUploadState {
+  isUploading: boolean;
+  progress: number;
+  loadedBytes: number;
+  totalBytes: number;
+  stage: 'idle' | 'preparing' | 'uploading' | 'processing' | 'complete' | 'error';
+  statusMessage: string;
+  error: string | null;
+  lastUploadedFile?: File;
+}
+
+export interface PublishingModalState {
+  isOpen: boolean;
+  total: number;
+  completed: number;
+  failed: number;
+  currentStep: number;
+  statusText: string;
+  isFinished: boolean;
+  destinations: {
+    accountId: string;
+    accountName: string;
+    platform: SocialPlatform;
+    status: 'waiting' | 'publishing' | 'success' | 'failed';
+    message?: string;
+  }[];
+}
+
+/**
+ * Real-time byte-level upload progress tracking using XMLHttpRequest.
+ * Reports actual progress events (1% to 95%) during byte streaming,
+ * and reaches 100% only upon confirmed HTTP 200 server completion.
+ */
+const uploadFileWithProgress = (
+  file: File,
+  onProgress: (percent: number, loaded: number, total: number) => void
+): Promise<{ success: boolean; url?: string; thumbnailUrl?: string; error?: string }> => {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        const rawPercent = Math.round((event.loaded / event.total) * 100);
+        const percent = Math.min(Math.max(rawPercent, 1), 95);
+        onProgress(percent, event.loaded, event.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.success && data.url) {
+            onProgress(100, file.size, file.size);
+            resolve(data);
+          } else {
+            resolve({ success: false, error: data.error || 'Server processing failed' });
+          }
+        } catch {
+          resolve({ success: false, error: 'Invalid response from media server' });
+        }
+      } else {
+        resolve({ success: false, error: `Upload failed (HTTP ${xhr.status})` });
+      }
+    };
+
+    xhr.onerror = () => {
+      resolve({ success: false, error: 'Network error during media upload. Check your connection.' });
+    };
+
+    xhr.ontimeout = () => {
+      resolve({ success: false, error: 'Upload timed out. Please try again.' });
+    };
+
+    xhr.timeout = 180000; // 3 minute timeout
+    xhr.open('POST', '/api/media/upload');
+    xhr.send(formData);
+  });
+};
 
 export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   postType: initialPostType,
@@ -211,10 +299,32 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // Media state
   const [mediaList, setMediaList] = useState<PostMedia[]>(initialPost?.media || []);
-  const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isReplacingRef = useRef(false);
+
+  // Real Numerical Media Upload Progress state (1% - 100%)
+  const [uploadState, setUploadState] = useState<MediaUploadState>({
+    isUploading: false,
+    progress: 0,
+    loadedBytes: 0,
+    totalBytes: 0,
+    stage: 'idle',
+    statusMessage: '',
+    error: null,
+  });
+  const uploadPromiseResolveRef = useRef<((value: boolean) => void) | null>(null);
+
+  // Helper to await in-flight upload before publishing/scheduling without crude alerts
+  const waitForUploadToComplete = (): Promise<boolean> => {
+    if (!uploadState.isUploading) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      uploadPromiseResolveRef.current = resolve;
+    });
+  };
+
+  // Centralized Publishing Progress Modal state
+  const [publishingModalState, setPublishingModalState] = useState<PublishingModalState | null>(null);
 
   // Platform-Specific Feature Options
   const [instagramAiLabel, setInstagramAiLabel] = useState<boolean>(
@@ -464,67 +574,104 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
   };
 
-  // File Upload Handler (with complete Replacement support)
-  const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  // File Upload Handler with Real Numerical Byte Progress (1% to 100%)
+  const handleFiles = async (files: FileList | null, fileOverride?: File) => {
+    const chosenFile = fileOverride || (files && files.length > 0 ? files[0] : null);
+    if (!chosenFile) return;
+
     const isReplacing = isReplacingRef.current;
     isReplacingRef.current = false;
-    setIsUploading(true);
 
-    const filesArray = Array.from(files);
-    // If user clicked Replace, take the first chosen file and replace existing media
-    const targetFiles = isReplacing ? [filesArray[0]] : filesArray;
+    const isVideoFile = chosenFile.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(chosenFile.name);
+    const localBlobUrl = URL.createObjectURL(chosenFile);
+    const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    for (let i = 0; i < targetFiles.length; i++) {
-      const file = targetFiles[i];
-      const isVideoFile = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
-      const localBlobUrl = URL.createObjectURL(file);
-      const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tempMedia: PostMedia = {
+      id: mediaId,
+      name: chosenFile.name,
+      url: localBlobUrl,
+      thumbnailUrl: localBlobUrl,
+      type: isVideoFile ? 'video' : 'image',
+      size: chosenFile.size,
+      aspectRatio: isVideoFile ? '9:16' : '1:1',
+    };
 
-      const tempMedia: PostMedia = {
-        id: mediaId,
-        name: file.name,
-        url: localBlobUrl,
-        thumbnailUrl: localBlobUrl,
-        type: isVideoFile ? 'video' : 'image',
-        size: file.size,
-        aspectRatio: isVideoFile ? '9:16' : '1:1',
-      };
+    setMediaList([tempMedia]);
+    if (isVideoFile && currentPostType !== 'video') {
+      setCurrentPostType('video');
+    }
 
-      if (isReplacing) {
-        setMediaList([tempMedia]);
-      } else {
-        setMediaList((prev) => [...prev, tempMedia]);
+    setUploadState({
+      isUploading: true,
+      progress: 5,
+      loadedBytes: 0,
+      totalBytes: chosenFile.size,
+      stage: 'preparing',
+      statusMessage: 'Preparing your media...',
+      error: null,
+      lastUploadedFile: chosenFile,
+    });
+
+    const uploadRes = await uploadFileWithProgress(chosenFile, (percent, loaded, total) => {
+      let stage: MediaUploadState['stage'] = 'uploading';
+      let statusMessage = `Uploading your media... (${percent}%)`;
+      if (percent < 10) {
+        stage = 'preparing';
+        statusMessage = 'Preparing your media...';
+      } else if (percent >= 85 && percent < 100) {
+        stage = 'processing';
+        statusMessage = 'Processing your file on server...';
+      } else if (percent >= 100) {
+        stage = 'complete';
+        statusMessage = 'Upload complete!';
       }
 
-      if (isVideoFile && currentPostType !== 'video') {
-        setCurrentPostType('video');
-      }
+      setUploadState((prev) => ({
+        ...prev,
+        isUploading: true,
+        progress: percent,
+        loadedBytes: loaded,
+        totalBytes: total,
+        stage,
+        statusMessage,
+      }));
+    });
 
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch('/api/media/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.success && data.url) {
-          setMediaList((prev) =>
-            prev.map((item) =>
-              item.id === mediaId
-                ? { ...item, url: data.url, thumbnailUrl: data.thumbnailUrl || data.url }
-                : item
-            )
-          );
-        } else {
-          console.error('Media upload server error:', data.error);
-        }
-      } catch (err) {
-        console.error('Media upload error:', err);
+    if (uploadRes.success && uploadRes.url) {
+      setUploadState((prev) => ({
+        ...prev,
+        isUploading: false,
+        progress: 100,
+        stage: 'complete',
+        statusMessage: 'Upload complete!',
+        error: null,
+      }));
+
+      setMediaList([
+        {
+          ...tempMedia,
+          url: uploadRes.url,
+          thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
+        },
+      ]);
+      showToast('Media uploaded successfully.');
+      if (uploadPromiseResolveRef.current) {
+        uploadPromiseResolveRef.current(true);
+        uploadPromiseResolveRef.current = null;
+      }
+    } else {
+      setUploadState((prev) => ({
+        ...prev,
+        isUploading: false,
+        stage: 'error',
+        statusMessage: 'Upload failed',
+        error: uploadRes.error || 'Failed to upload media to server.',
+      }));
+      if (uploadPromiseResolveRef.current) {
+        uploadPromiseResolveRef.current(false);
+        uploadPromiseResolveRef.current = null;
       }
     }
-    setIsUploading(false);
   };
 
   // AI Quick Writing Helpers
@@ -614,18 +761,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     if (isSubmitting) return;
 
     if (action !== 'draft' && selectedAccountIds.length === 0) {
-      alert('Please select at least one social platform to publish to.');
+      showToast('Please select at least one social platform to publish to.');
       return;
     }
 
-    if (isUploading) {
-      alert('Your media file is currently uploading to the server. Please wait a few seconds for the upload to complete before scheduling or publishing.');
-      return;
+    // If media is still streaming to server, seamlessly await completion instead of blocking alerts
+    if (uploadState.isUploading) {
+      showToast(`Uploading media (${uploadState.progress}%). Operation will proceed automatically once upload completes.`);
+      const uploadSuccess = await waitForUploadToComplete();
+      if (!uploadSuccess) {
+        showToast('Operation cancelled: media upload failed. Please retry.');
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     // Schedule validation
     if (action === 'schedule' && !isScheduleValid) {
-      alert('The selected schedule time is in the past. Please select a future date and time.');
+      showToast('The selected schedule time is in the past. Please select a future date and time.');
       return;
     }
 
@@ -705,7 +858,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       const stillHasBlob = finalMediaList.some((m) => m.url && m.url.startsWith('blob:'));
       if (stillHasBlob && action !== 'draft') {
         setIsSubmitting(false);
-        alert('Media upload to server could not be completed. Please wait a moment or replace the image.');
+        showToast('Media upload could not be completed. Please wait a moment or replace the image.');
         return;
       }
 
@@ -781,16 +934,92 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         scheduledFor: scheduledIso,
       };
 
+      // Real-Time Centralized Publishing Progress Loader for Immediate Dispatch
+      if (action === 'publish-now') {
+        const initialDestinations = selectedAccountIds.map((accId) => {
+          const acc = accounts.find((a) => a.id === accId);
+          return {
+            accountId: accId,
+            accountName: acc?.displayName || acc?.username || 'Channel',
+            platform: (acc?.platform || 'facebook') as SocialPlatform,
+            status: 'waiting' as const,
+            message: 'Waiting in queue...',
+          };
+        });
+
+        setPublishingModalState({
+          isOpen: true,
+          total: initialDestinations.length,
+          completed: 0,
+          failed: 0,
+          currentStep: 0,
+          statusText: `Publishing across ${initialDestinations.length} destination${initialDestinations.length > 1 ? 's' : ''}...`,
+          isFinished: false,
+          destinations: initialDestinations,
+        });
+
+        const onProgressHandler = (update: any) => {
+          setPublishingModalState((prev) => {
+            if (!prev) return null;
+            const nextDestinations = prev.destinations.map((d) => {
+              if (d.accountId === update.accountId) {
+                return {
+                  ...d,
+                  status: update.status,
+                  message: update.statusMessage,
+                };
+              }
+              return d;
+            });
+
+            return {
+              ...prev,
+              completed: update.publishedCount,
+              failed: update.failedCount,
+              currentStep: update.currentStep,
+              statusText: update.statusMessage,
+              destinations: nextDestinations,
+            };
+          });
+        };
+
+        const publishSummary = await onSave(payload, action, onProgressHandler);
+
+        setPublishingModalState((prev) => {
+          if (!prev) return null;
+          const totalSuccess = publishSummary?.publishedCount ?? prev.completed;
+          const totalFailed = publishSummary?.failedCount ?? prev.failed;
+          return {
+            ...prev,
+            isFinished: true,
+            completed: totalSuccess,
+            failed: totalFailed,
+            statusText:
+              totalFailed === 0
+                ? 'All destinations published successfully!'
+                : `${totalSuccess} published successfully, ${totalFailed} failed`,
+          };
+        });
+
+        if (initialDestinations.length > 0) {
+          showToast(
+            initialDestinations.length === 1
+              ? 'Post published live!'
+              : 'Publishing complete.'
+          );
+        }
+        return;
+      }
+
       await onSave(payload, action);
       showToast(
         action === 'schedule'
           ? 'Post successfully scheduled!'
-          : action === 'publish-now'
-          ? 'Post published live!'
           : 'Post saved to drafts!'
       );
+      if (onBack) onBack();
     } catch (err: any) {
-      alert(`Publishing error: ${err?.message || 'Could not save post'}`);
+      showToast(`Publishing error: ${err?.message || 'Could not save post'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1057,10 +1286,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         {mediaList[0].type === 'video' ? (
                           <video
                             src={mediaList[0].url}
-                            controls
+                            controls={!uploadState.isUploading}
                             className={`w-full h-full ${
                               mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            }`}
+                            } ${uploadState.isUploading ? 'opacity-30 blur-xs' : ''}`}
                           />
                         ) : (
                           <img
@@ -1068,8 +1297,101 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             alt="Media Preview"
                             className={`w-full h-full ${
                               mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            }`}
+                            } ${uploadState.isUploading ? 'opacity-30 blur-xs' : ''}`}
                           />
+                        )}
+
+                        {/* Interactive Real-Time Numerical Upload Loader Overlay */}
+                        {(uploadState.isUploading || uploadState.stage === 'error') && (
+                          <div className="absolute inset-0 bg-gray-950/85 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-white text-center space-y-4 rounded-xl animate-fade-in select-none">
+                            {uploadState.stage === 'error' ? (
+                              <div className="space-y-3 flex flex-col items-center">
+                                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/40 shadow-xs">
+                                  <AlertCircle className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-white">Upload Interrupted</h4>
+                                  <p className="text-xs text-rose-300 mt-1 max-w-xs line-clamp-2">
+                                    {uploadState.error || 'Network error occurred while uploading media.'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center space-x-2 pt-1">
+                                  {uploadState.lastUploadedFile && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFiles(null, uploadState.lastUploadedFile)}
+                                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors flex items-center space-x-1 shadow-sm cursor-pointer"
+                                    >
+                                      <RotateCcw className="w-3 h-3" />
+                                      <span>Retry Upload</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setUploadState((prev) => ({ ...prev, isUploading: false, stage: 'idle', error: null }));
+                                      setMediaList([]);
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {/* Animated Circular Progress Indicator with numerical % */}
+                                <div className="relative w-20 h-20 flex items-center justify-center">
+                                  <svg className="w-20 h-20 -rotate-90">
+                                    <circle
+                                      cx="40"
+                                      cy="40"
+                                      r="33"
+                                      className="stroke-white/15"
+                                      strokeWidth="5"
+                                      fill="transparent"
+                                    />
+                                    <circle
+                                      cx="40"
+                                      cy="40"
+                                      r="33"
+                                      className="stroke-emerald-400 transition-all duration-200"
+                                      strokeWidth="5"
+                                      strokeDasharray={207.3}
+                                      strokeDashoffset={207.3 - (207.3 * uploadState.progress) / 100}
+                                      strokeLinecap="round"
+                                      fill="transparent"
+                                    />
+                                  </svg>
+                                  <div className="absolute flex flex-col items-center justify-center">
+                                    <span className="text-base font-extrabold font-mono tracking-tight text-white leading-none">
+                                      {uploadState.progress}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Stage Status and Byte Progress */}
+                                <div className="space-y-1">
+                                  <p className="text-xs font-bold text-white tracking-wide">
+                                    {uploadState.statusMessage}
+                                  </p>
+                                  {uploadState.totalBytes > 0 && (
+                                    <p className="text-[11px] text-white/60 font-mono">
+                                      {(uploadState.loadedBytes / (1024 * 1024)).toFixed(1)} MB / {(uploadState.totalBytes / (1024 * 1024)).toFixed(1)} MB
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Linear Progress Bar */}
+                                <div className="w-56 h-2 bg-white/15 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-emerald-400 to-teal-300 rounded-full transition-all duration-200 shadow-sm"
+                                    style={{ width: `${uploadState.progress}%` }}
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
                         )}
 
                         {/* Safe Area Guides Overlay */}
@@ -1094,30 +1416,35 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       </div>
 
                       {/* Hover Actions: Replace & Remove */}
-                      <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            isReplacingRef.current = true;
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = '';
-                              fileInputRef.current.click();
-                            }
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
-                        >
-                          <Upload className="w-3 h-3" />
-                          <span>Replace</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMediaList([])}
-                          className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md cursor-pointer"
-                          title="Remove media"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {!uploadState.isUploading && (
+                        <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              isReplacingRef.current = true;
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = '';
+                                fileInputRef.current.click();
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>Replace</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMediaList([]);
+                              setUploadState({ isUploading: false, progress: 0, loadedBytes: 0, totalBytes: 0, stage: 'idle', statusMessage: '', error: null });
+                            }}
+                            className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md cursor-pointer"
+                            title="Remove media"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1161,13 +1488,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <span>•</span>
                       <span>Up to 500 MB</span>
                     </div>
-                  </div>
-                )}
-
-                {isUploading && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-2 animate-pulse">
-                    <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <span>Uploading and syncing media securely...</span>
                   </div>
                 )}
               </div>
@@ -1732,7 +2052,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Calendar className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
+                      <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
                     </button>
                   </div>
                 ) : (
@@ -1755,7 +2075,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
                     >
                       <Send className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
+                      <span>{uploadState.isUploading ? `Uploading media (${uploadState.progress}%)...` : isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
                     </button>
                   </div>
                 )}
@@ -1981,6 +2301,173 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         channelsCount={subscriptionData?.channelsCount || Math.max(1, accounts.length)}
         onPlanUpdated={fetchSubscription}
       />
+
+      {/* Centralized Publishing Progress Modal for Multi-Destination Live Dispatch */}
+      {publishingModalState && publishingModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-2xs ${
+                    publishingModalState.isFinished
+                      ? publishingModalState.failed === 0
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                        : publishingModalState.completed > 0
+                        ? 'bg-amber-50 border-amber-200 text-amber-600'
+                        : 'bg-rose-50 border-rose-200 text-rose-600'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                  }`}
+                >
+                  {publishingModalState.isFinished ? (
+                    publishingModalState.failed === 0 ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5" />
+                    )
+                  ) : (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900 leading-tight">
+                    {publishingModalState.isFinished
+                      ? publishingModalState.failed === 0
+                        ? 'Published Successfully'
+                        : publishingModalState.completed > 0
+                        ? 'Partially Published'
+                        : 'Publishing Failed'
+                      : 'Publishing Your Posts'}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {publishingModalState.isFinished
+                      ? `${publishingModalState.completed} of ${publishingModalState.total} destination${publishingModalState.total > 1 ? 's' : ''} published`
+                      : `${publishingModalState.completed} / ${publishingModalState.total} completed`}
+                  </p>
+                </div>
+              </div>
+
+              {publishingModalState.isFinished && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublishingModalState(null);
+                    onBack();
+                  }}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Numerical Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="text-gray-600 truncate max-w-[260px]">
+                  {publishingModalState.statusText}
+                </span>
+                <span className="text-emerald-700 font-mono font-bold">
+                  {Math.round(
+                    ((publishingModalState.completed + publishingModalState.failed) /
+                      Math.max(publishingModalState.total, 1)) *
+                      100
+                  )}%
+                </span>
+              </div>
+              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    publishingModalState.failed > 0 && publishingModalState.completed === 0
+                      ? 'bg-rose-500'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                  }`}
+                  style={{
+                    width: `${Math.round(
+                      ((publishingModalState.completed + publishingModalState.failed) /
+                        Math.max(publishingModalState.total, 1)) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Destinations List */}
+            <div className="space-y-2 max-h-56 overflow-y-auto divide-y divide-gray-100 pr-1">
+              {publishingModalState.destinations.map((dest) => (
+                <div key={dest.accountId} className="pt-2 first:pt-0 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center p-1 shrink-0 shadow-2xs">
+                      <PlatformLogo platform={dest.platform} className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 truncate leading-tight">
+                        {dest.accountName}
+                      </p>
+                      <p
+                        className={`text-[10px] truncate ${
+                          dest.status === 'failed' ? 'text-rose-600 font-medium' : 'text-gray-400'
+                        }`}
+                      >
+                        {dest.message || dest.platform}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {dest.status === 'waiting' && (
+                      <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                        Waiting
+                      </span>
+                    )}
+                    {dest.status === 'publishing' && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center space-x-1 animate-pulse">
+                        <div className="w-2 h-2 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
+                        <span>Publishing</span>
+                      </span>
+                    )}
+                    {dest.status === 'success' && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                        <span>Published</span>
+                      </span>
+                    )}
+                    {dest.status === 'failed' && (
+                      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                        <X className="w-2.5 h-2.5 text-rose-600" />
+                        <span>Failed</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom summary and action */}
+            {publishingModalState.isFinished && (
+              <div className="pt-2 flex flex-col space-y-2 border-t border-gray-100">
+                {publishingModalState.failed > 0 && publishingModalState.completed > 0 && (
+                  <p className="text-[11px] text-gray-500 text-center">
+                    {publishingModalState.completed} platform{publishingModalState.completed > 1 ? 's' : ''} published live. Check failed items above for platform API restrictions.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublishingModalState(null);
+                    onBack();
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  Done & View in Posts
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

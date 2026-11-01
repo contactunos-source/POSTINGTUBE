@@ -333,7 +333,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     const res = postItem.results?.[account.id] || postItem.results?.[account.platform];
     if (res?.status === 'failed') return 'failed';
-    if (res?.status === 'action_required') return 'action_required';
+    if (res?.status === 'action_required' || (account.platform === 'youtube' && postItem.status === 'failed')) return 'failed';
     if (res?.status === 'success') return 'success';
 
     if (postItem.status === 'failed') return 'failed';
@@ -408,7 +408,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {postAccounts.map((acc) => {
               const status = getAccountPublishStatus(post, acc);
               const isFailed = status === 'failed';
-              const isAction = status === 'action_required';
               const isSuccess = status === 'success';
               const err = post.results?.[acc.id]?.errorMessage || post.results?.[acc.platform]?.errorMessage;
 
@@ -418,8 +417,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   className={`relative w-4.5 h-4.5 rounded-full flex items-center justify-center p-0.5 shadow-2xs transition-all ${
                     isFailed
                       ? 'bg-rose-50 border border-rose-500 text-rose-600 ring-1 ring-rose-400/50'
-                      : isAction
-                      ? 'bg-amber-50 border border-amber-400 text-amber-600'
                       : isSuccess
                       ? 'bg-emerald-50 border border-emerald-300 text-emerald-700'
                       : 'bg-white border border-gray-200/90 text-gray-700'
@@ -427,8 +424,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   title={`${acc.displayName || acc.username || acc.platform} (${acc.platform}): ${
                     isFailed
                       ? `Failed / Not posted ${err ? `— ${err}` : ''}`
-                      : isAction
-                      ? 'Action required'
                       : isSuccess
                       ? 'Published successfully'
                       : 'Scheduled'
@@ -442,12 +437,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     >
                       <span className="w-0.5 h-0.5 rounded-full bg-white" />
                     </span>
-                  )}
-                  {isAction && (
-                    <span
-                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-white shadow-xs"
-                      title="Action required"
-                    />
                   )}
                 </div>
               );
@@ -1398,7 +1387,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {getAccountsForPost(inspectedPost).map((acc) => {
                   const status = getAccountPublishStatus(inspectedPost, acc);
                   const isFailed = status === 'failed';
-                  const isAction = status === 'action_required';
                   const isSuccess = status === 'success';
 
                   return (
@@ -1407,8 +1395,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${
                         isFailed
                           ? 'border-rose-300 bg-rose-50 text-rose-700'
-                          : isAction
-                          ? 'border-amber-300 bg-amber-50 text-amber-700'
                           : isSuccess
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                           : 'border-gray-200 bg-gray-50 text-gray-800'
@@ -1419,11 +1405,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       {isFailed && (
                         <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded">
                           Failed
-                        </span>
-                      )}
-                      {isAction && (
-                        <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.2 rounded">
-                          Action Required
                         </span>
                       )}
                       {isSuccess && (
