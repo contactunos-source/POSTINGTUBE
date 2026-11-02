@@ -794,28 +794,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[840px]">
-              {/* Header Row: Left Gutter Corner + 7 Day Headers */}
-              <div className="grid grid-cols-[68px_repeat(7,1fr)] border-b border-gray-200 bg-gray-50/70 text-center text-xs">
+            <div className="min-w-[840px] max-h-[800px] overflow-y-auto">
+              {/* Single Unified CSS Grid for Header and all 24 Hour Rows — Guaranteed Pixel-Perfect Column Alignment */}
+              <div className="grid grid-cols-[68px_repeat(7,minmax(0,1fr))] relative">
+                {/* 1. Header Cells (Row 0): Sticky at top, perfectly synchronized with body columns */}
                 {/* Timezone corner header */}
-                <div className="py-3 px-1 border-r border-gray-200/80 flex flex-col items-center justify-center text-[10px] font-extrabold text-emerald-800 bg-emerald-50/50 select-none">
+                <div className="sticky top-0 z-20 py-3 px-1 border-b border-r border-gray-200 bg-gray-50/95 backdrop-blur-xs flex flex-col items-center justify-center text-[10px] font-extrabold text-emerald-800 select-none">
                   <span className="leading-tight">IST</span>
                   <span className="text-[8px] text-emerald-600 font-semibold mt-0.5">UTC+5:30</span>
                 </div>
 
                 {/* 7 Days Columns with highlighted today */}
-                {weekDays.map((day) => {
+                {weekDays.map((day, dayIdx) => {
                   const isCurrentDay = isToday(day);
+                  const isLastDay = dayIdx === weekDays.length - 1;
 
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`py-3 px-2 border-r last:border-r-0 border-gray-200/80 transition-colors ${
+                      className={`sticky top-0 z-20 py-3 px-2 border-b border-gray-200 transition-colors select-none text-center relative ${
+                        !isLastDay ? 'border-r border-gray-200/80' : ''
+                      } ${
                         isCurrentDay
-                          ? 'bg-emerald-50/50 border-t-2 border-t-emerald-600'
-                          : 'hover:bg-gray-100/50'
+                          ? 'bg-emerald-50/90 backdrop-blur-xs'
+                          : 'bg-gray-50/95 backdrop-blur-xs hover:bg-gray-100/80'
                       }`}
                     >
+                      {isCurrentDay && (
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-emerald-600" />
+                      )}
                       <div
                         className={`text-[11px] font-bold uppercase tracking-wider ${
                           isCurrentDay ? 'text-emerald-700' : 'text-gray-500'
@@ -834,108 +841,104 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                   );
                 })}
-              </div>
 
-              {/* Week Timeline Body: Perfectly Synchronized Row-by-Row CSS Grid */}
-              <div className="max-h-[800px] overflow-y-auto">
-                <div className="grid grid-cols-[68px_repeat(7,1fr)] relative">
-                  {timeSlots.map((slot) => {
-                    return (
-                      <React.Fragment key={slot.hour}>
-                        {/* Column 0: Time Gutter Cell strictly aligned to this hour row */}
-                        <div className="border-b border-r border-gray-200/80 bg-gray-50/50 min-h-[68px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none">
-                          <span className="text-[11px] font-bold text-gray-900 leading-tight">
-                            {slot.label}
-                          </span>
-                          <span
-                            className={`text-[8.5px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
-                              slot.phase === 'morning'
-                                ? 'text-amber-700 bg-amber-50/80'
-                                : slot.phase === 'afternoon'
-                                ? 'text-sky-700 bg-sky-50/80'
-                                : slot.phase === 'evening'
-                                ? 'text-purple-700 bg-purple-50/80'
-                                : 'text-indigo-700 bg-indigo-50/80'
+                {/* 2. Timeline Body Cells: Perfectly Synchronized Row-by-Row in the exact same Grid Tracks */}
+                {timeSlots.map((slot) => {
+                  return (
+                    <React.Fragment key={slot.hour}>
+                      {/* Column 0: Time Gutter Cell strictly aligned to this hour row */}
+                      <div className="border-b border-r border-gray-200/80 bg-gray-50/50 min-h-[68px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none">
+                        <span className="text-[11px] font-bold text-gray-900 leading-tight">
+                          {slot.label}
+                        </span>
+                        <span
+                          className={`text-[8.5px] font-semibold mt-0.5 px-1 py-0.2 rounded ${
+                            slot.phase === 'morning'
+                              ? 'text-amber-700 bg-amber-50/80'
+                              : slot.phase === 'afternoon'
+                              ? 'text-sky-700 bg-sky-50/80'
+                              : slot.phase === 'evening'
+                              ? 'text-purple-700 bg-purple-50/80'
+                              : 'text-indigo-700 bg-indigo-50/80'
+                          }`}
+                        >
+                          {slot.periodLabel}
+                        </span>
+                      </div>
+
+                      {/* Columns 1-7: Day Cells for this specific hour row */}
+                      {weekDays.map((day, dayIdx) => {
+                        const dayPosts = getPostsForDay(day);
+                        const isCurrentDay = isToday(day);
+                        const isLastDay = dayIdx === weekDays.length - 1;
+
+                        // Filter posts scheduled specifically in this 1-hour slot
+                        const slotPosts = dayPosts.filter((post) => {
+                          const time = post.scheduledFor || post.publishedAt || post.createdAt;
+                          const parts = getIstTimeParts(time);
+                          return parts.hour24 === slot.hour;
+                        });
+
+                        const slotDropKey = `${day.toISOString()}_${slot.hour}`;
+                        const isSlotDropTarget = dragOverDayIso === slotDropKey;
+
+                        return (
+                          <div
+                            key={`${day.toISOString()}_${slot.hour}`}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDragOverDayIso(slotDropKey);
+                            }}
+                            onDragLeave={() => setDragOverDayIso(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDragOverDayIso(null);
+                              handleDropOnDay(e, day, slot.hour);
+                            }}
+                            onClick={() => {
+                              const target = new Date(day);
+                              target.setHours(slot.hour, 0, 0, 0);
+                              onCreateAtDate(target);
+                            }}
+                            className={`min-h-[68px] p-1.5 relative transition-all group cursor-pointer border-b border-gray-100/90 min-w-0 ${
+                              !isLastDay ? 'border-r border-gray-200/80' : ''
+                            } ${
+                              isCurrentDay ? 'bg-emerald-50/10' : ''
+                            } ${
+                              isSlotDropTarget
+                                ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
+                                : 'hover:bg-gray-50/70'
                             }`}
                           >
-                            {slot.periodLabel}
-                          </span>
-                        </div>
-
-                        {/* Columns 1-7: Day Cells for this specific hour row */}
-                        {weekDays.map((day, dayIdx) => {
-                          const dayPosts = getPostsForDay(day);
-                          const isCurrentDay = isToday(day);
-                          const isLastDay = dayIdx === weekDays.length - 1;
-
-                          // Filter posts scheduled specifically in this 1-hour slot
-                          const slotPosts = dayPosts.filter((post) => {
-                            const time = post.scheduledFor || post.publishedAt || post.createdAt;
-                            const parts = getIstTimeParts(time);
-                            return parts.hour24 === slot.hour;
-                          });
-
-                          const slotDropKey = `${day.toISOString()}_${slot.hour}`;
-                          const isSlotDropTarget = dragOverDayIso === slotDropKey;
-
-                          return (
-                            <div
-                              key={`${day.toISOString()}_${slot.hour}`}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setDragOverDayIso(slotDropKey);
-                              }}
-                              onDragLeave={() => setDragOverDayIso(null)}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setDragOverDayIso(null);
-                                handleDropOnDay(e, day, slot.hour);
-                              }}
-                              onClick={() => {
-                                const target = new Date(day);
-                                target.setHours(slot.hour, 0, 0, 0);
-                                onCreateAtDate(target);
-                              }}
-                              className={`min-h-[68px] p-1.5 relative transition-all group cursor-pointer border-b border-gray-100/90 ${
-                                !isLastDay ? 'border-r border-gray-200/80' : ''
-                              } ${
-                                isCurrentDay ? 'bg-emerald-50/10' : ''
-                              } ${
-                                isSlotDropTarget
-                                  ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
-                                  : 'hover:bg-gray-50/70'
-                              }`}
-                            >
-                              {/* Post Cards scheduled in this exact slot */}
-                              {slotPosts.length > 0 ? (
-                                <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-0.5">
-                                  {slotPosts.map((post) => (
-                                    <div
-                                      key={post.id}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {renderPostCard(post, { compact: true })}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                /* Clean interactive hover to schedule at this slot */
-                                <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity min-h-[48px]">
-                                  <span className="text-[10px] font-semibold text-gray-400 group-hover:text-emerald-700 flex items-center space-x-1">
-                                    <Plus className="w-2.5 h-2.5 text-emerald-600" />
-                                    <span>{slot.label}</span>
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+                            {/* Post Cards scheduled in this exact slot */}
+                            {slotPosts.length > 0 ? (
+                              <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-0.5">
+                                {slotPosts.map((post) => (
+                                  <div
+                                    key={post.id}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {renderPostCard(post, { compact: true })}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              /* Clean interactive hover to schedule at this slot */
+                              <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity min-h-[48px]">
+                                <span className="text-[10px] font-semibold text-gray-400 group-hover:text-emerald-700 flex items-center space-x-1">
+                                  <Plus className="w-2.5 h-2.5 text-emerald-600" />
+                                  <span>{slot.label}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           </div>
