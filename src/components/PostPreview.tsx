@@ -81,8 +81,10 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 
   const isReelOrShort =
     previewType === 'reel' ||
+    previewType === 'story' ||
+    previewType === 'short' ||
     aspectRatio === '9:16' ||
-    (media?.type === 'video' && aspectRatio !== '16:9');
+    (media?.type === 'video' && aspectRatio !== '16:9' && previewType !== 'post' && previewType !== 'video');
 
   const fitClass = mediaFitMode === 'cover' ? 'object-cover' : 'object-contain';
 
@@ -117,7 +119,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 
             {/* Top Reel Bar */}
             <div className="relative z-10 p-3.5 flex items-center justify-between text-xs font-bold">
-              <span>Reels</span>
+              <span>{previewType === 'story' ? 'Your Story' : 'Reels'}</span>
               <div className="w-6 h-6 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
                 <Volume2 className="w-3.5 h-3.5" />
               </div>
@@ -334,7 +336,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {/* Top Shorts Logo */}
             <div className="relative z-10 p-3.5 flex items-center justify-between">
               <div className="flex items-center space-x-1 bg-red-600 px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase">
-                <span>Shorts</span>
+                <span>{previewType === 'short' ? 'Shorts' : previewType === 'reel' ? 'Shorts' : 'Shorts'}</span>
               </div>
               <div className="flex items-center space-x-3 text-white">
                 <Volume2 className="w-4 h-4" />

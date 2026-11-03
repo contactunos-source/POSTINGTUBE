@@ -65,6 +65,8 @@ import {
   ChevronLeft,
   Trash2,
   UploadCloud,
+  Music2,
+  ShoppingBag,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
@@ -586,6 +588,70 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setIsWorkspaceDragging(false);
   };
 
+  // Per-platform media helpers
+  const getEffectiveMediaForAccount = (accId: string): PostMedia[] => {
+    if (!customizeMediaPerPlatform) return mediaList;
+    return platformMediaMap[accId] !== undefined ? platformMediaMap[accId] : mediaList;
+  };
+
+  const handlePlatformReplaceMedia = (accId: string) => {
+    const input = platformFileInputRefs.current[accId];
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  };
+
+  const handlePlatformRemoveMedia = (accId: string) => {
+    if (!customizeMediaPerPlatform) {
+      // In shared mode, remove from global list
+      if (mediaList.length > 0) handleRemoveMedia(mediaList[0].id);
+      return;
+    }
+    setPlatformMediaMap(prev => ({ ...prev, [accId]: [] }));
+  };
+
+  const handlePlatformFilesSelected = (accId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const blobUrl = URL.createObjectURL(file);
+    const newMedia: PostMedia = {
+      id: `platform_${accId}_${Date.now()}`,
+      url: blobUrl,
+      thumbnailUrl: blobUrl,
+      type: file.type.startsWith('video') ? 'video' : 'image',
+      name: file.name,
+      size: file.size,
+    };
+    // Upload to server in background then update URL
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/media/upload', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.url) {
+          setPlatformMediaMap(prev => ({
+            ...prev,
+            [accId]: [{ ...newMedia, url: data.url, thumbnailUrl: data.thumbnailUrl || data.url }],
+          }));
+          URL.revokeObjectURL(blobUrl);
+        }
+      })
+      .catch(err => console.error('Platform media upload error:', err));
+    setPlatformMediaMap(prev => ({ ...prev, [accId]: [newMedia] }));
+  };
+
+  // Sync platformMediaMap when customizeMediaPerPlatform is first enabled
+  const handleToggleCustomizeMedia = () => {
+    if (!customizeMediaPerPlatform && mediaList.length > 0) {
+      // Initialize each selected account with a copy of shared media
+      const init: Record<string, PostMedia[]> = {};
+      selectedAccountIds.forEach(id => { init[id] = [...mediaList]; });
+      setPlatformMediaMap(init);
+    }
+    setCustomizeMediaPerPlatform(prev => !prev);
+  };
+
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState<boolean>(true);
   const [isMasterCaptionOpen, setIsMasterCaptionOpen] = useState<boolean>(false);
   const [accountFormats, setAccountFormats] = useState<Record<string, string>>({});
@@ -593,6 +659,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({});
   // Instagram AI Features - per-account tab state
   const [instagramFeatureTabs, setInstagramFeatureTabs] = useState<Record<string, 'music'|'text'|'topics'|'products'|null>>({});
+  // Platform-specific media customization
+  const [customizeMediaPerPlatform, setCustomizeMediaPerPlatform] = useState<boolean>(false);
+  const [platformMediaMap, setPlatformMediaMap] = useState<Record<string, PostMedia[]>>({});
+  const platformFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Live Feed Preview carousel index
+  const [previewCarouselIndex, setPreviewCarouselIndex] = useState<number>(0);
   const [instagramMusicQuery, setInstagramMusicQuery] = useState<Record<string, string>>({});
   const [instagramTextOverlay, setInstagramTextOverlay] = useState<Record<string, string>>({});
   const [instagramTopics, setInstagramTopics] = useState<Record<string, string>>({});
@@ -619,6 +691,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [scheduleLimitModal, isMasterCaptionOpen]);
+
+  // Clamp carousel index when accounts change
+  useEffect(() => {
+    if (previewCarouselIndex >= selectedAccountIds.length && selectedAccountIds.length > 0) {
+      setPreviewCarouselIndex(selectedAccountIds.length - 1);
+    }
+  }, [selectedAccountIds.length]);
 
   // Clipboard Paste (Ctrl+V) listener
   useEffect(() => {
@@ -1136,6 +1215,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               : undefined,
           isAiGenerated: isAi,
           collaborator: collab,
+          media: getEffectiveMediaForAccount(accId),
+          postType:
+            accountFormats[accId] ||
+            (acc.platform === 'youtube'
+              ? currentPostType === 'video'
+                ? 'video'
+                : 'post'
+              : currentPostType === 'video'
+              ? 'reel'
+              : 'post'),
         };
 
         // Key by account ID for per-account precision
@@ -1153,11 +1242,21 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         (selectedPlatforms.includes('facebook') && facebookAiLabel) ||
         (selectedPlatforms.includes('youtube') && youtubeAiLabel);
 
+      // Determine dominant postType from selected accounts' formats
+      const formatCounts: Record<string, number> = {};
+      selectedAccountIds.forEach(accId => {
+        const acc = accounts.find(a => a.id === accId);
+        if (!acc) return;
+        const fmt = accountFormats[accId] || (acc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post'));
+        formatCounts[fmt] = (formatCounts[fmt] || 0) + 1;
+      });
+      const dominantFormat = Object.entries(formatCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || (currentPostType === 'video' ? 'reel' : 'post');
+
       const payload: Partial<Post> = {
         content: mainCaption,
         targetAccountIds: selectedAccountIds,
         media: finalMediaList,
-        postType: currentPostType === 'video' ? 'reel' : 'post',
+        postType: dominantFormat as PostType,
         platformOverrides: platformOverrides,
         accountOverrides: accountOverrides,
         tags: initialPost?.tags || [],
@@ -1432,6 +1531,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             )}
           </div>
 
+          {/* Customize Media Toggle */}
+          {currentPostType !== 'text' && selectedAccountIds.length > 1 && (
+            <button
+              type="button"
+              onClick={handleToggleCustomizeMedia}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer border ${
+                customizeMediaPerPlatform
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+              }`}
+              title={customizeMediaPerPlatform ? 'Using per-platform media' : 'Using shared media for all platforms'}
+            >
+              <FileImage className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{customizeMediaPerPlatform ? 'Per-Platform Media' : 'Same Media for All'}</span>
+            </button>
+          )}
+
           {/* Smooth Horizontal Sliding Navigation Controls */}
           <div className="flex items-center space-x-2">
             <span className="text-[11px] text-gray-400 font-medium hidden sm:inline mr-1">
@@ -1634,140 +1750,148 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         })}
                       </div>
 
-                      {/* 3. UPLOAD MEDIA SECTION (Recreated from Reference Image) */}
-                      <div className="space-y-3">
-                        {mediaList.length === 0 ? (
-                          /* Soft Grey Dropzone with Centered White Icon Badge */
-                          <div
-                            onClick={triggerUploadPicker}
-                            className="bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border border-transparent hover:border-gray-300 transition-all group"
-                          >
-                            <div className="w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center text-gray-700 mb-3 group-hover:scale-105 transition-transform">
-                              <UploadCloud className="w-6 h-6 text-gray-700" />
-                            </div>
-                            <h4 className="text-xs font-bold text-gray-900">
-                              Drop your files here or browse
-                            </h4>
-                            <p className="text-[11px] text-gray-400 mt-1">
-                              Max file size up to 500 MB
-                            </p>
-                          </div>
-                        ) : (
-                          /* Attached Media Preview Box + File Details Card matching Reference Image */
-                          <div className="space-y-3">
-                            {/* Visual Thumbnail / Video Player */}
-                            <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 group shadow-2xs min-h-[200px]">
-                              <div
-                                className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-xl shadow-xs max-h-[220px] w-full`}
-                              >
-                                {mediaList[0].type === 'video' ? (
-                                  <video
-                                    src={mediaList[0].url}
-                                    controls={!uploadState.isUploading}
-                                    className={`w-full h-full ${
-                                      mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                                    } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                                  />
-                                ) : (
-                                  <img
-                                    src={mediaList[0].thumbnailUrl || mediaList[0].url}
-                                    alt="Media Preview"
-                                    className={`w-full h-full ${
-                                      mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                                    } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                                  />
-                                )}
+                      {/* Per-platform hidden file input */}
+                      <input
+                        type="file"
+                        ref={(el) => { platformFileInputRefs.current[accId] = el; }}
+                        accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
+                        className="hidden"
+                        onChange={(e) => {
+                          handlePlatformFilesSelected(accId, e.target.files);
+                          e.target.value = '';
+                        }}
+                      />
 
-                                {/* Real-Time Upload Progress Overlay */}
-                                {(uploadState.isUploading || uploadState.stage === 'error') && (
-                                  <div className="absolute inset-0 bg-white/85 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
-                                    {uploadState.stage === 'error' ? (
-                                      <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
-                                        <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
-                                        <p className="text-[11px] text-rose-600 leading-tight">
-                                          {uploadState.error || 'Upload failed.'}
-                                        </p>
-                                      </div>
+                      {/* 3. UPLOAD MEDIA SECTION */}
+                      {(() => {
+                        const effectiveMedia = getEffectiveMediaForAccount(accId);
+                        const isUploading = uploadState.isUploading && !customizeMediaPerPlatform;
+                        return (
+                          <div className="space-y-3">
+                            {effectiveMedia.length === 0 ? (
+                              /* Soft Grey Dropzone */
+                              <div
+                                onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerUploadPicker}
+                                className="bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border border-transparent hover:border-gray-300 transition-all group"
+                              >
+                                <div className="w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center text-gray-700 mb-3 group-hover:scale-105 transition-transform">
+                                  <UploadCloud className="w-6 h-6 text-gray-700" />
+                                </div>
+                                <h4 className="text-xs font-bold text-gray-900">
+                                  Drop your files here or browse
+                                </h4>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                  {customizeMediaPerPlatform ? 'Upload unique media for this platform' : 'Max file size up to 500 MB'}
+                                </p>
+                              </div>
+                            ) : (
+                              /* Media Preview with clean overlay controls */
+                              <div className="space-y-2">
+                                {/* Visual Thumbnail / Video Player */}
+                                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 group shadow-2xs min-h-[200px]">
+                                  <div
+                                    className={`${getAspectRatioClass()} overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-2xl max-h-[240px] w-full`}
+                                  >
+                                    {effectiveMedia[0].type === 'video' ? (
+                                      <video
+                                        src={effectiveMedia[0].url}
+                                        controls={!isUploading}
+                                        className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
+                                      />
                                     ) : (
-                                      <div className="bg-white rounded-2xl border border-gray-200/90 p-4 w-full max-w-[240px] shadow-lg text-center space-y-3 animate-in fade-in zoom-in-95 duration-150">
-                                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                                        <div className="space-y-1">
-                                          <div className="flex items-center justify-between text-xs font-bold text-gray-800">
-                                            <span>Uploading...</span>
-                                            <span className="font-mono text-emerald-600">{displayProgress}%</span>
+                                      <img
+                                        src={effectiveMedia[0].thumbnailUrl || effectiveMedia[0].url}
+                                        alt="Media Preview"
+                                        className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
+                                      />
+                                    )}
+
+                                    {/* Overlay Replace/Remove Controls – visible on hover */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 z-10">
+                                      <button
+                                        type="button"
+                                        onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
+                                        className="bg-white/95 text-gray-900 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-white transition-all cursor-pointer flex items-center gap-1.5"
+                                        title="Replace media"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Replace
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePlatformRemoveMedia(accId)}
+                                        className="bg-rose-600/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-rose-600 transition-all cursor-pointer flex items-center gap-1.5"
+                                        title="Remove media"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                        Remove
+                                      </button>
+                                    </div>
+
+                                    {/* Upload Progress Overlay */}
+                                    {(isUploading || uploadState.stage === 'error') && !customizeMediaPerPlatform && (
+                                      <div className="absolute inset-0 bg-white/85 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
+                                        {uploadState.stage === 'error' ? (
+                                          <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
+                                            <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
+                                            <p className="text-[11px] text-rose-600 leading-tight">{uploadState.error || 'Upload failed.'}</p>
                                           </div>
-                                          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                            <div
-                                              className="bg-emerald-600 h-1.5 rounded-full transition-all duration-200 ease-out"
-                                              style={{ width: `${displayProgress}%` }}
-                                            />
+                                        ) : (
+                                          <div className="bg-white rounded-2xl border border-gray-200/90 p-4 w-full max-w-[240px] shadow-lg text-center space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                                            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                                            <div className="space-y-1">
+                                              <div className="flex items-center justify-between text-xs font-bold text-gray-800">
+                                                <span>Uploading...</span>
+                                                <span className="font-mono text-emerald-600">{displayProgress}%</span>
+                                              </div>
+                                              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                <div className="bg-emerald-600 h-1.5 rounded-full transition-all duration-200 ease-out" style={{ width: `${displayProgress}%` }} />
+                                              </div>
+                                            </div>
                                           </div>
-                                        </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* White File Info Card matching Reference Image */}
-                            <div className="bg-white rounded-2xl border border-gray-200 p-3 flex flex-col gap-2 shadow-2xs">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2.5 min-w-0">
-                                  <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-700 shrink-0 uppercase">
-                                    {mediaList[0].type === 'video' ? 'VID' : 'IMG'}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <span className="text-xs font-bold text-gray-900 block truncate max-w-[200px]">
-                                      {mediaList[0].name || (mediaList[0].type === 'video' ? 'video-asset.mp4' : 'image-asset.jpg')}
-                                    </span>
-                                    <span className="text-[11px] text-gray-400 block">
-                                      {mediaList[0].size
-                                        ? `${(mediaList[0].size / (1024 * 1024)).toFixed(1)} MB`
-                                        : 'Asset file'}
-                                    </span>
-                                  </div>
                                 </div>
 
-                                <div className="flex items-center space-x-1">
-                                  <button
-                                    type="button"
-                                    onClick={triggerReplaceMedia}
-                                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer"
-                                    title="Replace file"
-                                  >
-                                    Replace
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveMedia(mediaList[0].id)}
-                                    className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
-                                    title="Remove file"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                {/* Compact file info row (no filename, just type badge + size + actions) */}
+                                <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex items-center justify-between shadow-2xs">
+                                  <div className="flex items-center space-x-2 min-w-0">
+                                    <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-[9px] font-bold text-gray-600 shrink-0 uppercase">
+                                      {effectiveMedia[0].type === 'video' ? 'VID' : 'IMG'}
+                                    </div>
+                                    <span className="text-[11px] text-gray-500 font-medium">
+                                      {effectiveMedia[0].size ? `${(effectiveMedia[0].size / (1024 * 1024)).toFixed(1)} MB` : 'Uploaded'}
+                                    </span>
+                                    {customizeMediaPerPlatform && (
+                                      <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full">Custom</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
+                                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer"
+                                      title="Replace"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePlatformRemoveMedia(accId)}
+                                      className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-
-                              {/* Upload Progress Bar below file if uploading */}
-                              {uploadState.isUploading && (
-                                <div className="space-y-1 pt-1">
-                                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className="bg-gray-900 h-1.5 rounded-full transition-all duration-200"
-                                      style={{ width: `${displayProgress}%` }}
-                                    />
-                                  </div>
-                                  <div className="flex justify-between text-[10px] text-gray-400">
-                                    <span>Uploading media</span>
-                                    <span className="font-mono">{displayProgress}%</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
 
                       {/* 4. EXPANDABLE CAPTIONS ROW (Directly Below Upload Media) */}
                       <div className="space-y-2">
@@ -2193,15 +2317,103 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Real-time Post Preview */}
-              <PostPreview
-                post={previewPostData}
-                selectedPlatform={activePreviewPlatform}
-                activeAccount={previewAccount}
-                previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
-                aspectRatio={aspectRatio}
-                mediaFitMode={mediaFitMode}
-              />
+              {/* Carousel: prev/next navigation */}
+              {selectedAccountIds.length > 0 && (() => {
+                const carouselAccId = selectedAccountIds[previewCarouselIndex] || selectedAccountIds[0];
+                const carouselAcc = accounts.find(a => a.id === carouselAccId);
+                const carouselFormat = carouselAcc
+                  ? (accountFormats[carouselAccId] || (carouselAcc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post')))
+                  : 'post';
+                const isVertical = ['reel', 'story', 'short'].includes(carouselFormat);
+                const previewPlatform = carouselAcc?.platform || activePreviewPlatform;
+                const effectivePreviewMedia = getEffectiveMediaForAccount(carouselAccId);
+                const carouselPostData = {
+                  ...previewPostData,
+                  media: effectivePreviewMedia,
+                  content: (accountCaptions[carouselAccId]?.caption?.trim() ? accountCaptions[carouselAccId].caption : mainCaption) || '',
+                };
+                const formatLabel: Record<string, string> = {
+                  post: 'Post', reel: 'Reel', story: 'Story', video: 'Video', short: 'Short', article: 'Article',
+                };
+                const communityPostWarning = previewPlatform === 'youtube' && carouselFormat === 'post' && currentPostType === 'image';
+                return (
+                  <div className="space-y-3">
+                    {/* Platform + format badge + nav arrows */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        {carouselAcc && (
+                          <img
+                            src={carouselAcc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(carouselAcc.displayName || carouselAcc.username || 'A')}&background=059669&color=fff&size=64&bold=true`}
+                            alt={carouselAcc.displayName || carouselAcc.username}
+                            referrerPolicy="no-referrer"
+                            className="w-6 h-6 rounded-full object-cover border border-gray-200"
+                          />
+                        )}
+                        <span className="text-xs font-bold text-gray-900 capitalize truncate max-w-[120px]">
+                          {carouselAcc?.displayName || carouselAcc?.username || previewPlatform}
+                        </span>
+                        <span className="text-[10px] text-gray-400 capitalize">·</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isVertical ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {formatLabel[carouselFormat] || carouselFormat}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewCarouselIndex(prev => Math.max(0, prev - 1))}
+                          disabled={previewCarouselIndex === 0}
+                          className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-30 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                          title="Previous"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[11px] text-gray-400 font-mono min-w-[36px] text-center">
+                          {previewCarouselIndex + 1}/{selectedAccountIds.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewCarouselIndex(prev => Math.min(selectedAccountIds.length - 1, prev + 1))}
+                          disabled={previewCarouselIndex >= selectedAccountIds.length - 1}
+                          className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-30 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                          title="Next"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* YouTube Community Post honest warning */}
+                    {communityPostWarning && (
+                      <div className="flex items-start space-x-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                        <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block font-semibold">YouTube Community Post Limitation</strong>
+                          <span>The YouTube Data API does not support automated Community Post publishing for third-party applications. Your post will be saved as a draft. Please publish it manually from YouTube Studio.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <PostPreview
+                      post={carouselPostData}
+                      selectedPlatform={previewPlatform}
+                      activeAccount={carouselAcc}
+                      previewType={carouselFormat as PostType}
+                      aspectRatio={isVertical ? '9:16' : aspectRatio}
+                      mediaFitMode={mediaFitMode}
+                    />
+                  </div>
+                );
+              })()}
+              {selectedAccountIds.length === 0 && (
+                <PostPreview
+                  post={previewPostData}
+                  selectedPlatform={activePreviewPlatform}
+                  activeAccount={previewAccount}
+                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
+                  aspectRatio={aspectRatio}
+                  mediaFitMode={mediaFitMode}
+                />
+              )}
             </div>
           </div>
 

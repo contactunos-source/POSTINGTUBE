@@ -35,6 +35,8 @@ export interface PlatformCaptionOverride {
   title?: string; // For YouTube
   collaborator?: string; // For IG
   isAiGenerated?: boolean;
+  media?: PostMedia[]; // Per-platform customized media assets
+  postType?: string; // Per-platform format (post, reel, story, video, short)
   // YouTube Studio specific metadata
   thumbnailUrl?: string;
   tags?: string[];

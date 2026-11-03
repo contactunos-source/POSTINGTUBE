@@ -148,8 +148,15 @@ export async function executePostPublish(
           post.platformOverrides?.[account.id] ||
           post.platformOverrides?.[account.platform];
 
+        // Build effective post for platform/account with its specific media & format overrides
+        const effectivePost: Post = {
+          ...post,
+          media: override?.media && override.media.length > 0 ? override.media : post.media,
+          postType: (override?.postType as any) || post.postType,
+        };
+
         // Validate post for this specific platform
-        const validation = adapter.validatePost(post, override);
+        const validation = adapter.validatePost(effectivePost, override);
         if (!validation.valid) {
           failedCount++;
           results[account.id] = {
@@ -174,7 +181,7 @@ export async function executePostPublish(
         }
 
         // Execute platform adapter
-        const res: PublishResult = await adapter.publish(account, post, override);
+        const res: PublishResult = await adapter.publish(account, effectivePost, override);
         const latencyMs = Date.now() - dispatchStartTime;
         const finishedAt = new Date().toISOString();
 
