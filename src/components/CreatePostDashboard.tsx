@@ -24,6 +24,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Check,
   Send,
   Save,
@@ -39,6 +40,7 @@ import {
   MessageSquare,
   Users,
   Eye,
+  EyeOff,
   Crop,
   ShieldCheck,
   Zap,
@@ -55,6 +57,11 @@ import {
   Shield,
   Maximize2,
   Minimize2,
+  Minus,
+  Plus,
+  Type,
+  Settings,
+  Sliders,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
@@ -134,6 +141,100 @@ const SUPPORTED_PLATFORMS: PlatformConfig[] = [
     placeholder: 'Describe your pin with descriptive keywords, tags, and link in bio...',
   },
 ];
+
+interface PlatformVisualConfig {
+  name: string;
+  brandColor: string;
+  headerBg: string;
+  cardBorder: string;
+  activeTabBg: string;
+  cloudIconClass: string;
+  supportedFormats: { id: string; label: string }[];
+  limit: number;
+  placeholder: string;
+}
+
+const getPlatformVisualConfig = (platform: SocialPlatform): PlatformVisualConfig => {
+  switch (platform) {
+    case 'instagram':
+      return {
+        name: 'Instagram',
+        brandColor: '#E1306C',
+        headerBg: 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500',
+        cardBorder: 'border-[#E1306C]/70 shadow-sm',
+        activeTabBg: 'bg-[#E1306C] text-white shadow-xs',
+        cloudIconClass: 'text-[#E1306C]',
+        supportedFormats: [
+          { id: 'post', label: 'Post' },
+          { id: 'reel', label: 'Reel' },
+          { id: 'story', label: 'Story' },
+        ],
+        limit: 2200,
+        placeholder: 'Write an engaging Instagram caption with line breaks and #hashtags...',
+      };
+    case 'facebook':
+      return {
+        name: 'Facebook Account',
+        brandColor: '#1877F2',
+        headerBg: 'bg-[#1877F2]',
+        cardBorder: 'border-[#1877F2]/70 shadow-sm',
+        activeTabBg: 'bg-[#1877F2] text-white shadow-xs',
+        cloudIconClass: 'text-[#1877F2]',
+        supportedFormats: [
+          { id: 'post', label: 'Post' },
+          { id: 'reel', label: 'Reel' },
+          { id: 'story', label: 'Story' },
+        ],
+        limit: 63206,
+        placeholder: 'Write a detailed Facebook post update for your audience...',
+      };
+    case 'youtube':
+      return {
+        name: 'YouTube Channel',
+        brandColor: '#FF0000',
+        headerBg: 'bg-red-600',
+        cardBorder: 'border-red-500/70 shadow-sm',
+        activeTabBg: 'bg-red-600 text-white shadow-xs',
+        cloudIconClass: 'text-red-600',
+        supportedFormats: [
+          { id: 'video', label: 'Video' },
+          { id: 'short', label: 'Short' },
+          { id: 'post', label: 'Community Post' },
+        ],
+        limit: 5000,
+        placeholder: 'Write video description, links, and timestamps...',
+      };
+    case 'linkedin':
+      return {
+        name: 'LinkedIn Page',
+        brandColor: '#0A66C2',
+        headerBg: 'bg-[#0A66C2]',
+        cardBorder: 'border-[#0A66C2]/70 shadow-sm',
+        activeTabBg: 'bg-[#0A66C2] text-white shadow-xs',
+        cloudIconClass: 'text-[#0A66C2]',
+        supportedFormats: [
+          { id: 'post', label: 'Post' },
+          { id: 'article', label: 'Article' },
+        ],
+        limit: 3000,
+        placeholder: 'Share insights, industry lessons, or professional updates with your network...',
+      };
+    default:
+      return {
+        name: platform,
+        brandColor: '#4F46E5',
+        headerBg: 'bg-indigo-600',
+        cardBorder: 'border-indigo-400/70 shadow-sm',
+        activeTabBg: 'bg-indigo-600 text-white shadow-xs',
+        cloudIconClass: 'text-indigo-600',
+        supportedFormats: [
+          { id: 'post', label: 'Post' },
+        ],
+        limit: 2200,
+        placeholder: 'Write post caption...',
+      };
+  }
+};
 
 export interface MediaUploadState {
   isUploading: boolean;
@@ -429,6 +530,40 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Canva-style Workspace Zoom Controls & Platform Panels State
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState<boolean>(true);
+  const [isMasterCaptionOpen, setIsMasterCaptionOpen] = useState<boolean>(false);
+  const [accountFormats, setAccountFormats] = useState<Record<string, string>>({});
+  const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
+  const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({});
+
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(140, prev + 10));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(60, prev - 10));
+  const handleZoomReset = () => setZoomLevel(100);
+  const handleFitToScreen = () => {
+    if (selectedAccountIds.length >= 3) {
+      setZoomLevel(75);
+    } else if (selectedAccountIds.length === 2) {
+      setZoomLevel(90);
+    } else {
+      setZoomLevel(100);
+    }
+  };
+
+  const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
+    setAccountFormats((prev) => ({ ...prev, [accId]: formatId }));
+    if (formatId === 'reel' || formatId === 'short' || formatId === 'story') {
+      setAspectRatio('9:16');
+      if (currentPostType !== 'video') setCurrentPostType('video');
+    } else if (formatId === 'video') {
+      setAspectRatio('16:9');
+      if (currentPostType !== 'video') setCurrentPostType('video');
+    } else {
+      setAspectRatio('original');
+    }
   };
 
   // Clipboard Paste (Ctrl+V) listener
@@ -1200,1017 +1335,1001 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           />
         </div>
 
-        {/* 2-Column Main Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          {/* LEFT 2 COLUMNS: Media + Captions + Customizations */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Media Dropzone (when postType is image or video) */}
-            {currentPostType !== 'text' && (
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
-                  multiple
-                  onChange={(e) => {
-                    handleFiles(e.target.files);
-                    e.target.value = '';
-                  }}
-                  className="hidden"
-                />
+{/* Hidden File Input for Workspace Upload & Replacement */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
+          multiple
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = '';
+          }}
+          className="hidden"
+        />
 
-                {mediaList.length > 0 ? (
-                  /* Attached Media Preview Card */
-                  <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                          {currentPostType === 'video' ? (
-                            <Video className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <FileImage className="w-4 h-4 text-emerald-600" />
-                          )}
-                          <span>Attached Media ({mediaList.length})</span>
-                        </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-mono">
-                          {mediaList[0].size
-                            ? `${(mediaList[0].size / 1024 / 1024).toFixed(1)} MB`
-                            : 'Ready'}
-                        </span>
-                      </div>
+        {/* WORKSPACE TOOLBAR & CANVA-STYLE ZOOM CONTROLS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200/90 p-3.5 px-5 shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-bold text-gray-900 tracking-tight">Platform Workspace</span>
+            </div>
+            <span className="text-gray-300">•</span>
+            <span className="text-xs text-gray-500 font-medium">
+              {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} active
+            </span>
 
-                      {/* Canvas Controls: Aspect Ratio + Framing Fit + Safe Area */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Aspect Ratio Selector */}
-                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
-                          <Crop className="w-3 h-3 text-gray-400 ml-1.5" />
-                          {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((ratio) => (
-                            <button
-                              key={ratio}
-                              type="button"
-                              onClick={() => setAspectRatio(ratio)}
-                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                                aspectRatio === ratio
-                                  ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                  : 'hover:text-gray-900'
-                              }`}
-                            >
-                              {ratio === 'original' ? 'Original' : ratio}
-                            </button>
-                          ))}
-                        </div>
+            {/* Master Caption quick toggle for multi-channel workflows */}
+            {selectedAccountIds.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setIsMasterCaptionOpen(!isMasterCaptionOpen)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  isMasterCaptionOpen
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Master Caption</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isMasterCaptionOpen ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
 
-                        {/* Framing Mode: Fit vs Fill */}
-                        <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold text-gray-600">
-                          <button
-                            type="button"
-                            onClick={() => setMediaFitMode('contain')}
-                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
-                              mediaFitMode === 'contain'
-                                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                : 'hover:text-gray-900'
-                            }`}
-                            title="Contain: Shows complete media without cropping (letterboxed if needed)"
-                          >
-                            <Minimize2 className="w-2.5 h-2.5" />
-                            <span>Fit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMediaFitMode('cover')}
-                            className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center space-x-1 ${
-                              mediaFitMode === 'cover'
-                                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                                : 'hover:text-gray-900'
-                            }`}
-                            title="Cover: Fills frame to edges"
-                          >
-                            <Maximize2 className="w-2.5 h-2.5" />
-                            <span>Fill</span>
-                          </button>
-                        </div>
+          {/* Canva-Style Zoom Controls */}
+          <div className="flex items-center space-x-1.5">
+            <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200/80">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                disabled={zoomLevel <= 60}
+                className="p-1.5 hover:bg-white rounded-lg text-gray-600 hover:text-gray-900 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Zoom Out (-10%)"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomReset}
+                className="px-2.5 py-1 text-xs font-mono font-bold text-gray-800 hover:text-emerald-700 transition-colors cursor-pointer"
+                title="Click to Reset Zoom (100%)"
+              >
+                {zoomLevel}%
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                disabled={zoomLevel >= 140}
+                className="p-1.5 hover:bg-white rounded-lg text-gray-600 hover:text-gray-900 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Zoom In (+10%)"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-                        {/* Safe Area Guide Toggle for 9:16 / Reels / Shorts */}
-                        {(aspectRatio === '9:16' || mediaList[0].type === 'video') && (
-                          <button
-                            type="button"
-                            onClick={() => setShowSafeAreaGuide(!showSafeAreaGuide)}
-                            className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors flex items-center space-x-1 cursor-pointer ${
-                              showSafeAreaGuide
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                            title="Toggle safe zones overlay to verify UI elements won't block video content"
-                          >
-                            <Shield className="w-3 h-3 text-emerald-600" />
-                            <span>Safe Areas</span>
-                          </button>
-                        )}
+            <button
+              type="button"
+              onClick={handleFitToScreen}
+              className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
+              title="Fit to Screen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
 
-                        {/* Reset to Original */}
-                        {(aspectRatio !== 'original' || mediaFitMode !== 'contain') && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAspectRatio('original');
-                              setMediaFitMode('contain');
-                            }}
-                            className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                            title="Reset framing to original"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+            <button
+              type="button"
+              onClick={handleZoomReset}
+              className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
+              title="Reset Zoom to 100%"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="h-4 w-px bg-gray-200 mx-1" />
+
+            {/* Toggle Live Preview & Publishing Column */}
+            <button
+              type="button"
+              onClick={() => setIsPreviewPanelOpen(!isPreviewPanelOpen)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer border ${
+                isPreviewPanelOpen
+                  ? 'bg-gray-900 text-white border-gray-900 shadow-xs'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+              title={isPreviewPanelOpen ? 'Collapse Preview & Publishing Panel' : 'Open Preview & Publishing Panel'}
+            >
+              {isPreviewPanelOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Preview & Schedule</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Master Caption Collapsible Editor */}
+        {isMasterCaptionOpen && selectedAccountIds.length > 1 && (
+          <div className="bg-white rounded-2xl border border-emerald-200/90 p-5 shadow-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-xs font-bold text-gray-900">Master Caption (Applies to all channels)</h3>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Channels set to &quot;Sync with Master&quot; update automatically as you type.
+                </p>
+              </div>
+              <div className="flex items-center space-x-2 text-xs font-medium text-gray-400">
+                <span className="flex items-center space-x-1">
+                  <Hash className="w-3 h-3 text-gray-400" />
+                  <span>{mainHashtagsCount}/30</span>
+                </span>
+                <span>•</span>
+                <span className="font-mono">{mainCaption.length} chars</span>
+              </div>
+            </div>
+
+            <textarea
+              value={mainCaption}
+              onChange={(e) => setMainCaption(e.target.value)}
+              placeholder="Write master caption to apply across all connected platforms..."
+              className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
+            />
+
+            {/* Quick AI buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
+              {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => applyAiEnhancement(mode)}
+                  className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[11px] font-semibold transition-colors cursor-pointer capitalize"
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MAIN WORKSPACE GRID: PLATFORM PANELS + DEDICATED PREVIEW & PUBLISHING */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+          {/* LEFT: ZOOMABLE PLATFORM WORKSPACE CANVAS */}
+          <div className={`${isPreviewPanelOpen ? 'xl:col-span-8' : 'xl:col-span-12'} space-y-6 transition-all`}>
+            <div className="w-full overflow-x-auto overflow-y-visible pb-6 scrollbar-thin">
+              <div
+                style={{
+                  transform: `scale(${zoomLevel / 100})`,
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="w-full flex justify-center"
+              >
+                {selectedAccountIds.length === 0 ? (
+                  /* Empty state when no channel checked */
+                  <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                      <Globe className="w-7 h-7" />
                     </div>
-
-                    {/* Canvas Preview Box */}
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200/90 bg-gray-50/70 flex items-center justify-center p-3 group shadow-2xs min-h-[300px]">
-                      <div
-                        className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-xl shadow-xs`}
-                      >
-                        {mediaList[0].type === 'video' ? (
-                          <video
-                            src={mediaList[0].url}
-                            controls={!uploadState.isUploading}
-                            className={`w-full h-full ${
-                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                          />
-                        ) : (
-                          <img
-                            src={mediaList[0].thumbnailUrl || mediaList[0].url}
-                            alt="Media Preview"
-                            className={`w-full h-full ${
-                              mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                            } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                          />
-                        )}
-
-                        {/* Interactive Real-Time Numerical Upload Loader Overlay */}
-                        {(uploadState.isUploading || uploadState.stage === 'error') && (
-                          <div className="absolute inset-0 bg-white/70 backdrop-blur-xs z-30 flex items-center justify-center p-4 select-none animate-fade-in">
-                            {uploadState.stage === 'error' ? (
-                              <div className="bg-white rounded-2xl border border-rose-200 p-5 max-w-[280px] w-full shadow-xl text-center space-y-3.5 animate-in zoom-in-95">
-                                <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-2xs">
-                                  <AlertCircle className="w-5 h-5" />
-                                </div>
-                                <div>
-                                  <h4 className="text-xs font-bold text-gray-900">Upload Interrupted</h4>
-                                  <p className="text-[11px] text-rose-600 mt-1 line-clamp-2 leading-relaxed">
-                                    {uploadState.error || 'Network error occurred while uploading media.'}
-                                  </p>
-                                </div>
-                                <div className="flex items-center justify-center space-x-2 pt-1">
-                                  {uploadState.lastUploadedFile && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleFiles(null, uploadState.lastUploadedFile)}
-                                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
-                                    >
-                                      <RotateCcw className="w-3.5 h-3.5" />
-                                      <span>Retry</span>
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setUploadState({
-                                        isUploading: false,
-                                        progress: 0,
-                                        loadedBytes: 0,
-                                        totalBytes: 0,
-                                        stage: 'idle',
-                                        statusMessage: '',
-                                        error: null,
-                                      });
-                                      setMediaList([]);
-                                    }}
-                                    className="px-3.5 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-xs font-semibold transition-colors cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              /* Compact, elegant white SaaS progress card */
-                              <div className="bg-white/95 rounded-2xl border border-gray-200/90 shadow-xl p-5 max-w-[280px] w-full text-center space-y-3.5 animate-in zoom-in-95">
-                                {/* Animated Circular Progress with Emerald Accent */}
-                                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
-                                  <svg className="w-16 h-16 -rotate-90">
-                                    <circle
-                                      cx="32"
-                                      cy="32"
-                                      r="26"
-                                      className="stroke-gray-100"
-                                      strokeWidth="4.5"
-                                      fill="transparent"
-                                    />
-                                    <circle
-                                      cx="32"
-                                      cy="32"
-                                      r="26"
-                                      className="stroke-emerald-500 transition-all duration-150"
-                                      strokeWidth="4.5"
-                                      strokeDasharray={163.36}
-                                      strokeDashoffset={163.36 - (163.36 * displayProgress) / 100}
-                                      strokeLinecap="round"
-                                      fill="transparent"
-                                    />
-                                  </svg>
-                                  <div className="absolute flex flex-col items-center justify-center">
-                                    <span className="text-sm font-extrabold font-mono tracking-tight text-gray-900 leading-none">
-                                      {displayProgress}%
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Status Message and Byte Count */}
-                                <div className="space-y-0.5">
-                                  <p className="text-xs font-bold text-gray-900 tracking-tight">
-                                    {uploadState.stage === 'preparing'
-                                      ? 'Preparing media...'
-                                      : uploadState.stage === 'processing'
-                                      ? 'Finalizing upload...'
-                                      : uploadState.stage === 'complete'
-                                      ? 'Upload complete!'
-                                      : 'Uploading your media...'}
-                                  </p>
-                                  {uploadState.totalBytes > 0 && (
-                                    <p className="text-[11px] font-mono text-gray-500">
-                                      {(uploadState.loadedBytes / (1024 * 1024)).toFixed(1)} MB / {(uploadState.totalBytes / (1024 * 1024)).toFixed(1)} MB
-                                    </p>
-                                  )}
-                                </div>
-
-                                {/* Linear Progress Bar with Smooth Gradient */}
-                                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-150"
-                                    style={{ width: `${displayProgress}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Safe Area Guides Overlay */}
-                        {showSafeAreaGuide && (
-                          <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-2">
-                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
-                              Top Safe Zone (Header, Audio, Search)
-                            </div>
-                            <div className="flex justify-between items-center px-1">
-                              <span className="text-[9px] text-white/70 bg-black/60 px-2 py-0.5 rounded font-mono">
-                                Focal Content Safe Area
-                              </span>
-                              <div className="border border-dashed border-amber-400/90 bg-amber-500/15 rounded p-1 text-[8px] font-bold text-amber-300 text-center">
-                                Action Buttons
-                              </div>
-                            </div>
-                            <div className="border border-dashed border-emerald-400/90 bg-emerald-500/15 rounded-lg p-1 text-[9px] font-bold text-emerald-300 backdrop-blur-2xs text-center">
-                              Bottom Safe Zone (Title, Handle, Sound Wave)
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Hover Actions: Replace & Remove */}
-                      {!uploadState.isUploading && (
-                        <div className="absolute top-4 right-4 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              isReplacingRef.current = true;
-                              if (fileInputRef.current) {
-                                fileInputRef.current.value = '';
-                                fileInputRef.current.click();
-                              }
-                            }}
-                            className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
-                          >
-                            <Upload className="w-3 h-3" />
-                            <span>Replace</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMediaList([]);
-                              setUploadState({ isUploading: false, progress: 0, loadedBytes: 0, totalBytes: 0, stage: 'idle', statusMessage: '', error: null });
-                            }}
-                            className="p-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs backdrop-blur-xs shadow-md cursor-pointer"
-                            title="Remove media"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900">No Channels Selected</h3>
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                        Select one or more connected social accounts in the &quot;Publishing to Accounts&quot; bar above to open their custom publishing workspace.
+                      </p>
                     </div>
                   </div>
                 ) : (
-                  /* High-Converting Dropzone */
+                  /* Distinctive Platform Cards Grid inspired by Reference Design */
                   <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDragging(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDragging(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDragging(false);
-                      if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
-                    }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] ${
-                      isDragging
-                        ? 'border-emerald-500 bg-emerald-50/60 scale-[0.99]'
-                        : 'border-gray-300 hover:border-emerald-500 bg-gray-50/40 hover:bg-emerald-50/20'
+                    className={`grid gap-6 w-full ${
+                      selectedAccountIds.length === 1
+                        ? 'max-w-md mx-auto grid-cols-1'
+                        : selectedAccountIds.length === 2
+                        ? 'max-w-4xl mx-auto grid-cols-1 md:grid-cols-2'
+                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5 border border-emerald-100 shadow-2xs">
-                      <FileUp className="w-6 h-6" />
-                    </div>
+                    {selectedAccountIds.map((accId) => {
+                      const acc = accounts.find((a) => a.id === accId);
+                      if (!acc) return null;
 
-                    <h3 className="text-sm font-bold text-gray-800">
-                      Click to upload or drag & drop media
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Or press <kbd className="bg-gray-200/80 px-1.5 py-0.5 rounded font-mono text-[10px] text-gray-700">Ctrl + V</kbd> anywhere to paste from clipboard
-                    </p>
+                      const config = getPlatformVisualConfig(acc.platform);
+                      const activeFormat =
+                        accountFormats[accId] ||
+                        (acc.platform === 'youtube'
+                          ? currentPostType === 'video'
+                            ? 'video'
+                            : 'post'
+                          : currentPostType === 'video'
+                          ? 'reel'
+                          : 'post');
+                      const isCaptionOpen = expandedCaptions[accId] ?? true;
+                      const isFeaturesOpen = expandedFeatures[accId] ?? false;
+                      const accCaption = accountCaptions[accId]?.caption ?? '';
+                      const isCustomized = accCaption.trim().length > 0;
+                      const effectiveCaption = isCustomized ? accCaption : mainCaption;
+                      const charCount = effectiveCaption.length;
+                      const isOverLimit = config.limit && charCount > config.limit;
 
-                    <div className="flex items-center space-x-2 text-[11px] text-gray-400 mt-3">
-                      <span className="px-2 py-0.5 rounded-md bg-gray-100 font-semibold uppercase">
-                        {currentPostType === 'video' ? 'MP4, MOV, WEBM' : 'JPG, PNG, WEBP, GIF'}
-                      </span>
-                      <span>•</span>
-                      <span>Up to 500 MB</span>
-                    </div>
+                      return (
+                        <div
+                          key={acc.id}
+                          className={`bg-white rounded-3xl border-2 ${config.cardBorder} shadow-sm overflow-hidden flex flex-col w-full transition-all`}
+                        >
+                          {/* 1. PLATFORM HEADER (Brand Color / Gradient + Logo + Account Name) */}
+                          <div className={`px-5 py-3.5 ${config.headerBg} text-white flex items-center justify-between`}>
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/30 shadow-2xs">
+                                <PlatformLogo platform={acc.platform} className="w-4 h-4 text-white" />
+                              </div>
+                              <span className="text-white/60 font-light select-none">|</span>
+                              <span className="text-sm font-bold text-white tracking-tight truncate max-w-[200px]">
+                                {acc.displayName || acc.username || config.name}
+                              </span>
+                            </div>
+                            {acc.avatarUrl && (
+                              <img
+                                src={acc.avatarUrl}
+                                alt={acc.displayName || acc.username}
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.onerror = null;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    acc.displayName || acc.username || 'A'
+                                  )}&background=059669&color=fff&size=128&bold=true`;
+                                }}
+                                className="w-7 h-7 rounded-full object-cover border border-white/40 shrink-0 shadow-2xs"
+                              />
+                            )}
+                          </div>
+
+                          {/* 2. PUBLISHING FORMAT TABS (Post / Reel / Story) */}
+                          <div className="px-5 pt-4 pb-2 flex items-center gap-2">
+                            {config.supportedFormats.map((fmt) => {
+                              const isActive = activeFormat === fmt.id;
+                              return (
+                                <button
+                                  key={fmt.id}
+                                  type="button"
+                                  onClick={() => handleSelectFormat(acc.id, acc.platform, fmt.id)}
+                                  className={`flex-1 py-2 px-3 text-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    isActive
+                                      ? config.activeTabBg
+                                      : 'bg-white text-gray-700 border border-gray-200/90 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {fmt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* 3. UPLOAD MEDIA AREA (Dashed Border + Cloud Icon / Attached Media Preview) */}
+                          <div className="p-5 pt-2 space-y-3">
+                            {mediaList.length === 0 ? (
+                              <div
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  setIsDragging(true);
+                                }}
+                                onDragLeave={(e) => {
+                                  e.preventDefault();
+                                  setIsDragging(false);
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  setIsDragging(false);
+                                  if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+                                }}
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[175px] bg-white group ${
+                                  isDragging
+                                    ? 'border-emerald-500 bg-emerald-50/40'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/30'
+                                }`}
+                              >
+                                <div className="transition-transform duration-200 group-hover:scale-110">
+                                  <svg
+                                    className={`w-12 h-12 ${config.cloudIconClass}`}
+                                    viewBox="0 0 48 48"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path
+                                      d="M14 36H11C7.134 36 4 32.866 4 29C4 25.364 6.773 22.377 10.338 22.044C11.393 14.87 17.552 9.5 25 9.5C33.168 9.5 39.866 15.932 40.003 24.086C43.376 24.873 45.8 27.916 45.8 31.5C45.8 35.642 42.442 39 38.3 39H34"
+                                      stroke="currentColor"
+                                      strokeWidth="2.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                    <path
+                                      d="M24 23V40"
+                                      stroke="currentColor"
+                                      strokeWidth="2.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                    <path
+                                      d="M18 29L24 23L30 29"
+                                      stroke="currentColor"
+                                      strokeWidth="2.8"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </div>
+                                <h4 className="text-sm font-bold text-gray-800 mt-2.5">Upload Media</h4>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                  Click or drag &amp; drop (JPG, PNG, MP4 up to 500 MB)
+                                </p>
+                              </div>
+                            ) : (
+                              /* Attached Media Preview Box */
+                              <div className="space-y-2">
+                                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 group shadow-2xs min-h-[220px]">
+                                  <div
+                                    className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-xl shadow-xs max-h-[260px]`}
+                                  >
+                                    {mediaList[0].type === 'video' ? (
+                                      <video
+                                        src={mediaList[0].url}
+                                        controls={!uploadState.isUploading}
+                                        className={`w-full h-full ${
+                                          mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                                        } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
+                                      />
+                                    ) : (
+                                      <img
+                                        src={mediaList[0].thumbnailUrl || mediaList[0].url}
+                                        alt="Media Preview"
+                                        className={`w-full h-full ${
+                                          mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                                        } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
+                                      />
+                                    )}
+
+                                    {/* Real-Time Upload Progress Overlay */}
+                                    {(uploadState.isUploading || uploadState.stage === 'error') && (
+                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
+                                        {uploadState.stage === 'error' ? (
+                                          <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
+                                            <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
+                                            <p className="text-[11px] text-rose-600 leading-tight">
+                                              {uploadState.error || 'Upload failed.'}
+                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                isReplacingRef.current = true;
+                                                fileInputRef.current?.click();
+                                              }}
+                                              className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer"
+                                            >
+                                              Retry
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="bg-white/95 rounded-2xl border border-gray-200 shadow-xl p-4 max-w-[220px] w-full text-center space-y-2">
+                                            <div className="relative w-14 h-14 mx-auto flex items-center justify-center">
+                                              <svg className="w-14 h-14 -rotate-90">
+                                                <circle cx="28" cy="28" r="22" className="stroke-gray-100" strokeWidth="4" fill="transparent" />
+                                                <circle
+                                                  cx="28"
+                                                  cy="28"
+                                                  r="22"
+                                                  className="stroke-emerald-500 transition-all duration-150"
+                                                  strokeWidth="4"
+                                                  strokeDasharray={138.23}
+                                                  strokeDashoffset={138.23 - (138.23 * displayProgress) / 100}
+                                                  strokeLinecap="round"
+                                                  fill="transparent"
+                                                />
+                                              </svg>
+                                              <span className="absolute text-xs font-extrabold font-mono text-gray-900">
+                                                {displayProgress}%
+                                              </span>
+                                            </div>
+                                            <p className="text-[11px] font-bold text-gray-800">
+                                              {uploadState.stage === 'complete' ? 'Upload complete!' : 'Uploading media...'}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Hover Actions: Replace & Remove */}
+                                  {!uploadState.isUploading && (
+                                    <div className="absolute top-3 right-3 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          isReplacingRef.current = true;
+                                          if (fileInputRef.current) {
+                                            fileInputRef.current.value = '';
+                                            fileInputRef.current.click();
+                                          }
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
+                                      >
+                                        <Upload className="w-3 h-3" />
+                                        <span>Replace</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setMediaList([]);
+                                          setUploadState({
+                                            isUploading: false,
+                                            progress: 0,
+                                            loadedBytes: 0,
+                                            totalBytes: 0,
+                                            stage: 'idle',
+                                            statusMessage: '',
+                                            error: null,
+                                          });
+                                        }}
+                                        className="p-1 rounded-lg bg-rose-600/90 hover:bg-rose-700 text-white shadow-md cursor-pointer"
+                                        title="Remove media"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Framing & Aspect Controls Bar */}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 px-1 text-[11px] text-gray-500">
+                                  <div className="flex items-center space-x-1">
+                                    <span className="font-semibold text-gray-700">Aspect:</span>
+                                    {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((r) => (
+                                      <button
+                                        key={r}
+                                        type="button"
+                                        onClick={() => setAspectRatio(r)}
+                                        className={`px-1.5 py-0.5 rounded-md text-[10px] transition-colors cursor-pointer ${
+                                          aspectRatio === r ? 'bg-gray-900 text-white font-bold' : 'hover:bg-gray-100'
+                                        }`}
+                                      >
+                                        {r === 'original' ? 'Orig' : r}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setMediaFitMode(mediaFitMode === 'contain' ? 'cover' : 'contain')}
+                                      className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-[10px] font-semibold text-gray-700 cursor-pointer"
+                                    >
+                                      {mediaFitMode === 'contain' ? 'Fit' : 'Fill'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 4. EXPANDABLE CAPTION ROW */}
+                            <div className="space-y-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedCaptions((prev) => ({
+                                    ...prev,
+                                    [acc.id]: !(prev[acc.id] ?? true),
+                                  }))
+                                }
+                                className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
+                              >
+                                <div className="flex items-center space-x-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-gray-700 text-sm select-none">
+                                    T
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-800">Caption</span>
+                                  {isCustomized ? (
+                                    <span className="text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                                      Custom
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] bg-gray-100 text-gray-500 font-medium px-2 py-0.5 rounded-full">
+                                      Inheriting Master
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span
+                                    className={`text-[11px] font-mono ${
+                                      isOverLimit ? 'text-rose-600 font-bold' : 'text-gray-400'
+                                    }`}
+                                  >
+                                    {charCount}/{config.limit}
+                                  </span>
+                                  <ChevronRight
+                                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                                      isCaptionOpen ? 'rotate-90' : ''
+                                    }`}
+                                  />
+                                </div>
+                              </button>
+
+                              {/* Expanded Caption Editor */}
+                              {isCaptionOpen && (
+                                <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-2.5 animate-in fade-in duration-150">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] text-gray-400">
+                                      {isCustomized ? 'Unique caption for this channel' : 'Synced with master caption'}
+                                    </span>
+                                    <div className="flex items-center space-x-1.5">
+                                      {isCustomized ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAccountCaptions((prev) => ({
+                                              ...prev,
+                                              [acc.id]: { ...prev[acc.id], caption: '' },
+                                            }));
+                                            showToast(`Reset ${acc.displayName || acc.username} to master caption`);
+                                          }}
+                                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 px-2 py-0.5 rounded-md hover:bg-rose-50 cursor-pointer"
+                                        >
+                                          Inherit Master
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => copyFromMainCaption(acc.id)}
+                                          className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-0.5 rounded-md hover:bg-gray-200/70 cursor-pointer"
+                                        >
+                                          Copy Master
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <textarea
+                                    value={accountCaptions[acc.id]?.caption ?? ''}
+                                    onChange={(e) =>
+                                      setAccountCaptions((prev) => ({
+                                        ...prev,
+                                        [acc.id]: {
+                                          ...prev[acc.id],
+                                          caption: e.target.value,
+                                        },
+                                      }))
+                                    }
+                                    placeholder={
+                                      accountCaptions[acc.id]?.caption?.trim()
+                                        ? config.placeholder
+                                        : mainCaption.trim()
+                                        ? `(Inheriting: "${mainCaption.slice(0, 40)}...")`
+                                        : config.placeholder
+                                    }
+                                    className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-white"
+                                  />
+
+                                  {/* Over-limit Alert */}
+                                  {isOverLimit && (
+                                    <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 p-2 rounded-xl border border-rose-200">
+                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                      <span>
+                                        Exceeds {config.name} limit ({charCount}/{config.limit}). Please trim text.
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* YouTube Notice */}
+                                  {acc.platform === 'youtube' && (
+                                    <div className="text-[10px] text-gray-500 bg-white p-2 rounded-xl border border-gray-200/60 flex items-center space-x-1.5">
+                                      <Info className="w-3 h-3 text-gray-400 shrink-0" />
+                                      <span>Publishes as YouTube video description.</span>
+                                    </div>
+                                  )}
+
+                                  {/* AI polish shortcuts */}
+                                  <div className="flex items-center space-x-1 pt-0.5">
+                                    <span className="text-[10px] font-semibold text-gray-400 mr-1">AI Polish:</span>
+                                    {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
+                                      <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => applyAiEnhancement(mode, acc.id)}
+                                        className="px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[10px] font-semibold border border-gray-200 transition-colors cursor-pointer capitalize"
+                                      >
+                                        {mode}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 5. EXPANDABLE FEATURES ROW */}
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedFeatures((prev) => ({
+                                    ...prev,
+                                    [acc.id]: !prev[acc.id],
+                                  }))
+                                }
+                                className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
+                              >
+                                <div className="flex items-center space-x-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                                    <Settings className="w-4 h-4" />
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-800">Features</span>
+                                </div>
+                                <ChevronRight
+                                  className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                                    isFeaturesOpen ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              </button>
+
+                              {/* Expanded Features Panel */}
+                              {isFeaturesOpen && (
+                                <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-3 animate-in fade-in duration-150">
+                                  {acc.platform === 'instagram' && (
+                                    <div className="space-y-2.5">
+                                      {/* AI Content */}
+                                      <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                        <div className="flex items-center space-x-2">
+                                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                          <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          role="switch"
+                                          aria-checked={instagramAiLabel}
+                                          onClick={() => setInstagramAiLabel(!instagramAiLabel)}
+                                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                            instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
+                                          }`}
+                                        >
+                                          <span
+                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                              instagramAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                            }`}
+                                          />
+                                        </button>
+                                      </div>
+
+                                      {/* Collaboration Settings */}
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                          <div className="flex items-center space-x-2">
+                                            <Users className="w-3.5 h-3.5 text-rose-600" />
+                                            <span className="text-xs font-semibold text-gray-800">Collaboration Settings</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={isInstagramCollabEnabled}
+                                            onClick={() => setIsInstagramCollabEnabled(!isInstagramCollabEnabled)}
+                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                              isInstagramCollabEnabled ? 'bg-rose-600' : 'bg-gray-200'
+                                            }`}
+                                          >
+                                            <span
+                                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                                isInstagramCollabEnabled ? 'translate-x-4' : 'translate-x-0'
+                                              }`}
+                                            />
+                                          </button>
+                                        </div>
+                                        {isInstagramCollabEnabled && (
+                                          <div className="relative">
+                                            <span className="absolute left-2.5 top-2 text-xs font-bold text-rose-400 select-none">@</span>
+                                            <input
+                                              type="text"
+                                              value={instagramCollaborators}
+                                              onChange={(e) => setInstagramCollaborators(e.target.value)}
+                                              placeholder="handles (comma-separated)"
+                                              className="w-full pl-6 pr-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-rose-400 text-gray-800 placeholder:text-gray-400"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {acc.platform === 'facebook' && (
+                                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                      <div className="flex items-center space-x-2">
+                                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                                        <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={facebookAiLabel}
+                                        onClick={() => setFacebookAiLabel(!facebookAiLabel)}
+                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                          facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                            facebookAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {acc.platform === 'youtube' && (
+                                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                      <div className="flex items-center space-x-2">
+                                        <Sparkles className="w-3.5 h-3.5 text-red-600" />
+                                        <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={youtubeAiLabel}
+                                        onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
+                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                          youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                            youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {acc.platform !== 'instagram' && acc.platform !== 'facebook' && acc.platform !== 'youtube' && (
+                                    <div className="text-xs text-gray-500 py-1">
+                                      Standard publishing settings active for {config.name}.
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            )}
-
-            {/* 2. MAIN / DEFAULT CAPTION EDITOR WITH INTEGRATED LEFT-SIDE PLATFORM FEATURES */}
-            {(() => {
-              const hasPlatformFeatures =
-                selectedPlatforms.includes('instagram') ||
-                selectedPlatforms.includes('facebook') ||
-                selectedPlatforms.includes('youtube');
-
-              return (
-                <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs focus-within:border-emerald-500 transition-colors overflow-hidden">
-                  <div className="flex flex-col md:flex-row items-stretch">
-                    {/* Left Side: Compact Platform Features Panel */}
-                    {hasPlatformFeatures && (
-                      <div className="w-full md:w-64 lg:w-72 bg-slate-50/70 border-b md:border-b-0 md:border-r border-gray-100 p-4 shrink-0 space-y-3.5">
-                        <div className="flex items-center justify-between pb-1 border-b border-gray-200/60">
-                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                            Platform Features
-                          </span>
-                        </div>
-
-                        <div className="space-y-3">
-                          {/* Instagram Features */}
-                          {selectedPlatforms.includes('instagram') && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
-                                <PlatformLogo platform="instagram" className="w-3.5 h-3.5" />
-                                <span>Instagram</span>
-                              </div>
-
-                              {/* Row 1: AI-Generated Content */}
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
-                                <div className="flex items-center space-x-2 min-w-0">
-                                  <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                                  <span className="text-xs font-semibold text-gray-800 truncate">
-                                    AI-Generated Content
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={instagramAiLabel}
-                                  onClick={() => setInstagramAiLabel(!instagramAiLabel)}
-                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                                    instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
-                                  }`}
-                                >
-                                  <span
-                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                      instagramAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-
-                              {/* Row 2: Collaboration Settings */}
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
-                                  <div className="flex items-center space-x-2 min-w-0">
-                                    <Users className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                    <span className="text-xs font-semibold text-gray-800 truncate">
-                                      Collaboration Settings
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={isInstagramCollabEnabled}
-                                    onClick={() => setIsInstagramCollabEnabled(!isInstagramCollabEnabled)}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                                      isInstagramCollabEnabled ? 'bg-rose-600' : 'bg-gray-200'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                        isInstagramCollabEnabled ? 'translate-x-4' : 'translate-x-0'
-                                      }`}
-                                    />
-                                  </button>
-                                </div>
-                                {isInstagramCollabEnabled && (
-                                  <div className="relative">
-                                    <span className="absolute left-2.5 top-2 text-xs font-bold text-rose-400 select-none">@</span>
-                                    <input
-                                      type="text"
-                                      value={instagramCollaborators}
-                                      onChange={(e) => setInstagramCollaborators(e.target.value)}
-                                      placeholder="handles (comma-separated)"
-                                      className="w-full pl-6 pr-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-rose-400 focus:ring-1 focus:ring-rose-200 text-gray-800 placeholder:text-gray-400"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Facebook Features */}
-                          {selectedPlatforms.includes('facebook') && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
-                                <PlatformLogo platform="facebook" className="w-3.5 h-3.5" />
-                                <span>Facebook</span>
-                              </div>
-
-                              {/* Row: AI-Generated Content */}
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
-                                <div className="flex items-center space-x-2 min-w-0">
-                                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  <span className="text-xs font-semibold text-gray-800 truncate">
-                                    AI-Generated Content
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={facebookAiLabel}
-                                  onClick={() => setFacebookAiLabel(!facebookAiLabel)}
-                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                                    facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
-                                  }`}
-                                >
-                                  <span
-                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                      facebookAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* YouTube Features */}
-                          {selectedPlatforms.includes('youtube') && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-gray-700">
-                                <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
-                                <span>YouTube</span>
-                              </div>
-
-                              {/* Row: AI-Generated Content */}
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200/70 shadow-2xs">
-                                <div className="flex items-center space-x-2 min-w-0">
-                                  <Sparkles className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                                  <span className="text-xs font-semibold text-gray-800 truncate">
-                                    AI-Generated Content
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={youtubeAiLabel}
-                                  onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
-                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                                    youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
-                                  }`}
-                                >
-                                  <span
-                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                      youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Right Side: Main Caption Editor */}
-                    <div className="flex-1 p-5 space-y-3 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                            <span>
-                              {selectedAccountIds.length > 1
-                                ? 'Main Caption (Master / Default)'
-                                : accounts.find((a) => a.id === selectedAccountIds[0])
-                                ? `${accounts.find((a) => a.id === selectedAccountIds[0])?.displayName || accounts.find((a) => a.id === selectedAccountIds[0])?.username} Caption`
-                                : 'Post Caption'}
-                            </span>
-                            {selectedAccountIds.length === 1 && accounts.find((a) => a.id === selectedAccountIds[0]) && (
-                              <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize">
-                                {accounts.find((a) => a.id === selectedAccountIds[0])?.platform}
-                              </span>
-                            )}
-                            <Info className="w-3.5 h-3.5 text-gray-400" />
-                          </span>
-                          {selectedAccountIds.length > 1 ? (
-                            <span className="text-[11px] text-gray-400 block mt-0.5">
-                              Applies automatically across all selected accounts unless customized below.
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-gray-400 block mt-0.5">
-                              Default caption for your selected account.
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Live Character & Hashtag Counter */}
-                        <div className="flex items-center space-x-3 text-xs text-gray-400 font-medium">
-                          <span className="flex items-center space-x-1">
-                            <Hash className="w-3 h-3 text-gray-400" />
-                            <span>{mainHashtagsCount}/30</span>
-                          </span>
-                          <span>•</span>
-                          <span
-                            className={`font-mono ${
-                              mainCharsRemaining < 50 ? 'text-amber-600 font-bold' : ''
-                            }`}
-                          >
-                            {mainCaption.length} chars
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Textarea */}
-                      <textarea
-                        value={mainCaption}
-                        onChange={(e) => setMainCaption(e.target.value)}
-                        placeholder="What would you like to share? Write your post caption and hashtags..."
-                        className="w-full text-sm text-gray-800 placeholder:text-gray-400 border-none outline-none resize-none h-32 leading-relaxed bg-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* 3. DYNAMIC SEPARATE CAPTIONS FOR EVERY SELECTED ACCOUNT (Shown when >1 account selected) */}
-            {selectedAccountIds.length > 1 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-2">
-                      <span>Account-Specific Captions</span>
-                      <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                        {selectedAccountIds.length} active accounts
-                      </span>
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Customize independent captions for each account, or leave blank to inherit the main caption.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stack of Account Caption Editors */}
-                <div className="space-y-3">
-                  {selectedAccountIds.map((accId) => {
-                    const acc = accounts.find((a) => a.id === accId);
-                    if (!acc) return null;
-
-                    const platConfig =
-                      SUPPORTED_PLATFORMS.find((p) => p.id === acc.platform) || {
-                        id: acc.platform,
-                        name: acc.platform,
-                        brandColor: '#4F46E5',
-                        badgeBg: 'bg-indigo-600',
-                        limit: 2200,
-                        placeholder: 'Write account caption...',
-                      };
-
-                    const accData = accountCaptions[accId] || { caption: '' };
-                    const currentCaptionText = accData.caption;
-                    const charCount = currentCaptionText.length;
-                    const isOverLimit = platConfig.limit && charCount > platConfig.limit;
-                    const isCollapsed = collapsedPlatforms[accId];
-                    const isCustomized = currentCaptionText.trim().length > 0;
-
-                    return (
-                      <div
-                        key={accId}
-                        className={`bg-white rounded-2xl border transition-all ${
-                          isOverLimit
-                            ? 'border-rose-400 ring-2 ring-rose-400/20 shadow-xs'
-                            : 'border-gray-200/90 hover:border-gray-300 shadow-xs'
-                        }`}
-                      >
-                        {/* Account Caption Header */}
-                        <div className="p-4 flex items-center justify-between border-b border-gray-100">
-                          <div className="flex items-center space-x-3 min-w-0">
-                            {/* Account Avatar with Platform Badge */}
-                            <div className="relative shrink-0">
-                              {acc.avatarUrl ? (
-                                <img
-                                  src={acc.avatarUrl}
-                                  alt={acc.displayName || acc.username}
-                                  referrerPolicy="no-referrer"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.onerror = null;
-                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username || 'A')}&background=059669&color=fff&size=128&bold=true`;
-                                  }}
-                                  className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-xs text-gray-700">
-                                  {(acc.displayName || acc.username || acc.platform).charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-2xs">
-                                <PlatformLogo platform={acc.platform} className="w-2.5 h-2.5" />
-                              </div>
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-xs font-bold text-gray-900 block leading-tight truncate max-w-[200px] sm:max-w-[320px]">
-                                  {acc.displayName || acc.username}
-                                </span>
-                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-sm capitalize shrink-0">
-                                  {platConfig.name}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-gray-400 block mt-0.5 truncate">
-                                {acc.username && acc.username !== acc.displayName ? `@${acc.username} • ` : ''}
-                                {isCustomized ? (
-                                  <span className="text-emerald-600 font-semibold">Customized caption</span>
-                                ) : (
-                                  'Inheriting main caption'
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2 shrink-0">
-                            {/* Live Char Limit Counter */}
-                            <span
-                              className={`text-xs font-mono px-2 py-0.5 rounded-md ${
-                                isOverLimit
-                                  ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200'
-                                  : 'bg-gray-50 text-gray-500 font-medium'
-                              }`}
-                            >
-                              {charCount} / {platConfig.limit}
-                            </span>
-
-                            {/* Copy from Main Caption Button */}
-                            <button
-                              type="button"
-                              onClick={() => copyFromMainCaption(accId)}
-                              className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                              title="Copy main caption into this account"
-                            >
-                              <Copy className="w-3 h-3 text-gray-400" />
-                              <span className="hidden sm:inline">Copy Main</span>
-                            </button>
-
-                            {/* Reset / Inherit Button if customized */}
-                            {isCustomized && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAccountCaptions((prev) => ({
-                                    ...prev,
-                                    [accId]: {
-                                      ...prev[accId],
-                                      caption: '',
-                                    },
-                                  }));
-                                  showToast(`Reset ${acc.displayName || acc.username} to inherit main caption`);
-                                }}
-                                className="px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-600 text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                                title="Clear customized caption and inherit main caption"
-                              >
-                                <RotateCcw className="w-3 h-3 text-rose-400" />
-                                <span className="hidden sm:inline">Reset</span>
-                              </button>
-                            )}
-
-                            {/* Collapse/Expand Toggle */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCollapsedPlatforms((prev) => ({
-                                  ...prev,
-                                  [accId]: !prev[accId],
-                                }))
-                              }
-                              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-                            >
-                              {isCollapsed ? (
-                                <ChevronDown className="w-4 h-4" />
-                              ) : (
-                                <ChevronUp className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Collapsible Caption Input Area */}
-                        {!isCollapsed && (
-                          <div className="p-4 space-y-3">
-                            {/* Specific Caption Textarea */}
-                            <textarea
-                              value={accData.caption}
-                              onChange={(e) =>
-                                setAccountCaptions((prev) => ({
-                                  ...prev,
-                                  [accId]: {
-                                    ...prev[accId],
-                                    caption: e.target.value,
-                                  },
-                                }))
-                              }
-                              placeholder={
-                                accData.caption.trim()
-                                  ? platConfig.placeholder
-                                  : `Write custom caption for ${acc.displayName || acc.username} (Leave blank to use main caption)...`
-                              }
-                              className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200/80 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
-                            />
-
-                            {/* Platform Validation Warning if exceeded */}
-                            {isOverLimit && (
-                              <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
-                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                <span>
-                                  Exceeds {platConfig.name} character limit ({charCount} / {platConfig.limit}). Please trim text.
-                                </span>
-                              </div>
-                            )}
-
-                            {acc.platform === 'youtube' && (
-                              <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-200/60 flex items-center space-x-2">
-                                <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                <span>
-                                  Caption for YouTube channel &quot;{acc.displayName || acc.username}&quot; publishes as video description.
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-
+            </div>
           </div>
 
-          {/* RIGHT COLUMN: Dedicated Live Feed Preview Section (Top) & Publishing Mode Section (Below) */}
-          <div className="space-y-6">
-            {/* 1. DEDICATED LIVE FEED PREVIEW SECTION (Positioned at top for instant visual feedback) */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center space-x-2">
-                  <Eye className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
-                </div>
-                <span className="text-[11px] text-gray-400 font-medium">
-                  {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} selected
-                </span>
-              </div>
-
-              {/* Platform Preview Selector Bar */}
-              <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                  {selectedAccountIds.length > 1 ? (
-                    selectedAccountIds.map((accId) => {
-                      const acc = accounts.find((a) => a.id === accId);
-                      if (!acc) return null;
-                      const isActive = previewAccount?.id === acc.id;
-                      const hasCustomCaption = Boolean(
-                        accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
-                      );
-                      return (
-                        <button
-                          key={acc.id}
-                          type="button"
-                          onClick={() => {
-                            setActivePreviewAccountId(acc.id);
-                            setActivePreviewPlatform(acc.platform);
-                          }}
-                          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-gray-900 text-white shadow-xs'
-                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
-                          }`}
-                        >
-                          <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
-                          <span className="truncate max-w-[100px]">{acc.displayName || acc.username}</span>
-                          {hasCustomCaption && (
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
-                              title="Customized caption"
-                            />
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    (selectedPlatforms.length > 0
-                      ? selectedPlatforms
-                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
-                    ).map((platform) => {
-                      const isActive = activePreviewPlatform === platform;
-                      const hasCustomCaption = Boolean(
-                        previewAccount &&
-                          (accountCaptions[previewAccount.id]?.caption?.trim() ||
-                            accountCaptions[previewAccount.id]?.title?.trim())
-                      );
-                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                      const platformName = config?.name || platform;
-
-                      return (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setActivePreviewPlatform(platform)}
-                          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-gray-900 text-white shadow-xs'
-                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
-                          }`}
-                        >
-                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
-                          <span className="capitalize">{platformName}</span>
-                          {hasCustomCaption && (
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
-                              title="Customized caption"
-                            />
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Authentic Platform-Specific Post Preview with Real-time Updates */}
-              <PostPreview
-                post={previewPostData}
-                selectedPlatform={activePreviewPlatform}
-                activeAccount={previewAccount}
-                previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
-                aspectRatio={aspectRatio}
-                mediaFitMode={mediaFitMode}
-              />
-            </div>
-
-            {/* 2. PUBLISHING MODE SECTION (Positioned below preview with modern time picker) */}
-            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
-              {/* Publishing Mode Switcher (Schedule vs Instant) */}
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
-                <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setScheduleMode('schedule')}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                      scheduleMode === 'schedule'
-                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    Schedule
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleMode('instant')}
-                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                      scheduleMode === 'instant'
-                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    Instant
-                  </button>
-                </div>
-              </div>
-
-              {scheduleMode === 'schedule' ? (
-                <div className="space-y-5">
-                  {/* Professional Date & Time Picker Component */}
-                  <ScheduleDatePicker
-                    scheduledDate={scheduledDate}
-                    scheduledTime={scheduledTime}
-                    onDateChange={(d) => setScheduledDate(d)}
-                    onTimeChange={(t) => setScheduledTime(t)}
-                    onValidationChange={(valid) => setIsScheduleValid(valid)}
-                  />
-
-                  {/* Schedule Post Action Button */}
-                  <button
-                    type="button"
-                    disabled={isSubmitting || !isScheduleValid}
-                    onClick={() => handleExecute('schedule')}
-                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span>{uploadState.isUploading ? `Uploading media (${displayProgress}%)...` : isSubmitting ? 'Queueing in Supabase...' : 'Schedule Post'}</span>
-                  </button>
-                </div>
-              ) : (
-                /* Instant Live Dispatch Mode */
-                <div className="space-y-4">
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-                    <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                      <span>
-                        Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
-                      </span>
-                    </div>
+          {/* RIGHT: DEDICATED LIVE FEED PREVIEW & PUBLISHING MODE (Fully Functional) */}
+          {isPreviewPanelOpen && (
+            <div className="xl:col-span-4 space-y-6 animate-in fade-in duration-200">
+              {/* 1. DEDICATED LIVE FEED PREVIEW */}
+              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center space-x-2">
+                    <Eye className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
                   </div>
+                  <span className="text-[11px] text-gray-400 font-medium">
+                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} selected
+                  </span>
+                </div>
 
+                {/* Platform Preview Selector Bar */}
+                <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                    {selectedAccountIds.length > 1 ? (
+                      selectedAccountIds.map((accId) => {
+                        const acc = accounts.find((a) => a.id === accId);
+                        if (!acc) return null;
+                        const isActive = previewAccount?.id === acc.id;
+                        const hasCustomCaption = Boolean(
+                          accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
+                        );
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => {
+                              setActivePreviewAccountId(acc.id);
+                              setActivePreviewPlatform(acc.platform);
+                            }}
+                            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-gray-900 text-white shadow-xs'
+                                : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                            <span className="truncate max-w-[100px]">{acc.displayName || acc.username}</span>
+                            {hasCustomCaption && (
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
+                                title="Customized caption"
+                              />
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      (selectedPlatforms.length > 0
+                        ? selectedPlatforms
+                        : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
+                      ).map((platform) => {
+                        const isActive = activePreviewPlatform === platform;
+                        const hasCustomCaption = Boolean(
+                          previewAccount &&
+                            (accountCaptions[previewAccount.id]?.caption?.trim() ||
+                              accountCaptions[previewAccount.id]?.title?.trim())
+                        );
+                        const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+                        const platformName = config?.name || platform;
+
+                        return (
+                          <button
+                            key={platform}
+                            type="button"
+                            onClick={() => setActivePreviewPlatform(platform)}
+                            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-gray-900 text-white shadow-xs'
+                                : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
+                            <span className="capitalize">{platformName}</span>
+                            {hasCustomCaption && (
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
+                                title="Customized caption"
+                              />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Real-time Post Preview */}
+                <PostPreview
+                  post={previewPostData}
+                  selectedPlatform={activePreviewPlatform}
+                  activeAccount={previewAccount}
+                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
+                  aspectRatio={aspectRatio}
+                  mediaFitMode={mediaFitMode}
+                />
+              </div>
+
+              {/* 2. PUBLISHING MODE SECTION */}
+              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
+                {/* Publishing Mode Switcher (Schedule vs Instant) */}
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
+                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode('schedule')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                        scheduleMode === 'schedule'
+                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                          : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      Schedule
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode('instant')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                        scheduleMode === 'instant'
+                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                          : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      Instant
+                    </button>
+                  </div>
+                </div>
+
+                {scheduleMode === 'schedule' ? (
+                  <div className="space-y-5">
+                    {/* Professional Date & Time Picker */}
+                    <ScheduleDatePicker
+                      scheduledDate={scheduledDate}
+                      scheduledTime={scheduledTime}
+                      onDateChange={(d) => setScheduledDate(d)}
+                      onTimeChange={(t) => setScheduledTime(t)}
+                      onValidationChange={(valid) => setIsScheduleValid(valid)}
+                    />
+
+                    {/* Schedule Post Action Button */}
+                    <button
+                      type="button"
+                      disabled={isSubmitting || !isScheduleValid}
+                      onClick={() => handleExecute('schedule')}
+                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span>
+                        {uploadState.isUploading
+                          ? `Uploading media (${displayProgress}%)...`
+                          : isSubmitting
+                          ? 'Queueing in Supabase...'
+                          : 'Schedule Post'}
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  /* Instant Live Dispatch Mode */
+                  <div className="space-y-4">
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
+                      <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-semibold">Immediate Live Dispatch</strong>
+                        <span>
+                          Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => handleExecute('publish-now')}
+                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>
+                        {uploadState.isUploading
+                          ? `Uploading media (${displayProgress}%)...`
+                          : isSubmitting
+                          ? 'Publishing live...'
+                          : 'Publish Live Now'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Status Bar */}
+                <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
+                  <span className="flex items-center space-x-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>
+                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
+                    </span>
+                  </span>
+                  <span>Supabase Queue Active</span>
+                </div>
+
+                {/* Action Buttons: Save to Draft & Exit */}
+                <div className="space-y-2 pt-1 border-t border-gray-100">
                   <button
                     type="button"
                     disabled={isSubmitting}
-                    onClick={() => handleExecute('publish-now')}
-                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                    onClick={() => handleExecute('draft')}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                   >
-                    <Send className="w-4 h-4" />
-                    <span>{uploadState.isUploading ? `Uploading media (${displayProgress}%)...` : isSubmitting ? 'Publishing live...' : 'Publish Live Now'}</span>
+                    <Save className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Save as Draft</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="w-full py-2 px-4 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                    title="Exit to Dashboard"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+                    <span>Exit to Dashboard</span>
                   </button>
                 </div>
-              )}
-
-              {/* Status Bar */}
-              <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
-                <span className="flex items-center space-x-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>
-                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
-                  </span>
-                </span>
-                <span>Supabase Queue Active</span>
-              </div>
-
-              {/* Action Buttons: Save to Draft & Exit */}
-              <div className="space-y-2 pt-1 border-t border-gray-100">
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleExecute('draft')}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Save className="w-3.5 h-3.5 text-gray-500" />
-                  <span>Save as Draft</span>
-                </button>
-
-                {/* Bottom Exit Button */}
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="w-full py-2 px-4 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                  title="Exit to Dashboard"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
-                  <span>Exit to Dashboard</span>
-                </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
