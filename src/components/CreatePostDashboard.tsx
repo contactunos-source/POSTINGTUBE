@@ -591,6 +591,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [accountFormats, setAccountFormats] = useState<Record<string, string>>({});
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
   const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({});
+  // Instagram AI Features - per-account tab state
+  const [instagramFeatureTabs, setInstagramFeatureTabs] = useState<Record<string, 'music'|'text'|'topics'|'products'|null>>({});
+  const [instagramMusicQuery, setInstagramMusicQuery] = useState<Record<string, string>>({});
+  const [instagramTextOverlay, setInstagramTextOverlay] = useState<Record<string, string>>({});
+  const [instagramTopics, setInstagramTopics] = useState<Record<string, string>>({});
+  const [instagramProductTags, setInstagramProductTags] = useState<Record<string, string>>({});
 
   // Strictly independent format selection per account - never mutates other accounts
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
@@ -1480,20 +1486,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-gray-50/30"
             />
 
-            {/* Quick AI buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
-              {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => applyAiEnhancement(mode)}
-                  className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[11px] font-semibold transition-colors cursor-pointer capitalize"
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+
           </div>
         )}
 
@@ -1524,25 +1517,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               className="w-full text-sm text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-2xl p-4 focus:outline-hidden focus:border-emerald-500 resize-none min-h-[220px] leading-relaxed bg-white"
             />
 
-            {/* AI Assistant Helpers */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
-                {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => applyAiEnhancement(mode)}
-                    className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-xs font-semibold transition-colors cursor-pointer capitalize"
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-              <div className="text-[11px] text-gray-400">
-                Supported: Facebook, LinkedIn, Threads, X
-              </div>
-            </div>
+
           </div>
         ) : (
           /* PART 1: HORIZONTAL SLIDING WORKSPACE WITH FIXED-WIDTH PLATFORM CARDS */
@@ -1889,20 +1864,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               </div>
                             )}
 
-                            {/* AI Polish */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                              <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
-                              {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
-                                <button
-                                  key={mode}
-                                  type="button"
-                                  onClick={() => applyAiEnhancement(mode, acc.id)}
-                                  className="px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[10px] font-semibold border border-gray-200 transition-colors cursor-pointer capitalize"
-                                >
-                                  {mode}
-                                </button>
-                              ))}
-                            </div>
+
                           </div>
                         )}
                       </div>
@@ -1936,7 +1898,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         {isFeaturesOpen && (
                           <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-3 animate-in fade-in duration-150">
                             {acc.platform === 'instagram' && (
-                              <div className="space-y-2.5">
+                              <div className="space-y-3">
+                                {/* AI-Generated Content Toggle */}
                                 <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
                                   <div className="flex items-center space-x-2">
                                     <Sparkles className="w-3.5 h-3.5 text-purple-600" />
@@ -1959,6 +1922,97 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   </button>
                                 </div>
 
+                                {/* Instagram Creative Features: Music / Text / Topics / Tag Products */}
+                                <div className="space-y-2">
+                                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Instagram Features</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {([
+                                      { id: 'music' as const, label: '♪ Music' },
+                                      { id: 'text' as const, label: 'Aa Text' },
+                                      { id: 'topics' as const, label: '# Topics' },
+                                      { id: 'products' as const, label: '🏷 Tag Products' },
+                                    ]).map((feat) => {
+                                      const isActive = instagramFeatureTabs[acc.id] === feat.id;
+                                      return (
+                                        <button
+                                          key={feat.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setInstagramFeatureTabs((prev) => ({
+                                              ...prev,
+                                              [acc.id]: prev[acc.id] === feat.id ? null : feat.id,
+                                            }))
+                                          }
+                                          className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                            isActive
+                                              ? 'bg-gray-900 text-white shadow-xs'
+                                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                          }`}
+                                        >
+                                          {feat.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Music Panel */}
+                                  {instagramFeatureTabs[acc.id] === 'music' && (
+                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
+                                      <p className="text-[11px] text-gray-500">Search for a track to add to your Reel or Story. Music can only be set via Instagram's native creator tools — enter your desired track below and we'll include it as a note.</p>
+                                      <input
+                                        type="text"
+                                        value={instagramMusicQuery[acc.id] || ''}
+                                        onChange={(e) => setInstagramMusicQuery((prev) => ({ ...prev, [acc.id]: e.target.value }))}
+                                        placeholder="e.g. Blinding Lights – The Weeknd"
+                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Text Overlay Panel */}
+                                  {instagramFeatureTabs[acc.id] === 'text' && (
+                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
+                                      <p className="text-[11px] text-gray-500">Add a text overlay note for your Story or Reel. This will be included as a creative direction note.</p>
+                                      <input
+                                        type="text"
+                                        value={instagramTextOverlay[acc.id] || ''}
+                                        onChange={(e) => setInstagramTextOverlay((prev) => ({ ...prev, [acc.id]: e.target.value }))}
+                                        placeholder="e.g. NEW DROP 🔥 Available Now"
+                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Topics Panel */}
+                                  {instagramFeatureTabs[acc.id] === 'topics' && (
+                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
+                                      <p className="text-[11px] text-gray-500">Add relevant topics to help Instagram categorize your content and improve discoverability.</p>
+                                      <input
+                                        type="text"
+                                        value={instagramTopics[acc.id] || ''}
+                                        onChange={(e) => setInstagramTopics((prev) => ({ ...prev, [acc.id]: e.target.value }))}
+                                        placeholder="e.g. Fashion, Travel, Fitness (comma separated)"
+                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Tag Products Panel */}
+                                  {instagramFeatureTabs[acc.id] === 'products' && (
+                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
+                                      <p className="text-[11px] text-gray-500">Tag products from your Instagram Shop. Your account must be eligible for Instagram Shopping. Enter product names or IDs to tag.</p>
+                                      <input
+                                        type="text"
+                                        value={instagramProductTags[acc.id] || ''}
+                                        onChange={(e) => setInstagramProductTags((prev) => ({ ...prev, [acc.id]: e.target.value }))}
+                                        placeholder="e.g. Product Name, SKU-001"
+                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Instagram Collaborators */}
                                 <div className="p-2 rounded-xl bg-white border border-gray-200 shadow-2xs space-y-2">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-2">
@@ -2206,7 +2260,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       {uploadState.isUploading
                         ? `Uploading media (${displayProgress}%)...`
                         : isSubmitting
-                        ? 'Queueing in Supabase...'
+                        ? 'Scheduling your post...'
                         : 'Schedule Post'}
                     </span>
                   </button>
@@ -2250,7 +2304,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
                   </span>
                 </span>
-                <span>Supabase Queue Active</span>
+                <span>Publishing queue active</span>
               </div>
 
               {/* Action Buttons: Save to Draft & Exit */}

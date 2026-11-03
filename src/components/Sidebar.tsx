@@ -196,11 +196,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 text-sm">
-          {/* Create */}
+          {/* Main Navigation */}
           <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
-              Create
-            </div>
             <nav className="space-y-0.5">
               <button
                 onClick={() => handleTabClick('new-post')}
@@ -216,10 +213,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
           </div>
 
-          {/* Posts */}
+          {/* Content */}
           <div>
             <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
-              Publishing
+              Content
             </div>
             <nav className="space-y-0.5">
               <button
@@ -247,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
           </div>
 
-          {/* Insights Section */}
+          {/* Analytics */}
           <div>
             <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1 flex items-center justify-between">
               <button
@@ -262,7 +259,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     : 'text-gray-400 hover:text-gray-700'
                 }`}
               >
-                Insights
+                Analytics
               </button>
             </div>
             <nav className="space-y-0.5">
@@ -293,10 +290,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
           </div>
 
-          {/* Configuration */}
+          {/* Workspace */}
           <div>
             <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
-              Configuration
+              Workspace
             </div>
             <nav className="space-y-0.5">
               <button
