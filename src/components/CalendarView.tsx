@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { Post, SocialAccount, SocialPlatform, PostStatus } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
@@ -116,13 +116,83 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const postModalRef = useRef<HTMLDivElement>(null);
   const noDateDrawerRef = useRef<HTMLDivElement>(null);
 
+  // Modal helpers with Browser History & Escape Key support
+  const openPostModal = (post: Post) => {
+    setInspectedPost(post);
+    setRescheduleDateInput(formatToDateTimeLocal(post.scheduledFor));
+    setRescheduleSuccessMsg(null);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ calendarModal: 'post' }, '');
+    }
+  };
+
+  const closePostModal = () => {
+    setInspectedPost(null);
+    if (typeof window !== 'undefined' && window.history.state?.calendarModal === 'post') {
+      window.history.back();
+    }
+  };
+
+  const openDayModal = (day: Date) => {
+    setSelectedDayForModal(day);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ calendarModal: 'day' }, '');
+    }
+  };
+
+  const closeDayModal = () => {
+    setSelectedDayForModal(null);
+    if (typeof window !== 'undefined' && window.history.state?.calendarModal === 'day') {
+      window.history.back();
+    }
+  };
+
   useClickOutside(viewMenuRef, () => setIsViewMenuOpen(false), { enabled: isViewMenuOpen });
   useClickOutside(statusMenuRef, () => setIsStatusMenuOpen(false), { enabled: isStatusMenuOpen });
   useClickOutside(platformMenuRef, () => setIsPlatformMenuOpen(false), { enabled: isPlatformMenuOpen });
   useClickOutside(postTypeMenuRef, () => setIsPostTypeMenuOpen(false), { enabled: isPostTypeMenuOpen });
-  useClickOutside(dayModalRef, () => setSelectedDayForModal(null), { enabled: selectedDayForModal !== null });
-  useClickOutside(postModalRef, () => setInspectedPost(null), { enabled: inspectedPost !== null });
+  useClickOutside(dayModalRef, () => closeDayModal(), { enabled: selectedDayForModal !== null });
+  useClickOutside(postModalRef, () => closePostModal(), { enabled: inspectedPost !== null });
   useClickOutside(noDateDrawerRef, () => setIsNoDateDrawerOpen(false), { enabled: isNoDateDrawerOpen });
+
+  // Handle Browser Back Navigation for Modals
+  useEffect(() => {
+    const handlePopState = () => {
+      if (inspectedPost) setInspectedPost(null);
+      if (selectedDayForModal) setSelectedDayForModal(null);
+      if (isNoDateDrawerOpen) setIsNoDateDrawerOpen(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [inspectedPost, selectedDayForModal, isNoDateDrawerOpen]);
+
+  // Handle Escape Key to dismiss any active modal, popover, or drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (inspectedPost) {
+          closePostModal();
+          e.stopPropagation();
+        } else if (selectedDayForModal) {
+          closeDayModal();
+          e.stopPropagation();
+        } else if (isNoDateDrawerOpen) {
+          setIsNoDateDrawerOpen(false);
+          e.stopPropagation();
+        } else if (isViewMenuOpen || isStatusMenuOpen || isPlatformMenuOpen || isPostTypeMenuOpen) {
+          setIsViewMenuOpen(false);
+          setIsStatusMenuOpen(false);
+          setIsPlatformMenuOpen(false);
+          setIsPostTypeMenuOpen(false);
+          e.stopPropagation();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inspectedPost, selectedDayForModal, isNoDateDrawerOpen, isViewMenuOpen, isStatusMenuOpen, isPlatformMenuOpen, isPostTypeMenuOpen]);
 
   // Drag and drop state
   const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
@@ -223,19 +293,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return posts.filter((p) => p.status === 'draft' && !p.scheduledFor && !p.publishedAt);
   }, [posts]);
 
-  // Retrieve posts for a specific day sorted chronologically by exact IST time
-  const getPostsForDay = (day: Date) => {
-    const matched = filteredPosts.filter((p) => postMatchesDay(p, day));
-    return matched.sort((a, b) => {
-      const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
-      const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
-      const partsA = getIstTimeParts(timeA);
-      const partsB = getIstTimeParts(timeB);
-      const minsA = partsA.hour24 * 60 + partsA.minute;
-      const minsB = partsB.hour24 * 60 + partsB.minute;
-      return minsA - minsB;
+  // Pre-index filtered posts into an IST date map to achieve instant O(1) lookups instead of O(N*logN) repeated 168 times
+  const postsByDayMap = useMemo(() => {
+    const map = new Map<string, Post[]>();
+    for (const post of filteredPosts) {
+      const dateIso = post.scheduledFor || post.publishedAt || post.createdAt;
+      if (!dateIso) continue;
+      const istKey = getIstDateString(dateIso);
+      const list = map.get(istKey) || [];
+      list.push(post);
+      map.set(istKey, list);
+    }
+    map.forEach((list) => {
+      list.sort((a, b) => {
+        const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
+        const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
+        const partsA = getIstTimeParts(timeA);
+        const partsB = getIstTimeParts(timeB);
+        return partsA.hour24 * 60 + partsA.minute - (partsB.hour24 * 60 + partsB.minute);
+      });
     });
-  };
+    return map;
+  }, [filteredPosts]);
+
+  // Retrieve posts for a specific day sorted chronologically by exact IST time (O(1) lookup)
+  const getPostsForDay = useCallback(
+    (day: Date) => {
+      const key = getIstDateString(day);
+      return postsByDayMap.get(key) || [];
+    },
+    [postsByDayMap]
+  );
 
   // Helper to get accounts targeted by a post
   const getAccountsForPost = (post: Post): SocialAccount[] => {
@@ -377,9 +465,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         onDragStart={(e) => handleDragStart(e, post)}
         onClick={(e) => {
           e.stopPropagation();
-          setInspectedPost(post);
-          setRescheduleDateInput(formatToDateTimeLocal(post.scheduledFor));
-          setRescheduleSuccessMsg(null);
+          openPostModal(post);
         }}
         className={`group/card bg-white border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
           post.status === 'published'
@@ -1069,7 +1155,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onDragOver={(e) => handleDragOverDay(e, day)}
                       onDragLeave={() => handleDragLeaveDay(day)}
                       onDrop={(e) => handleDropOnDay(e, day)}
-                      onClick={() => setSelectedDayForModal(day)}
+                      onClick={() => openDayModal(day)}
                       className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[120px] sm:min-h-[135px] cursor-pointer ${
                         isDropTarget
                           ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
@@ -1301,8 +1387,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </span>
               </div>
               <button
-                onClick={() => setSelectedDayForModal(null)}
-                className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700"
+                onClick={() => closeDayModal()}
+                className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1315,7 +1401,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               ) : (
                 getPostsForDay(selectedDayForModal).map((post) => (
-                  <div key={post.id} onClick={() => setSelectedDayForModal(null)}>
+                  <div key={post.id} onClick={() => closeDayModal()}>
                     {renderPostCard(post)}
                   </div>
                 ))
@@ -1326,10 +1412,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 onClick={() => {
                   const targetDay = selectedDayForModal;
-                  setSelectedDayForModal(null);
+                  closeDayModal();
                   onCreateAtDate(targetDay);
                 }}
-                className="w-full py-2.5 rounded-xl bg-black hover:bg-gray-800 text-white text-xs font-bold transition-colors flex items-center justify-center space-x-1.5"
+                className="w-full py-2.5 rounded-xl bg-black hover:bg-gray-800 text-white text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Schedule New Post for this Date</span>
@@ -1367,8 +1453,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </span>
               </div>
               <button
-                onClick={() => setInspectedPost(null)}
-                className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700"
+                onClick={() => closePostModal()}
+                className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1508,18 +1594,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 onClick={() => {
                   const postToEdit = inspectedPost;
-                  setInspectedPost(null);
+                  closePostModal();
                   onSelectPost(postToEdit);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors flex items-center space-x-1.5"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors flex items-center space-x-1.5 cursor-pointer"
               >
                 <FileEdit className="w-3.5 h-3.5" />
                 <span>Edit in Composer</span>
               </button>
 
               <button
-                onClick={() => setInspectedPost(null)}
-                className="text-xs text-gray-500 hover:text-gray-800 font-medium"
+                onClick={() => closePostModal()}
+                className="text-xs text-gray-500 hover:text-gray-800 font-medium cursor-pointer"
               >
                 Close
               </button>

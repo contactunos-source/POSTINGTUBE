@@ -62,6 +62,9 @@ import {
   Type,
   Settings,
   Sliders,
+  ChevronLeft,
+  Trash2,
+  UploadCloud,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
@@ -432,6 +435,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isReplacingRef = useRef(false);
 
+  const triggerUploadPicker = () => {
+    isReplacingRef.current = false;
+    fileInputRef.current?.click();
+  };
+
+  const triggerReplaceMedia = () => {
+    isReplacingRef.current = true;
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveMedia = (mediaId?: string) => {
+    if (mediaId) {
+      setMediaList((prev) => prev.filter((m) => m.id !== mediaId));
+    } else {
+      setMediaList([]);
+    }
+  };
+
   // Real Numerical Media Upload Progress state (1% - 100%)
   const [uploadState, setUploadState] = useState<MediaUploadState>({
     isUploading: false,
@@ -532,39 +553,66 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Canva-style Workspace Zoom Controls & Platform Panels State
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  // Horizontal Sliding Workspace Ref & Smooth Drag/Scroll Navigation
+  const workspaceScrollRef = useRef<HTMLDivElement>(null);
+  const [isWorkspaceDragging, setIsWorkspaceDragging] = useState(false);
+  const [workspaceStartX, setWorkspaceStartX] = useState(0);
+  const [workspaceScrollStart, setWorkspaceScrollStart] = useState(0);
+
+  const handleSlideLeft = () => {
+    workspaceScrollRef.current?.scrollBy({ left: -440, behavior: 'smooth' });
+  };
+
+  const handleSlideRight = () => {
+    workspaceScrollRef.current?.scrollBy({ left: 440, behavior: 'smooth' });
+  };
+
+  const handleWorkspaceMouseDown = (e: React.MouseEvent) => {
+    if (!workspaceScrollRef.current) return;
+    setIsWorkspaceDragging(true);
+    setWorkspaceStartX(e.pageX - workspaceScrollRef.current.offsetLeft);
+    setWorkspaceScrollStart(workspaceScrollRef.current.scrollLeft);
+  };
+
+  const handleWorkspaceMouseMove = (e: React.MouseEvent) => {
+    if (!isWorkspaceDragging || !workspaceScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - workspaceScrollRef.current.offsetLeft;
+    const walk = (x - workspaceStartX) * 1.5;
+    workspaceScrollRef.current.scrollLeft = workspaceScrollStart - walk;
+  };
+
+  const handleWorkspaceMouseUp = () => {
+    setIsWorkspaceDragging(false);
+  };
+
   const [isPreviewPanelOpen, setIsPreviewPanelOpen] = useState<boolean>(true);
   const [isMasterCaptionOpen, setIsMasterCaptionOpen] = useState<boolean>(false);
   const [accountFormats, setAccountFormats] = useState<Record<string, string>>({});
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
   const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({});
 
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(140, prev + 10));
-  const handleZoomOut = () => setZoomLevel((prev) => Math.max(60, prev - 10));
-  const handleZoomReset = () => setZoomLevel(100);
-  const handleFitToScreen = () => {
-    if (selectedAccountIds.length >= 3) {
-      setZoomLevel(75);
-    } else if (selectedAccountIds.length === 2) {
-      setZoomLevel(90);
-    } else {
-      setZoomLevel(100);
-    }
-  };
-
+  // Strictly independent format selection per account - never mutates other accounts
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
     setAccountFormats((prev) => ({ ...prev, [accId]: formatId }));
-    if (formatId === 'reel' || formatId === 'short' || formatId === 'story') {
-      setAspectRatio('9:16');
-      if (currentPostType !== 'video') setCurrentPostType('video');
-    } else if (formatId === 'video') {
-      setAspectRatio('16:9');
-      if (currentPostType !== 'video') setCurrentPostType('video');
-    } else {
-      setAspectRatio('original');
-    }
   };
+
+  // Keyboard Escape listener for modals and master caption
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (scheduleLimitModal?.isOpen) {
+          setScheduleLimitModal(null);
+          e.stopPropagation();
+        } else if (isMasterCaptionOpen) {
+          setIsMasterCaptionOpen(false);
+          e.stopPropagation();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [scheduleLimitModal, isMasterCaptionOpen]);
 
   // Clipboard Paste (Ctrl+V) listener
   useEffect(() => {
@@ -1348,7 +1396,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           className="hidden"
         />
 
-        {/* WORKSPACE TOOLBAR & CANVA-STYLE ZOOM CONTROLS */}
+        {/* WORKSPACE TOOLBAR WITH HORIZONTAL SLIDING CONTROLS */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200/90 p-3.5 px-5 shadow-xs">
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
@@ -1361,7 +1409,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </span>
 
             {/* Master Caption quick toggle for multi-channel workflows */}
-            {selectedAccountIds.length > 1 && (
+            {selectedAccountIds.length > 1 && currentPostType !== 'text' && (
               <button
                 type="button"
                 onClick={() => setIsMasterCaptionOpen(!isMasterCaptionOpen)}
@@ -1378,76 +1426,32 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             )}
           </div>
 
-          {/* Canva-Style Zoom Controls */}
-          <div className="flex items-center space-x-1.5">
-            <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200/80">
-              <button
-                type="button"
-                onClick={handleZoomOut}
-                disabled={zoomLevel <= 60}
-                className="p-1.5 hover:bg-white rounded-lg text-gray-600 hover:text-gray-900 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Zoom Out (-10%)"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleZoomReset}
-                className="px-2.5 py-1 text-xs font-mono font-bold text-gray-800 hover:text-emerald-700 transition-colors cursor-pointer"
-                title="Click to Reset Zoom (100%)"
-              >
-                {zoomLevel}%
-              </button>
-              <button
-                type="button"
-                onClick={handleZoomIn}
-                disabled={zoomLevel >= 140}
-                className="p-1.5 hover:bg-white rounded-lg text-gray-600 hover:text-gray-900 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Zoom In (+10%)"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
+          {/* Smooth Horizontal Sliding Navigation Controls */}
+          <div className="flex items-center space-x-2">
+            <span className="text-[11px] text-gray-400 font-medium hidden sm:inline mr-1">
+              Scroll channels
+            </span>
             <button
               type="button"
-              onClick={handleFitToScreen}
-              className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
-              title="Fit to Screen"
+              onClick={handleSlideLeft}
+              className="p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 border border-gray-200/80 transition-all cursor-pointer shadow-2xs"
+              title="Slide Left"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-
             <button
               type="button"
-              onClick={handleZoomReset}
-              className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-colors cursor-pointer border border-transparent hover:border-gray-200"
-              title="Reset Zoom to 100%"
+              onClick={handleSlideRight}
+              className="p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-900 border border-gray-200/80 transition-all cursor-pointer shadow-2xs"
+              title="Slide Right"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="h-4 w-px bg-gray-200 mx-1" />
-
-            {/* Toggle Live Preview & Publishing Column */}
-            <button
-              type="button"
-              onClick={() => setIsPreviewPanelOpen(!isPreviewPanelOpen)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer border ${
-                isPreviewPanelOpen
-                  ? 'bg-gray-900 text-white border-gray-900 shadow-xs'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-              }`}
-              title={isPreviewPanelOpen ? 'Collapse Preview & Publishing Panel' : 'Open Preview & Publishing Panel'}
-            >
-              {isPreviewPanelOpen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">Preview & Schedule</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Master Caption Collapsible Editor */}
-        {isMasterCaptionOpen && selectedAccountIds.length > 1 && (
+        {isMasterCaptionOpen && selectedAccountIds.length > 1 && currentPostType !== 'text' && (
           <div className="bg-white rounded-2xl border border-emerald-200/90 p-5 shadow-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
               <div>
@@ -1493,843 +1497,786 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           </div>
         )}
 
-        {/* MAIN WORKSPACE GRID: PLATFORM PANELS + DEDICATED PREVIEW & PUBLISHING */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-          {/* LEFT: ZOOMABLE PLATFORM WORKSPACE CANVAS */}
-          <div className={`${isPreviewPanelOpen ? 'xl:col-span-8' : 'xl:col-span-12'} space-y-6 transition-all`}>
-            <div className="w-full overflow-x-auto overflow-y-visible pb-6 scrollbar-thin">
-              <div
-                style={{
-                  transform: `scale(${zoomLevel / 100})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}
-                className="w-full flex justify-center"
-              >
-                {selectedAccountIds.length === 0 ? (
-                  /* Empty state when no channel checked */
-                  <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
-                      <Globe className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900">No Channels Selected</h3>
-                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto leading-relaxed">
-                        Select one or more connected social accounts in the &quot;Publishing to Accounts&quot; bar above to open their custom publishing workspace.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  /* Distinctive Platform Cards Grid inspired by Reference Design */
-                  <div
-                    className={`grid gap-6 w-full ${
-                      selectedAccountIds.length === 1
-                        ? 'max-w-md mx-auto grid-cols-1'
-                        : selectedAccountIds.length === 2
-                        ? 'max-w-4xl mx-auto grid-cols-1 md:grid-cols-2'
-                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                    }`}
+        {/* 1. HORIZONTAL SLIDING PLATFORM WORKSPACE (FIXED DIMENSIONS - NEVER SHRINKS) */}
+        {currentPostType === 'text' ? (
+          /* PART 3: REDESIGNED PREMIUM TEXT POST WORKSPACE */
+          <div className="bg-white rounded-3xl border border-gray-200/90 p-6 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <Type className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 tracking-tight">Text Post Composer</h3>
+                  <p className="text-[11px] text-gray-400">Craft clear, formatted updates across your connected channels</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 text-xs font-mono text-gray-400">
+                <span className="font-semibold text-gray-700">{mainCaption.length}</span>
+                <span>chars</span>
+              </div>
+            </div>
+
+            <textarea
+              value={mainCaption}
+              onChange={(e) => setMainCaption(e.target.value)}
+              placeholder="What would you like to share? Write your text post, announce news, share links, or post thoughts..."
+              className="w-full text-sm text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-2xl p-4 focus:outline-hidden focus:border-emerald-500 resize-none min-h-[220px] leading-relaxed bg-white"
+            />
+
+            {/* AI Assistant Helpers */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
+                {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => applyAiEnhancement(mode)}
+                    className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-xs font-semibold transition-colors cursor-pointer capitalize"
                   >
-                    {selectedAccountIds.map((accId) => {
-                      const acc = accounts.find((a) => a.id === accId);
-                      if (!acc) return null;
-
-                      const config = getPlatformVisualConfig(acc.platform);
-                      const activeFormat =
-                        accountFormats[accId] ||
-                        (acc.platform === 'youtube'
-                          ? currentPostType === 'video'
-                            ? 'video'
-                            : 'post'
-                          : currentPostType === 'video'
-                          ? 'reel'
-                          : 'post');
-                      const isCaptionOpen = expandedCaptions[accId] ?? true;
-                      const isFeaturesOpen = expandedFeatures[accId] ?? false;
-                      const accCaption = accountCaptions[accId]?.caption ?? '';
-                      const isCustomized = accCaption.trim().length > 0;
-                      const effectiveCaption = isCustomized ? accCaption : mainCaption;
-                      const charCount = effectiveCaption.length;
-                      const isOverLimit = config.limit && charCount > config.limit;
-
-                      return (
-                        <div
-                          key={acc.id}
-                          className={`bg-white rounded-3xl border-2 ${config.cardBorder} shadow-sm overflow-hidden flex flex-col w-full transition-all`}
-                        >
-                          {/* 1. PLATFORM HEADER (Brand Color / Gradient + Logo + Account Name) */}
-                          <div className={`px-5 py-3.5 ${config.headerBg} text-white flex items-center justify-between`}>
-                            <div className="flex items-center space-x-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/30 shadow-2xs">
-                                <PlatformLogo platform={acc.platform} className="w-4 h-4 text-white" />
-                              </div>
-                              <span className="text-white/60 font-light select-none">|</span>
-                              <span className="text-sm font-bold text-white tracking-tight truncate max-w-[200px]">
-                                {acc.displayName || acc.username || config.name}
-                              </span>
-                            </div>
-                            {acc.avatarUrl && (
-                              <img
-                                src={acc.avatarUrl}
-                                alt={acc.displayName || acc.username}
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.onerror = null;
-                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    acc.displayName || acc.username || 'A'
-                                  )}&background=059669&color=fff&size=128&bold=true`;
-                                }}
-                                className="w-7 h-7 rounded-full object-cover border border-white/40 shrink-0 shadow-2xs"
-                              />
-                            )}
-                          </div>
-
-                          {/* 2. PUBLISHING FORMAT TABS (Post / Reel / Story) */}
-                          <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-                            {config.supportedFormats.map((fmt) => {
-                              const isActive = activeFormat === fmt.id;
-                              return (
-                                <button
-                                  key={fmt.id}
-                                  type="button"
-                                  onClick={() => handleSelectFormat(acc.id, acc.platform, fmt.id)}
-                                  className={`flex-1 py-2 px-3 text-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                    isActive
-                                      ? config.activeTabBg
-                                      : 'bg-white text-gray-700 border border-gray-200/90 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {fmt.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* 3. UPLOAD MEDIA AREA (Dashed Border + Cloud Icon / Attached Media Preview) */}
-                          <div className="p-5 pt-2 space-y-3">
-                            {mediaList.length === 0 ? (
-                              <div
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  setIsDragging(true);
-                                }}
-                                onDragLeave={(e) => {
-                                  e.preventDefault();
-                                  setIsDragging(false);
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  setIsDragging(false);
-                                  if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
-                                }}
-                                onClick={() => fileInputRef.current?.click()}
-                                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[175px] bg-white group ${
-                                  isDragging
-                                    ? 'border-emerald-500 bg-emerald-50/40'
-                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/30'
-                                }`}
-                              >
-                                <div className="transition-transform duration-200 group-hover:scale-110">
-                                  <svg
-                                    className={`w-12 h-12 ${config.cloudIconClass}`}
-                                    viewBox="0 0 48 48"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                  >
-                                    <path
-                                      d="M14 36H11C7.134 36 4 32.866 4 29C4 25.364 6.773 22.377 10.338 22.044C11.393 14.87 17.552 9.5 25 9.5C33.168 9.5 39.866 15.932 40.003 24.086C43.376 24.873 45.8 27.916 45.8 31.5C45.8 35.642 42.442 39 38.3 39H34"
-                                      stroke="currentColor"
-                                      strokeWidth="2.8"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                    <path
-                                      d="M24 23V40"
-                                      stroke="currentColor"
-                                      strokeWidth="2.8"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                    <path
-                                      d="M18 29L24 23L30 29"
-                                      stroke="currentColor"
-                                      strokeWidth="2.8"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                  </svg>
-                                </div>
-                                <h4 className="text-sm font-bold text-gray-800 mt-2.5">Upload Media</h4>
-                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                  Click or drag &amp; drop (JPG, PNG, MP4 up to 500 MB)
-                                </p>
-                              </div>
-                            ) : (
-                              /* Attached Media Preview Box */
-                              <div className="space-y-2">
-                                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 group shadow-2xs min-h-[220px]">
-                                  <div
-                                    className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-xl shadow-xs max-h-[260px]`}
-                                  >
-                                    {mediaList[0].type === 'video' ? (
-                                      <video
-                                        src={mediaList[0].url}
-                                        controls={!uploadState.isUploading}
-                                        className={`w-full h-full ${
-                                          mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                                        } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                                      />
-                                    ) : (
-                                      <img
-                                        src={mediaList[0].thumbnailUrl || mediaList[0].url}
-                                        alt="Media Preview"
-                                        className={`w-full h-full ${
-                                          mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
-                                        } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
-                                      />
-                                    )}
-
-                                    {/* Real-Time Upload Progress Overlay */}
-                                    {(uploadState.isUploading || uploadState.stage === 'error') && (
-                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
-                                        {uploadState.stage === 'error' ? (
-                                          <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
-                                            <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
-                                            <p className="text-[11px] text-rose-600 leading-tight">
-                                              {uploadState.error || 'Upload failed.'}
-                                            </p>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                isReplacingRef.current = true;
-                                                fileInputRef.current?.click();
-                                              }}
-                                              className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer"
-                                            >
-                                              Retry
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div className="bg-white/95 rounded-2xl border border-gray-200 shadow-xl p-4 max-w-[220px] w-full text-center space-y-2">
-                                            <div className="relative w-14 h-14 mx-auto flex items-center justify-center">
-                                              <svg className="w-14 h-14 -rotate-90">
-                                                <circle cx="28" cy="28" r="22" className="stroke-gray-100" strokeWidth="4" fill="transparent" />
-                                                <circle
-                                                  cx="28"
-                                                  cy="28"
-                                                  r="22"
-                                                  className="stroke-emerald-500 transition-all duration-150"
-                                                  strokeWidth="4"
-                                                  strokeDasharray={138.23}
-                                                  strokeDashoffset={138.23 - (138.23 * displayProgress) / 100}
-                                                  strokeLinecap="round"
-                                                  fill="transparent"
-                                                />
-                                              </svg>
-                                              <span className="absolute text-xs font-extrabold font-mono text-gray-900">
-                                                {displayProgress}%
-                                              </span>
-                                            </div>
-                                            <p className="text-[11px] font-bold text-gray-800">
-                                              {uploadState.stage === 'complete' ? 'Upload complete!' : 'Uploading media...'}
-                                            </p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Hover Actions: Replace & Remove */}
-                                  {!uploadState.isUploading && (
-                                    <div className="absolute top-3 right-3 flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-30">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          isReplacingRef.current = true;
-                                          if (fileInputRef.current) {
-                                            fileInputRef.current.value = '';
-                                            fileInputRef.current.click();
-                                          }
-                                        }}
-                                        className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-xs font-semibold backdrop-blur-xs flex items-center space-x-1 shadow-md cursor-pointer border border-white/20 active:scale-95 transition-all"
-                                      >
-                                        <Upload className="w-3 h-3" />
-                                        <span>Replace</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setMediaList([]);
-                                          setUploadState({
-                                            isUploading: false,
-                                            progress: 0,
-                                            loadedBytes: 0,
-                                            totalBytes: 0,
-                                            stage: 'idle',
-                                            statusMessage: '',
-                                            error: null,
-                                          });
-                                        }}
-                                        className="p-1 rounded-lg bg-rose-600/90 hover:bg-rose-700 text-white shadow-md cursor-pointer"
-                                        title="Remove media"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Framing & Aspect Controls Bar */}
-                                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 px-1 text-[11px] text-gray-500">
-                                  <div className="flex items-center space-x-1">
-                                    <span className="font-semibold text-gray-700">Aspect:</span>
-                                    {(['original', '1:1', '4:5', '9:16', '16:9'] as const).map((r) => (
-                                      <button
-                                        key={r}
-                                        type="button"
-                                        onClick={() => setAspectRatio(r)}
-                                        className={`px-1.5 py-0.5 rounded-md text-[10px] transition-colors cursor-pointer ${
-                                          aspectRatio === r ? 'bg-gray-900 text-white font-bold' : 'hover:bg-gray-100'
-                                        }`}
-                                      >
-                                        {r === 'original' ? 'Orig' : r}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setMediaFitMode(mediaFitMode === 'contain' ? 'cover' : 'contain')}
-                                      className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-[10px] font-semibold text-gray-700 cursor-pointer"
-                                    >
-                                      {mediaFitMode === 'contain' ? 'Fit' : 'Fill'}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* 4. EXPANDABLE CAPTION ROW */}
-                            <div className="space-y-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedCaptions((prev) => ({
-                                    ...prev,
-                                    [acc.id]: !(prev[acc.id] ?? true),
-                                  }))
-                                }
-                                className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
-                              >
-                                <div className="flex items-center space-x-2.5">
-                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-gray-700 text-sm select-none">
-                                    T
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-800">Caption</span>
-                                  {isCustomized ? (
-                                    <span className="text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
-                                      Custom
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] bg-gray-100 text-gray-500 font-medium px-2 py-0.5 rounded-full">
-                                      Inheriting Master
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <span
-                                    className={`text-[11px] font-mono ${
-                                      isOverLimit ? 'text-rose-600 font-bold' : 'text-gray-400'
-                                    }`}
-                                  >
-                                    {charCount}/{config.limit}
-                                  </span>
-                                  <ChevronRight
-                                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                                      isCaptionOpen ? 'rotate-90' : ''
-                                    }`}
-                                  />
-                                </div>
-                              </button>
-
-                              {/* Expanded Caption Editor */}
-                              {isCaptionOpen && (
-                                <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-2.5 animate-in fade-in duration-150">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[11px] text-gray-400">
-                                      {isCustomized ? 'Unique caption for this channel' : 'Synced with master caption'}
-                                    </span>
-                                    <div className="flex items-center space-x-1.5">
-                                      {isCustomized ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setAccountCaptions((prev) => ({
-                                              ...prev,
-                                              [acc.id]: { ...prev[acc.id], caption: '' },
-                                            }));
-                                            showToast(`Reset ${acc.displayName || acc.username} to master caption`);
-                                          }}
-                                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 px-2 py-0.5 rounded-md hover:bg-rose-50 cursor-pointer"
-                                        >
-                                          Inherit Master
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() => copyFromMainCaption(acc.id)}
-                                          className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-0.5 rounded-md hover:bg-gray-200/70 cursor-pointer"
-                                        >
-                                          Copy Master
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <textarea
-                                    value={accountCaptions[acc.id]?.caption ?? ''}
-                                    onChange={(e) =>
-                                      setAccountCaptions((prev) => ({
-                                        ...prev,
-                                        [acc.id]: {
-                                          ...prev[acc.id],
-                                          caption: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                    placeholder={
-                                      accountCaptions[acc.id]?.caption?.trim()
-                                        ? config.placeholder
-                                        : mainCaption.trim()
-                                        ? `(Inheriting: "${mainCaption.slice(0, 40)}...")`
-                                        : config.placeholder
-                                    }
-                                    className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-white"
-                                  />
-
-                                  {/* Over-limit Alert */}
-                                  {isOverLimit && (
-                                    <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 p-2 rounded-xl border border-rose-200">
-                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                      <span>
-                                        Exceeds {config.name} limit ({charCount}/{config.limit}). Please trim text.
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {/* YouTube Notice */}
-                                  {acc.platform === 'youtube' && (
-                                    <div className="text-[10px] text-gray-500 bg-white p-2 rounded-xl border border-gray-200/60 flex items-center space-x-1.5">
-                                      <Info className="w-3 h-3 text-gray-400 shrink-0" />
-                                      <span>Publishes as YouTube video description.</span>
-                                    </div>
-                                  )}
-
-                                  {/* AI polish shortcuts */}
-                                  <div className="flex items-center space-x-1 pt-0.5">
-                                    <span className="text-[10px] font-semibold text-gray-400 mr-1">AI Polish:</span>
-                                    {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
-                                      <button
-                                        key={mode}
-                                        type="button"
-                                        onClick={() => applyAiEnhancement(mode, acc.id)}
-                                        className="px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[10px] font-semibold border border-gray-200 transition-colors cursor-pointer capitalize"
-                                      >
-                                        {mode}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* 5. EXPANDABLE FEATURES ROW */}
-                            <div className="space-y-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedFeatures((prev) => ({
-                                    ...prev,
-                                    [acc.id]: !prev[acc.id],
-                                  }))
-                                }
-                                className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
-                              >
-                                <div className="flex items-center space-x-2.5">
-                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                                    <Settings className="w-4 h-4" />
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-800">Features</span>
-                                </div>
-                                <ChevronRight
-                                  className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                                    isFeaturesOpen ? 'rotate-90' : ''
-                                  }`}
-                                />
-                              </button>
-
-                              {/* Expanded Features Panel */}
-                              {isFeaturesOpen && (
-                                <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-3 animate-in fade-in duration-150">
-                                  {acc.platform === 'instagram' && (
-                                    <div className="space-y-2.5">
-                                      {/* AI Content */}
-                                      <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
-                                        <div className="flex items-center space-x-2">
-                                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                                          <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          role="switch"
-                                          aria-checked={instagramAiLabel}
-                                          onClick={() => setInstagramAiLabel(!instagramAiLabel)}
-                                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                                            instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
-                                          }`}
-                                        >
-                                          <span
-                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                              instagramAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                            }`}
-                                          />
-                                        </button>
-                                      </div>
-
-                                      {/* Collaboration Settings */}
-                                      <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
-                                          <div className="flex items-center space-x-2">
-                                            <Users className="w-3.5 h-3.5 text-rose-600" />
-                                            <span className="text-xs font-semibold text-gray-800">Collaboration Settings</span>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            role="switch"
-                                            aria-checked={isInstagramCollabEnabled}
-                                            onClick={() => setIsInstagramCollabEnabled(!isInstagramCollabEnabled)}
-                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                                              isInstagramCollabEnabled ? 'bg-rose-600' : 'bg-gray-200'
-                                            }`}
-                                          >
-                                            <span
-                                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                                isInstagramCollabEnabled ? 'translate-x-4' : 'translate-x-0'
-                                              }`}
-                                            />
-                                          </button>
-                                        </div>
-                                        {isInstagramCollabEnabled && (
-                                          <div className="relative">
-                                            <span className="absolute left-2.5 top-2 text-xs font-bold text-rose-400 select-none">@</span>
-                                            <input
-                                              type="text"
-                                              value={instagramCollaborators}
-                                              onChange={(e) => setInstagramCollaborators(e.target.value)}
-                                              placeholder="handles (comma-separated)"
-                                              className="w-full pl-6 pr-2.5 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-hidden focus:border-rose-400 text-gray-800 placeholder:text-gray-400"
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {acc.platform === 'facebook' && (
-                                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
-                                      <div className="flex items-center space-x-2">
-                                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                                        <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={facebookAiLabel}
-                                        onClick={() => setFacebookAiLabel(!facebookAiLabel)}
-                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                                          facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                            facebookAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                          }`}
-                                        />
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {acc.platform === 'youtube' && (
-                                    <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
-                                      <div className="flex items-center space-x-2">
-                                        <Sparkles className="w-3.5 h-3.5 text-red-600" />
-                                        <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={youtubeAiLabel}
-                                        onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
-                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                                          youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                            youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
-                                          }`}
-                                        />
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {acc.platform !== 'instagram' && acc.platform !== 'facebook' && acc.platform !== 'youtube' && (
-                                    <div className="text-xs text-gray-500 py-1">
-                                      Standard publishing settings active for {config.name}.
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[11px] text-gray-400">
+                Supported: Facebook, LinkedIn, Threads, X
               </div>
             </div>
           </div>
-
-          {/* RIGHT: DEDICATED LIVE FEED PREVIEW & PUBLISHING MODE (Fully Functional) */}
-          {isPreviewPanelOpen && (
-            <div className="xl:col-span-4 space-y-6 animate-in fade-in duration-200">
-              {/* 1. DEDICATED LIVE FEED PREVIEW */}
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <div className="flex items-center space-x-2">
-                    <Eye className="w-4 h-4 text-emerald-600" />
-                    <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
+        ) : (
+          /* PART 1: HORIZONTAL SLIDING WORKSPACE WITH FIXED-WIDTH PLATFORM CARDS */
+          <div
+            ref={workspaceScrollRef}
+            onMouseDown={handleWorkspaceMouseDown}
+            onMouseMove={handleWorkspaceMouseMove}
+            onMouseUp={handleWorkspaceMouseUp}
+            onMouseLeave={handleWorkspaceMouseUp}
+            className="w-full overflow-x-auto scroll-smooth pb-4 pt-1 px-1 scrollbar-thin select-none"
+          >
+            <div className="flex items-start gap-6 w-max min-w-full">
+              {selectedAccountIds.length === 0 ? (
+                /* Empty state when no channel checked */
+                <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                    <Globe className="w-7 h-7" />
                   </div>
-                  <span className="text-[11px] text-gray-400 font-medium">
-                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} selected
-                  </span>
-                </div>
-
-                {/* Platform Preview Selector Bar */}
-                <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                    {selectedAccountIds.length > 1 ? (
-                      selectedAccountIds.map((accId) => {
-                        const acc = accounts.find((a) => a.id === accId);
-                        if (!acc) return null;
-                        const isActive = previewAccount?.id === acc.id;
-                        const hasCustomCaption = Boolean(
-                          accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
-                        );
-                        return (
-                          <button
-                            key={acc.id}
-                            type="button"
-                            onClick={() => {
-                              setActivePreviewAccountId(acc.id);
-                              setActivePreviewPlatform(acc.platform);
-                            }}
-                            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                              isActive
-                                ? 'bg-gray-900 text-white shadow-xs'
-                                : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
-                            }`}
-                          >
-                            <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
-                            <span className="truncate max-w-[100px]">{acc.displayName || acc.username}</span>
-                            {hasCustomCaption && (
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
-                                title="Customized caption"
-                              />
-                            )}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      (selectedPlatforms.length > 0
-                        ? selectedPlatforms
-                        : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
-                      ).map((platform) => {
-                        const isActive = activePreviewPlatform === platform;
-                        const hasCustomCaption = Boolean(
-                          previewAccount &&
-                            (accountCaptions[previewAccount.id]?.caption?.trim() ||
-                              accountCaptions[previewAccount.id]?.title?.trim())
-                        );
-                        const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
-                        const platformName = config?.name || platform;
-
-                        return (
-                          <button
-                            key={platform}
-                            type="button"
-                            onClick={() => setActivePreviewPlatform(platform)}
-                            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                              isActive
-                                ? 'bg-gray-900 text-white shadow-xs'
-                                : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
-                            }`}
-                          >
-                            <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
-                            <span className="capitalize">{platformName}</span>
-                            {hasCustomCaption && (
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20"
-                                title="Customized caption"
-                              />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">No Channels Selected</h3>
+                    <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                      Select one or more connected social accounts in the &quot;Publishing to Accounts&quot; bar above to open their custom publishing workspace.
+                    </p>
                   </div>
                 </div>
+              ) : (
+                /* FIXED-SIZE PLATFORM PANELS (Exact 420px Width - Never Shrinks) */
+                selectedAccountIds.map((accId) => {
+                  const acc = accounts.find((a) => a.id === accId);
+                  if (!acc) return null;
 
-                {/* Real-time Post Preview */}
-                <PostPreview
-                  post={previewPostData}
-                  selectedPlatform={activePreviewPlatform}
-                  activeAccount={previewAccount}
-                  previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
-                  aspectRatio={aspectRatio}
-                  mediaFitMode={mediaFitMode}
-                />
-              </div>
+                  const config = getPlatformVisualConfig(acc.platform);
+                  const activeFormat =
+                    accountFormats[accId] ||
+                    (acc.platform === 'youtube'
+                      ? currentPostType === 'video'
+                        ? 'video'
+                        : 'post'
+                      : currentPostType === 'video'
+                      ? 'reel'
+                      : 'post');
+                  const isCaptionOpen = expandedCaptions[accId] ?? true;
+                  const isFeaturesOpen = expandedFeatures[accId] ?? false;
+                  const accCaption = accountCaptions[accId]?.caption ?? '';
+                  const isCustomized = accCaption.trim().length > 0;
+                  const effectiveCaption = isCustomized ? accCaption : mainCaption;
+                  const charCount = effectiveCaption.length;
+                  const isOverLimit = config.limit && charCount > config.limit;
 
-              {/* 2. PUBLISHING MODE SECTION */}
-              <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
-                {/* Publishing Mode Switcher (Schedule vs Instant) */}
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
-                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('schedule')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'schedule'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
+                  return (
+                    <div
+                      key={acc.id}
+                      className="bg-white rounded-3xl border border-gray-200/90 shadow-xs p-5 space-y-4 w-[420px] min-w-[420px] max-w-[420px] shrink-0 flex flex-col transition-all"
                     >
-                      Schedule
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleMode('instant')}
-                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                        scheduleMode === 'instant'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                    >
-                      Instant
-                    </button>
-                  </div>
-                </div>
+                      {/* 1. PLATFORM HEADER (Actual Account Profile Picture/Logo Only - No Unnecessary Text) */}
+                      <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="relative">
+                            <img
+                              src={
+                                acc.avatarUrl ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                  acc.displayName || acc.username || 'A'
+                                )}&background=059669&color=fff&size=128&bold=true`
+                              }
+                              alt={acc.displayName || acc.username}
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                  acc.displayName || acc.username || 'A'
+                                )}&background=059669&color=fff&size=128&bold=true`;
+                              }}
+                              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs"
+                            />
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white shadow-xs border border-gray-200 flex items-center justify-center">
+                              <PlatformLogo platform={acc.platform} className="w-3 h-3" />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-gray-900 block truncate max-w-[220px]">
+                              {acc.displayName || acc.username}
+                            </span>
+                            <span className="text-[10px] text-gray-400 capitalize font-medium">
+                              {acc.platform}
+                            </span>
+                          </div>
+                        </div>
 
-                {scheduleMode === 'schedule' ? (
-                  <div className="space-y-5">
-                    {/* Professional Date & Time Picker */}
-                    <ScheduleDatePicker
-                      scheduledDate={scheduledDate}
-                      scheduledTime={scheduledTime}
-                      onDateChange={(d) => setScheduledDate(d)}
-                      onTimeChange={(t) => setScheduledTime(t)}
-                      onValidationChange={(valid) => setIsScheduleValid(valid)}
-                    />
-
-                    {/* Schedule Post Action Button */}
-                    <button
-                      type="button"
-                      disabled={isSubmitting || !isScheduleValid}
-                      onClick={() => handleExecute('schedule')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {uploadState.isUploading
-                          ? `Uploading media (${displayProgress}%)...`
-                          : isSubmitting
-                          ? 'Queueing in Supabase...'
-                          : 'Schedule Post'}
-                      </span>
-                    </button>
-                  </div>
-                ) : (
-                  /* Instant Live Dispatch Mode */
-                  <div className="space-y-4">
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-                      <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                        <span>
-                          Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
+                        <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider">
+                          Ready
                         </span>
                       </div>
+
+                      {/* 2. PUBLISHING FORMAT SELECTORS (Post / Reel / Story - Premium Neutral Styling) */}
+                      <div className="flex items-center gap-2">
+                        {config.supportedFormats.map((fmt) => {
+                          const isActive = activeFormat === fmt.id;
+                          return (
+                            <button
+                              key={fmt.id}
+                              type="button"
+                              onClick={() => handleSelectFormat(acc.id, acc.platform, fmt.id)}
+                              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center ${
+                                isActive
+                                  ? 'bg-gray-900 text-white font-bold shadow-xs'
+                                  : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80'
+                              }`}
+                            >
+                              {fmt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 3. UPLOAD MEDIA SECTION (Recreated from Reference Image) */}
+                      <div className="space-y-3">
+                        {mediaList.length === 0 ? (
+                          /* Soft Grey Dropzone with Centered White Icon Badge */
+                          <div
+                            onClick={triggerUploadPicker}
+                            className="bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border border-transparent hover:border-gray-300 transition-all group"
+                          >
+                            <div className="w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center text-gray-700 mb-3 group-hover:scale-105 transition-transform">
+                              <UploadCloud className="w-6 h-6 text-gray-700" />
+                            </div>
+                            <h4 className="text-xs font-bold text-gray-900">
+                              Drop your files here or browse
+                            </h4>
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              Max file size up to 500 MB
+                            </p>
+                          </div>
+                        ) : (
+                          /* Attached Media Preview Box + File Details Card matching Reference Image */
+                          <div className="space-y-3">
+                            {/* Visual Thumbnail / Video Player */}
+                            <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center p-2 group shadow-2xs min-h-[200px]">
+                              <div
+                                className={`${getAspectRatioClass()} transition-all duration-200 overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-xl shadow-xs max-h-[220px] w-full`}
+                              >
+                                {mediaList[0].type === 'video' ? (
+                                  <video
+                                    src={mediaList[0].url}
+                                    controls={!uploadState.isUploading}
+                                    className={`w-full h-full ${
+                                      mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                                    } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
+                                  />
+                                ) : (
+                                  <img
+                                    src={mediaList[0].thumbnailUrl || mediaList[0].url}
+                                    alt="Media Preview"
+                                    className={`w-full h-full ${
+                                      mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'
+                                    } ${uploadState.isUploading ? 'opacity-75 blur-xs scale-[1.01]' : ''} transition-all duration-300`}
+                                  />
+                                )}
+
+                                {/* Real-Time Upload Progress Overlay */}
+                                {(uploadState.isUploading || uploadState.stage === 'error') && (
+                                  <div className="absolute inset-0 bg-white/85 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
+                                    {uploadState.stage === 'error' ? (
+                                      <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
+                                        <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
+                                        <p className="text-[11px] text-rose-600 leading-tight">
+                                          {uploadState.error || 'Upload failed.'}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-white rounded-2xl border border-gray-200/90 p-4 w-full max-w-[240px] shadow-lg text-center space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                                        <div className="space-y-1">
+                                          <div className="flex items-center justify-between text-xs font-bold text-gray-800">
+                                            <span>Uploading...</span>
+                                            <span className="font-mono text-emerald-600">{displayProgress}%</span>
+                                          </div>
+                                          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                            <div
+                                              className="bg-emerald-600 h-1.5 rounded-full transition-all duration-200 ease-out"
+                                              style={{ width: `${displayProgress}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* White File Info Card matching Reference Image */}
+                            <div className="bg-white rounded-2xl border border-gray-200 p-3 flex flex-col gap-2 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-700 shrink-0 uppercase">
+                                    {mediaList[0].type === 'video' ? 'VID' : 'IMG'}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-bold text-gray-900 block truncate max-w-[200px]">
+                                      {mediaList[0].name || (mediaList[0].type === 'video' ? 'video-asset.mp4' : 'image-asset.jpg')}
+                                    </span>
+                                    <span className="text-[11px] text-gray-400 block">
+                                      {mediaList[0].size
+                                        ? `${(mediaList[0].size / (1024 * 1024)).toFixed(1)} MB`
+                                        : 'Asset file'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={triggerReplaceMedia}
+                                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer"
+                                    title="Replace file"
+                                  >
+                                    Replace
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMedia(mediaList[0].id)}
+                                    className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title="Remove file"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Upload Progress Bar below file if uploading */}
+                              {uploadState.isUploading && (
+                                <div className="space-y-1 pt-1">
+                                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="bg-gray-900 h-1.5 rounded-full transition-all duration-200"
+                                      style={{ width: `${displayProgress}%` }}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between text-[10px] text-gray-400">
+                                    <span>Uploading media</span>
+                                    <span className="font-mono">{displayProgress}%</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. EXPANDABLE CAPTIONS ROW (Directly Below Upload Media) */}
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedCaptions((prev) => ({
+                              ...prev,
+                              [acc.id]: !isCaptionOpen,
+                            }))
+                          }
+                          className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700 font-bold">
+                              <Type className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-xs font-bold text-gray-800">Captions</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[11px] font-mono text-gray-400">
+                              {charCount}/{config.limit || 2200}
+                            </span>
+                            <ChevronRight
+                              className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                                isCaptionOpen ? 'rotate-90' : ''
+                              }`}
+                            />
+                          </div>
+                        </button>
+
+                        {/* Expanded Caption Editor */}
+                        {isCaptionOpen && (
+                          <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-2.5 animate-in fade-in duration-150">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-gray-400">
+                                {isCustomized ? 'Unique caption for this channel' : 'Synced with master caption'}
+                              </span>
+                              <div className="flex items-center space-x-1.5">
+                                {isCustomized ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAccountCaptions((prev) => ({
+                                        ...prev,
+                                        [acc.id]: { ...prev[acc.id], caption: '' },
+                                      }));
+                                      showToast(`Reset ${acc.displayName || acc.username} to master caption`);
+                                    }}
+                                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 px-2 py-0.5 rounded-md hover:bg-rose-50 cursor-pointer"
+                                  >
+                                    Inherit Master
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => copyFromMainCaption(acc.id)}
+                                    className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-0.5 rounded-md hover:bg-gray-200/70 cursor-pointer"
+                                  >
+                                    Copy Master
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <textarea
+                              value={accountCaptions[acc.id]?.caption ?? ''}
+                              onChange={(e) =>
+                                setAccountCaptions((prev) => ({
+                                  ...prev,
+                                  [acc.id]: {
+                                    ...prev[acc.id],
+                                    caption: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder={
+                                accountCaptions[acc.id]?.caption?.trim()
+                                  ? config.placeholder
+                                  : mainCaption.trim()
+                                  ? `(Inheriting: "${mainCaption.slice(0, 40)}...")`
+                                  : config.placeholder
+                              }
+                              className="w-full text-xs text-gray-800 placeholder:text-gray-400 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-emerald-500 resize-none h-24 leading-relaxed bg-white"
+                            />
+
+                            {/* Over-limit Alert */}
+                            {isOverLimit && (
+                              <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 p-2 rounded-xl border border-rose-200">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  Exceeds limit ({charCount}/{config.limit}).
+                                </span>
+                              </div>
+                            )}
+
+                            {/* AI Polish */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">AI Polish:</span>
+                              {(['improve', 'punchy', 'cta', 'hashtags'] as const).map((mode) => (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => applyAiEnhancement(mode, acc.id)}
+                                  className="px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 hover:text-emerald-700 text-gray-600 text-[10px] font-semibold border border-gray-200 transition-colors cursor-pointer capitalize"
+                                >
+                                  {mode}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 5. EXPANDABLE AI FEATURES ROW (Directly Below Captions) */}
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedFeatures((prev) => ({
+                              ...prev,
+                              [acc.id]: !isFeaturesOpen,
+                            }))
+                          }
+                          className="w-full border border-gray-200/90 rounded-2xl p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 transition-all bg-white shadow-2xs"
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-xs font-bold text-gray-800">AI Features</span>
+                          </div>
+                          <ChevronRight
+                            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                              isFeaturesOpen ? 'rotate-90' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {/* Expanded Features Panel */}
+                        {isFeaturesOpen && (
+                          <div className="p-3.5 bg-gray-50/50 rounded-2xl border border-gray-200/80 space-y-3 animate-in fade-in duration-150">
+                            {acc.platform === 'instagram' && (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                  <div className="flex items-center space-x-2">
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                    <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={instagramAiLabel}
+                                    onClick={() => setInstagramAiLabel(!instagramAiLabel)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                      instagramAiLabel ? 'bg-purple-600' : 'bg-gray-200'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                        instagramAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                <div className="p-2 rounded-xl bg-white border border-gray-200 shadow-2xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                      <Users className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span className="text-xs font-semibold text-gray-800">Instagram Collaborators</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={isInstagramCollabEnabled}
+                                      onClick={() => setIsInstagramCollabEnabled(!isInstagramCollabEnabled)}
+                                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                        isInstagramCollabEnabled ? 'bg-emerald-600' : 'bg-gray-200'
+                                      }`}
+                                    >
+                                      <span
+                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                          isInstagramCollabEnabled ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
+                                      />
+                                    </button>
+                                  </div>
+                                  {isInstagramCollabEnabled && (
+                                    <input
+                                      type="text"
+                                      value={instagramCollaborators}
+                                      onChange={(e) => setInstagramCollaborators(e.target.value)}
+                                      placeholder="@username to invite as collaborator"
+                                      className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-hidden focus:border-emerald-500 bg-gray-50/50"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {acc.platform === 'facebook' && (
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                <div className="flex items-center space-x-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                                  <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={facebookAiLabel}
+                                  onClick={() => setFacebookAiLabel(!facebookAiLabel)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                    facebookAiLabel ? 'bg-blue-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                      facebookAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            )}
+
+                            {acc.platform === 'youtube' && (
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                <div className="flex items-center space-x-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-red-600" />
+                                  <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={youtubeAiLabel}
+                                  onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                    youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                      youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            )}
+
+                            {acc.platform !== 'instagram' && acc.platform !== 'facebook' && acc.platform !== 'youtube' && (
+                              <div className="text-xs text-gray-500 py-1">
+                                Standard publishing settings active.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
-                    <button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => handleExecute('publish-now')}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>
-                        {uploadState.isUploading
-                          ? `Uploading media (${displayProgress}%)...`
-                          : isSubmitting
-                          ? 'Publishing live...'
-                          : 'Publish Live Now'}
-                      </span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Status Bar */}
-                <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
-                  <span className="flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>
-                      {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
-                    </span>
-                  </span>
-                  <span>Supabase Queue Active</span>
+        {/* PART 2: LIVE FEED PREVIEW & PUBLISHING MODE (MOVED BELOW PLATFORM WORKSPACE) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pt-6 border-t border-gray-100">
+          {/* LEFT: DEDICATED LIVE FEED PREVIEW */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Eye className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
                 </div>
+                <span className="text-[11px] text-gray-400 font-medium">
+                  {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} active
+                </span>
+              </div>
 
-                {/* Action Buttons: Save to Draft & Exit */}
-                <div className="space-y-2 pt-1 border-t border-gray-100">
+              {/* Platform Preview Selector Bar */}
+              <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                  {selectedAccountIds.length > 1 ? (
+                    selectedAccountIds.map((accId) => {
+                      const acc = accounts.find((a) => a.id === accId);
+                      if (!acc) return null;
+                      const isActive = previewAccount?.id === acc.id;
+                      const hasCustomCaption = Boolean(
+                        accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
+                      );
+
+                      return (
+                        <button
+                          key={acc.id}
+                          type="button"
+                          onClick={() => {
+                            setActivePreviewAccountId(acc.id);
+                            setActivePreviewPlatform(acc.platform);
+                          }}
+                          className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
+                          <span className="truncate max-w-[120px]">{acc.displayName || acc.username}</span>
+                          {hasCustomCaption && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
+                              title="Customized caption"
+                            />
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    (selectedPlatforms.length > 0
+                      ? selectedPlatforms
+                      : (['instagram', 'facebook', 'youtube', 'threads'] as SocialPlatform[])
+                    ).map((platform) => {
+                      const isActive = activePreviewPlatform === platform;
+                      const config = SUPPORTED_PLATFORMS.find((p) => p.id === platform);
+                      const platformName = config?.name || platform;
+
+                      return (
+                        <button
+                          key={platform}
+                          type="button"
+                          onClick={() => setActivePreviewPlatform(platform)}
+                          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'bg-white text-gray-600 border border-gray-200/80 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <PlatformLogo platform={platform} className="w-3.5 h-3.5" />
+                          <span className="capitalize">{platformName}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Real-time Post Preview */}
+              <PostPreview
+                post={previewPostData}
+                selectedPlatform={activePreviewPlatform}
+                activeAccount={previewAccount}
+                previewType={mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'}
+                aspectRatio={aspectRatio}
+                mediaFitMode={mediaFitMode}
+              />
+            </div>
+          </div>
+
+          {/* RIGHT: PUBLISHING MODE SECTION (PRESERVED UNCHANGED) */}
+          <div className="lg:col-span-5 space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-5">
+              {/* Publishing Mode Switcher (Schedule vs Instant) */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-900">Publishing Mode</span>
+                <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode('schedule')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                      scheduleMode === 'schedule'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    Schedule
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode('instant')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                      scheduleMode === 'instant'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    Instant
+                  </button>
+                </div>
+              </div>
+
+              {scheduleMode === 'schedule' ? (
+                <div className="space-y-5">
+                  {/* Professional Date & Time Picker */}
+                  <ScheduleDatePicker
+                    scheduledDate={scheduledDate}
+                    scheduledTime={scheduledTime}
+                    onDateChange={(d) => setScheduledDate(d)}
+                    onTimeChange={(t) => setScheduledTime(t)}
+                    onValidationChange={(valid) => setIsScheduleValid(valid)}
+                  />
+
+                  {/* Schedule Post Action Button */}
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !isScheduleValid}
+                    onClick={() => handleExecute('schedule')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {uploadState.isUploading
+                        ? `Uploading media (${displayProgress}%)...`
+                        : isSubmitting
+                        ? 'Queueing in Supabase...'
+                        : 'Schedule Post'}
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                /* Instant Live Dispatch Mode */
+                <div className="space-y-4">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
+                    <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block font-semibold">Immediate Live Dispatch</strong>
+                      <span>
+                        Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
+                      </span>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     disabled={isSubmitting}
-                    onClick={() => handleExecute('draft')}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                    onClick={() => handleExecute('publish-now')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <Save className="w-3.5 h-3.5 text-gray-500" />
-                    <span>Save as Draft</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    className="w-full py-2 px-4 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                    title="Exit to Dashboard"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
-                    <span>Exit to Dashboard</span>
+                    <Send className="w-4 h-4" />
+                    <span>
+                      {uploadState.isUploading
+                        ? `Uploading media (${displayProgress}%)...`
+                        : isSubmitting
+                        ? 'Publishing live...'
+                        : 'Publish Live Now'}
+                    </span>
                   </button>
                 </div>
+              )}
+
+              {/* Status Bar */}
+              <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
+                <span className="flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>
+                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
+                  </span>
+                </span>
+                <span>Supabase Queue Active</span>
+              </div>
+
+              {/* Action Buttons: Save to Draft & Exit */}
+              <div className="space-y-2 pt-1 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => handleExecute('draft')}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Save as Draft</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="w-full py-2 px-4 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                  title="Exit to Dashboard"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Exit to Dashboard</span>
+                </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 

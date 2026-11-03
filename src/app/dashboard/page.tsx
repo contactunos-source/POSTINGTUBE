@@ -115,20 +115,9 @@ export default function DashboardPage() {
 
       setAccounts(dbAccounts);
       setPosts(dbPosts);
-
-      // Also trigger official avatar sync
-      try {
-        const syncRes = await fetch('/api/accounts/sync-avatars', { method: 'POST' });
-        const syncData = await syncRes.json();
-        if (syncData?.success && Array.isArray(syncData.accounts) && syncData.accounts.length > 0) {
-          setAccounts(syncData.accounts);
-        }
-      } catch (e) {
-        console.warn('Avatar sync refresh notice:', e);
-      }
       setMediaItems(StorageService.getMedia(user.id));
 
-      // Asynchronously synchronize official account avatars (YouTube, Facebook, Instagram) in the background
+      // Asynchronously synchronize official account avatars (YouTube, Facebook, Instagram) in the background without blocking page load
       fetch('/api/accounts/sync-avatars', { method: 'POST' })
         .then((r) => r.json())
         .then((res) => {
