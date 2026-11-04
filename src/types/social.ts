@@ -37,6 +37,13 @@ export interface PlatformCaptionOverride {
   isAiGenerated?: boolean;
   media?: PostMedia[]; // Per-platform customized media assets
   postType?: string; // Per-platform format (post, reel, story, video, short)
+  aspectRatio?: '1:1' | '4:5' | '9:16' | '16:9';
+  music?: { title: string; artist?: string };
+  textOverlay?: { text: string; position?: string; style?: string };
+  topics?: string[];
+  productTags?: string[];
+  linkSticker?: { url: string; text?: string };
+  mentions?: string[];
   // YouTube Studio specific metadata
   thumbnailUrl?: string;
   tags?: string[];

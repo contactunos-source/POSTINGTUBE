@@ -657,18 +657,31 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [accountFormats, setAccountFormats] = useState<Record<string, string>>({});
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
   const [expandedFeatures, setExpandedFeatures] = useState<Record<string, boolean>>({});
-  // Instagram AI Features - per-account tab state
-  const [instagramFeatureTabs, setInstagramFeatureTabs] = useState<Record<string, 'music'|'text'|'topics'|'products'|null>>({});
   // Platform-specific media customization
   const [customizeMediaPerPlatform, setCustomizeMediaPerPlatform] = useState<boolean>(false);
   const [platformMediaMap, setPlatformMediaMap] = useState<Record<string, PostMedia[]>>({});
   const platformFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Per-platform aspect ratios (1:1, 4:5, 9:16, 16:9)
+  const [accountAspectRatios, setAccountAspectRatios] = useState<Record<string, '1:1' | '4:5' | '9:16' | '16:9'>>({});
+  // YouTube image warning dismissals
+  const [dismissedYoutubeWarnings, setDismissedYoutubeWarnings] = useState<Record<string, boolean>>({});
   // Live Feed Preview carousel index
   const [previewCarouselIndex, setPreviewCarouselIndex] = useState<number>(0);
-  const [instagramMusicQuery, setInstagramMusicQuery] = useState<Record<string, string>>({});
-  const [instagramTextOverlay, setInstagramTextOverlay] = useState<Record<string, string>>({});
-  const [instagramTopics, setInstagramTopics] = useState<Record<string, string>>({});
-  const [instagramProductTags, setInstagramProductTags] = useState<Record<string, string>>({});
+  // Instagram 7 Functional AI Features state
+  const [instagramFeatureTabs, setInstagramFeatureTabs] = useState<Record<string, 'music'|'text'|'topics'|'products'|'link'|'mention'|'tags'|null>>({});
+  const [instagramMusic, setInstagramMusic] = useState<Record<string, { title: string; artist: string }>>({});
+  const [instagramTextOverlay, setInstagramTextOverlay] = useState<Record<string, { text: string; position: 'top'|'center'|'bottom'; style: 'classic'|'bold'|'neon' }>>({});
+  const [instagramTopicsList, setInstagramTopicsList] = useState<Record<string, string[]>>({});
+  const [instagramProductsList, setInstagramProductsList] = useState<Record<string, { name: string; sku: string; url: string }[]>>({});
+  const [instagramLinkSticker, setInstagramLinkSticker] = useState<Record<string, { url: string; text: string }>>({});
+  const [instagramMentionsList, setInstagramMentionsList] = useState<Record<string, string[]>>({});
+  const [instagramTagsList, setInstagramTagsList] = useState<Record<string, string[]>>({});
+  // Temporary input buffers for adding items
+  const [mentionInput, setMentionInput] = useState<Record<string, string>>({});
+  const [tagInput, setTagInput] = useState<Record<string, string>>({});
+  const [customTopicInput, setCustomTopicInput] = useState<Record<string, string>>({});
+  const [newProductName, setNewProductName] = useState<Record<string, string>>({});
+  const [newProductSku, setNewProductSku] = useState<Record<string, string>>({});
 
   // Strictly independent format selection per account - never mutates other accounts
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
@@ -1225,6 +1238,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               : currentPostType === 'video'
               ? 'reel'
               : 'post'),
+          aspectRatio: accountAspectRatios[accId],
+          music: instagramMusic[accId],
+          textOverlay: instagramTextOverlay[accId],
+          topics: instagramTopicsList[accId],
+          productTags: instagramProductsList[accId]?.map(p => p.name),
+          linkSticker: instagramLinkSticker[accId],
+          mentions: instagramMentionsList[accId],
+          tags: instagramTagsList[accId],
         };
 
         // Key by account ID for per-account precision
@@ -1531,21 +1552,31 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             )}
           </div>
 
-          {/* Customize Media Toggle */}
+          {/* Same Media for All - Professional ON/OFF Toggle */}
           {currentPostType !== 'text' && selectedAccountIds.length > 1 && (
-            <button
-              type="button"
-              onClick={handleToggleCustomizeMedia}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer border ${
-                customizeMediaPerPlatform
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
-              }`}
-              title={customizeMediaPerPlatform ? 'Using per-platform media' : 'Using shared media for all platforms'}
-            >
-              <FileImage className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{customizeMediaPerPlatform ? 'Per-Platform Media' : 'Same Media for All'}</span>
-            </button>
+            <div className="flex items-center space-x-2.5 bg-gray-50 border border-gray-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
+              <FileImage className="w-3.5 h-3.5 text-gray-600" />
+              <span className="text-xs font-semibold text-gray-800">Same Media for All</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!customizeMediaPerPlatform}
+                onClick={handleToggleCustomizeMedia}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                  !customizeMediaPerPlatform ? 'bg-emerald-600' : 'bg-gray-300'
+                }`}
+                title={!customizeMediaPerPlatform ? 'Same Media for All is ON (shared)' : 'Per-Platform Media is ON (independent)'}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    !customizeMediaPerPlatform ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-[11px] font-bold ${!customizeMediaPerPlatform ? 'text-emerald-700' : 'text-gray-500'}`}>
+                {!customizeMediaPerPlatform ? 'ON' : 'OFF'}
+              </span>
+            </div>
           )}
 
           {/* Smooth Horizontal Sliding Navigation Controls */}
@@ -1737,7 +1768,15 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             <button
                               key={fmt.id}
                               type="button"
-                              onClick={() => handleSelectFormat(acc.id, acc.platform, fmt.id)}
+                              onClick={() => {
+                                handleSelectFormat(acc.id, acc.platform, fmt.id);
+                                // Default aspect ratio based on selected format
+                                if (fmt.id === 'reel' || fmt.id === 'story' || fmt.id === 'short') {
+                                  setAccountAspectRatios(prev => ({ ...prev, [acc.id]: '9:16' }));
+                                } else if (fmt.id === 'video') {
+                                  setAccountAspectRatios(prev => ({ ...prev, [acc.id]: '16:9' }));
+                                }
+                              }}
                               className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center ${
                                 isActive
                                   ? 'bg-gray-900 text-white font-bold shadow-xs'
@@ -1749,6 +1788,93 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                           );
                         })}
                       </div>
+
+                      {/* Aspect Ratio Selector for this platform & format */}
+                      {(() => {
+                        const availableRatios: ('1:1' | '4:5' | '9:16' | '16:9')[] =
+                          activeFormat === 'reel' || activeFormat === 'story' || activeFormat === 'short'
+                            ? ['9:16']
+                            : activeFormat === 'video'
+                            ? ['16:9', '1:1']
+                            : ['1:1', '4:5', '16:9'];
+                        const currentRatio =
+                          accountAspectRatios[acc.id] ||
+                          (activeFormat === 'reel' || activeFormat === 'story' || activeFormat === 'short'
+                            ? '9:16'
+                            : activeFormat === 'video'
+                            ? '16:9'
+                            : '1:1');
+
+                        return (
+                          <div className="flex items-center justify-between px-1 py-0.5">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                              Aspect Ratio
+                            </span>
+                            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl border border-gray-200/60">
+                              {availableRatios.map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  onClick={() => setAccountAspectRatios((prev) => ({ ...prev, [acc.id]: r }))}
+                                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                    currentRatio === r
+                                      ? 'bg-gray-900 text-white shadow-xs'
+                                      : 'text-gray-600 hover:text-gray-900'
+                                  }`}
+                                >
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* YouTube Image Warning matching reference image media_1793768290589_7a75e9ea.png */}
+                      {(() => {
+                        const effectiveMedia = getEffectiveMediaForAccount(acc.id);
+                        const isImage = effectiveMedia.length > 0 && (effectiveMedia[0].type === 'image' || /\.(png|jpe?g|webp)$/i.test(effectiveMedia[0].name || ''));
+                        const isVideoFormat = activeFormat === 'video' || activeFormat === 'short';
+                        const isCommunityFormat = activeFormat === 'post';
+
+                        if (acc.platform === 'youtube' && isVideoFormat && isImage && !dismissedYoutubeWarnings[acc.id]) {
+                          const ext = effectiveMedia[0].name?.split('.').pop()?.toUpperCase() || 'PNG';
+                          return (
+                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+                              <div className="flex items-start space-x-2.5 min-w-0">
+                                <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
+                                <span className="leading-snug">
+                                  We can&apos;t quite use that type of file ({ext}). Could you try one of the following instead: MOV, MP4, M4V, MPG, MPEG, AVI, WEBM? Or switch to <strong>Community Post</strong>.
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDismissedYoutubeWarnings((prev) => ({ ...prev, [acc.id]: true }))}
+                                className="text-[#fca5a5]/70 hover:text-white shrink-0 p-0.5 transition-colors cursor-pointer"
+                                title="Dismiss warning"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        if (acc.platform === 'youtube' && isCommunityFormat) {
+                          return (
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 rounded-2xl p-3 flex items-start space-x-2 text-xs animate-in fade-in">
+                              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 min-w-0">
+                                <span className="font-semibold block text-amber-950">YouTube Community Post Workflow</span>
+                                <span className="text-[11px] text-amber-800 leading-tight block">
+                                  YouTube Data API v3 does not permit 3rd-party automated Community Post image posting. We save your draft and provide a 1-Click launcher to publish on your Community tab.
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
 
                       {/* Per-platform hidden file input */}
                       <input
@@ -1789,70 +1915,90 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               <div className="space-y-2">
                                 {/* Visual Thumbnail / Video Player */}
                                 <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 group shadow-2xs min-h-[200px]">
-                                  <div
-                                    className={`${getAspectRatioClass()} overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-2xl max-h-[240px] w-full`}
-                                  >
-                                    {effectiveMedia[0].type === 'video' ? (
-                                      <video
-                                        src={effectiveMedia[0].url}
-                                        controls={!isUploading}
-                                        className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
-                                      />
-                                    ) : (
-                                      <img
-                                        src={effectiveMedia[0].thumbnailUrl || effectiveMedia[0].url}
-                                        alt="Media Preview"
-                                        className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
-                                      />
-                                    )}
+                                  {(() => {
+                                    const currentCardRatio =
+                                      accountAspectRatios[acc.id] ||
+                                      (activeFormat === 'reel' || activeFormat === 'story' || activeFormat === 'short'
+                                        ? '9:16'
+                                        : activeFormat === 'video'
+                                        ? '16:9'
+                                        : '1:1');
+                                    const cardAspectClass =
+                                      currentCardRatio === '1:1'
+                                        ? 'aspect-square'
+                                        : currentCardRatio === '4:5'
+                                        ? 'aspect-[4/5]'
+                                        : currentCardRatio === '9:16'
+                                        ? 'aspect-[9/16]'
+                                        : 'aspect-video';
 
-                                    {/* Overlay Replace/Remove Controls – visible on hover */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 z-10">
-                                      <button
-                                        type="button"
-                                        onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
-                                        className="bg-white/95 text-gray-900 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-white transition-all cursor-pointer flex items-center gap-1.5"
-                                        title="Replace media"
+                                    return (
+                                      <div
+                                        className={`${cardAspectClass} overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-2xl max-h-[240px] w-full`}
                                       >
-                                        <RotateCcw className="w-3.5 h-3.5" />
-                                        Replace
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handlePlatformRemoveMedia(accId)}
-                                        className="bg-rose-600/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-rose-600 transition-all cursor-pointer flex items-center gap-1.5"
-                                        title="Remove media"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                        Remove
-                                      </button>
-                                    </div>
-
-                                    {/* Upload Progress Overlay */}
-                                    {(isUploading || uploadState.stage === 'error') && !customizeMediaPerPlatform && (
-                                      <div className="absolute inset-0 bg-white/85 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
-                                        {uploadState.stage === 'error' ? (
-                                          <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
-                                            <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
-                                            <p className="text-[11px] text-rose-600 leading-tight">{uploadState.error || 'Upload failed.'}</p>
-                                          </div>
+                                        {effectiveMedia[0].type === 'video' ? (
+                                          <video
+                                            src={effectiveMedia[0].url}
+                                            controls={!isUploading}
+                                            className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
+                                          />
                                         ) : (
-                                          <div className="bg-white rounded-2xl border border-gray-200/90 p-4 w-full max-w-[240px] shadow-lg text-center space-y-3 animate-in fade-in zoom-in-95 duration-150">
-                                            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                                            <div className="space-y-1">
-                                              <div className="flex items-center justify-between text-xs font-bold text-gray-800">
-                                                <span>Uploading...</span>
-                                                <span className="font-mono text-emerald-600">{displayProgress}%</span>
+                                          <img
+                                            src={effectiveMedia[0].thumbnailUrl || effectiveMedia[0].url}
+                                            alt="Media Preview"
+                                            className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
+                                          />
+                                        )}
+
+                                        {/* Overlay Replace/Remove Controls – visible on hover */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 z-10">
+                                          <button
+                                            type="button"
+                                            onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
+                                            className="bg-white/95 text-gray-900 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-white transition-all cursor-pointer flex items-center gap-1.5"
+                                            title="Replace media"
+                                          >
+                                            <RotateCcw className="w-3.5 h-3.5" />
+                                            Replace
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePlatformRemoveMedia(accId)}
+                                            className="bg-rose-600/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-rose-600 transition-all cursor-pointer flex items-center gap-1.5"
+                                            title="Remove media"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                            Remove
+                                          </button>
+                                        </div>
+
+                                        {/* Upload Progress Overlay */}
+                                        {(isUploading || uploadState.stage === 'error') && !customizeMediaPerPlatform && (
+                                          <div className="absolute inset-0 bg-white/85 backdrop-blur-xs z-30 flex items-center justify-center p-3 select-none">
+                                            {uploadState.stage === 'error' ? (
+                                              <div className="bg-white rounded-xl border border-rose-200 p-3 max-w-[240px] text-center space-y-2 shadow-lg">
+                                                <AlertCircle className="w-5 h-5 text-rose-600 mx-auto" />
+                                                <p className="text-[11px] text-rose-600 leading-tight">{uploadState.error || 'Upload failed.'}</p>
                                               </div>
-                                              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                                <div className="bg-emerald-600 h-1.5 rounded-full transition-all duration-200 ease-out" style={{ width: `${displayProgress}%` }} />
+                                            ) : (
+                                              <div className="bg-white rounded-2xl border border-gray-200/90 p-4 w-full max-w-[240px] shadow-lg text-center space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                                                <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                                                <div className="space-y-1">
+                                                  <div className="flex items-center justify-between text-xs font-bold text-gray-800">
+                                                    <span>Uploading...</span>
+                                                    <span className="font-mono text-emerald-600">{displayProgress}%</span>
+                                                  </div>
+                                                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                    <div className="bg-emerald-600 h-1.5 rounded-full transition-all duration-200 ease-out" style={{ width: `${displayProgress}%` }} />
+                                                  </div>
+                                                </div>
                                               </div>
-                                            </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
-                                    )}
-                                  </div>
+                                    );
+                                  })()}
                                 </div>
 
                                 {/* Compact file info row (no filename, just type badge + size + actions) */}
@@ -2046,15 +2192,25 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   </button>
                                 </div>
 
-                                {/* Instagram Creative Features: Music / Text / Topics / Tag Products */}
-                                <div className="space-y-2">
-                                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Instagram Features</p>
-                                  <div className="flex items-center gap-2 flex-wrap">
+                                {/* Instagram 7 Functional AI Features */}
+                                <div className="space-y-2.5">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                      Instagram Features & Overlays
+                                    </p>
+                                    <span className="text-[10px] text-emerald-600 font-semibold">Active & Persistent</span>
+                                  </div>
+
+                                  {/* 7 Pill Buttons matching reference image media_1793725284061_1e6665bd.png */}
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     {([
-                                      { id: 'music' as const, label: '♪ Music' },
-                                      { id: 'text' as const, label: 'Aa Text' },
-                                      { id: 'topics' as const, label: '# Topics' },
-                                      { id: 'products' as const, label: '🏷 Tag Products' },
+                                      { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
+                                      { id: 'text' as const, label: 'Text', icon: <span className="text-amber-500 font-bold text-xs shrink-0">Aa</span> },
+                                      { id: 'topics' as const, label: 'Topics', icon: <span className="text-amber-500 font-bold text-xs shrink-0">#</span> },
+                                      { id: 'products' as const, label: 'Tag Products', icon: <ShoppingBag className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
+                                      { id: 'link' as const, label: 'Link', icon: <LinkIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
+                                      { id: 'mention' as const, label: 'Mention', icon: <span className="text-amber-500 font-bold text-xs shrink-0">@</span> },
+                                      { id: 'tags' as const, label: 'Tags', icon: <Hash className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
                                     ]).map((feat) => {
                                       const isActive = instagramFeatureTabs[acc.id] === feat.id;
                                       return (
@@ -2067,71 +2223,386 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                               [acc.id]: prev[acc.id] === feat.id ? null : feat.id,
                                             }))
                                           }
-                                          className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                                             isActive
-                                              ? 'bg-gray-900 text-white shadow-xs'
-                                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                              ? 'bg-[#5c493e] text-white ring-2 ring-amber-500 shadow-xs'
+                                              : 'bg-[#4a3b32] hover:bg-[#58463c] text-white border border-[#5c493e]/50'
                                           }`}
                                         >
-                                          {feat.label}
+                                          {feat.icon}
+                                          <span className="text-white font-medium">{feat.label}</span>
                                         </button>
                                       );
                                     })}
                                   </div>
 
-                                  {/* Music Panel */}
+                                  {/* 1. MUSIC FUNCTIONAL EDITOR */}
                                   {instagramFeatureTabs[acc.id] === 'music' && (
-                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
-                                      <p className="text-[11px] text-gray-500">Search for a track to add to your Reel or Story. Music can only be set via Instagram's native creator tools — enter your desired track below and we'll include it as a note.</p>
-                                      <input
-                                        type="text"
-                                        value={instagramMusicQuery[acc.id] || ''}
-                                        onChange={(e) => setInstagramMusicQuery((prev) => ({ ...prev, [acc.id]: e.target.value }))}
-                                        placeholder="e.g. Blinding Lights – The Weeknd"
-                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
-                                      />
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-1.5">
+                                          <Music2 className="w-4 h-4 text-amber-500" />
+                                          <span className="text-xs font-bold text-gray-900">Audio Track Selection</span>
+                                        </div>
+                                        {instagramMusic[acc.id]?.title && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setInstagramMusic(prev => ({ ...prev, [acc.id]: { title: '', artist: '' } }))}
+                                            className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                                          >
+                                            Clear
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                          type="text"
+                                          value={instagramMusic[acc.id]?.title || ''}
+                                          onChange={(e) => setInstagramMusic(prev => ({ ...prev, [acc.id]: { title: e.target.value, artist: prev[acc.id]?.artist || '' } }))}
+                                          placeholder="Track Title (e.g. Blinding Lights)"
+                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={instagramMusic[acc.id]?.artist || ''}
+                                          onChange={(e) => setInstagramMusic(prev => ({ ...prev, [acc.id]: { title: prev[acc.id]?.title || '', artist: e.target.value } }))}
+                                          placeholder="Artist Name (e.g. The Weeknd)"
+                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                        <span className="text-[10px] text-gray-400 font-semibold">Suggested:</span>
+                                        {[
+                                          { title: 'Flowers', artist: 'Miley Cyrus' },
+                                          { title: 'As It Was', artist: 'Harry Styles' },
+                                          { title: 'Starboy', artist: 'The Weeknd' },
+                                        ].map(s => (
+                                          <button
+                                            key={s.title}
+                                            type="button"
+                                            onClick={() => setInstagramMusic(prev => ({ ...prev, [acc.id]: s }))}
+                                            className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-amber-50 hover:text-amber-800 text-[10px] text-gray-600 transition-colors cursor-pointer"
+                                          >
+                                            {s.title}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <p className="text-[10px] text-gray-400 leading-tight">
+                                        Note: Instagram Reels API embeds audio metadata into your publishing envelope. Native copyright clearance occurs on upload.
+                                      </p>
                                     </div>
                                   )}
 
-                                  {/* Text Overlay Panel */}
+                                  {/* 2. TEXT OVERLAY FUNCTIONAL EDITOR */}
                                   {instagramFeatureTabs[acc.id] === 'text' && (
-                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
-                                      <p className="text-[11px] text-gray-500">Add a text overlay note for your Story or Reel. This will be included as a creative direction note.</p>
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-1.5">
+                                          <Type className="w-4 h-4 text-amber-500" />
+                                          <span className="text-xs font-bold text-gray-900">Visual Text Overlay</span>
+                                        </div>
+                                        {instagramTextOverlay[acc.id]?.text && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setInstagramTextOverlay(prev => ({ ...prev, [acc.id]: { text: '', position: 'center', style: 'classic' } }))}
+                                            className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                                          >
+                                            Clear
+                                          </button>
+                                        )}
+                                      </div>
                                       <input
                                         type="text"
-                                        value={instagramTextOverlay[acc.id] || ''}
-                                        onChange={(e) => setInstagramTextOverlay((prev) => ({ ...prev, [acc.id]: e.target.value }))}
-                                        placeholder="e.g. NEW DROP 🔥 Available Now"
-                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                        value={instagramTextOverlay[acc.id]?.text || ''}
+                                        onChange={(e) => setInstagramTextOverlay(prev => ({
+                                          ...prev,
+                                          [acc.id]: {
+                                            text: e.target.value,
+                                            position: prev[acc.id]?.position || 'center',
+                                            style: prev[acc.id]?.style || 'classic',
+                                          },
+                                        }))}
+                                        placeholder="Type overlay text (e.g. NEW DROP 🔥 Available Now)"
+                                        className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
                                       />
+                                      <div className="flex items-center justify-between gap-2 pt-1">
+                                        <div className="flex items-center space-x-1 text-[11px]">
+                                          <span className="text-gray-400 font-semibold mr-1">Position:</span>
+                                          {(['top', 'center', 'bottom'] as const).map(pos => (
+                                            <button
+                                              key={pos}
+                                              type="button"
+                                              onClick={() => setInstagramTextOverlay(prev => ({
+                                                ...prev,
+                                                [acc.id]: { text: prev[acc.id]?.text || '', position: pos, style: prev[acc.id]?.style || 'classic' },
+                                              }))}
+                                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition-colors cursor-pointer ${
+                                                (instagramTextOverlay[acc.id]?.position || 'center') === pos
+                                                  ? 'bg-gray-900 text-white'
+                                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                              }`}
+                                            >
+                                              {pos}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
                                     </div>
                                   )}
 
-                                  {/* Topics Panel */}
+                                  {/* 3. TOPICS FUNCTIONAL EDITOR */}
                                   {instagramFeatureTabs[acc.id] === 'topics' && (
-                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
-                                      <p className="text-[11px] text-gray-500">Add relevant topics to help Instagram categorize your content and improve discoverability.</p>
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-gray-900">Instagram Topic Tags (Up to 3)</span>
+                                        <span className="text-[10px] text-gray-400">
+                                          {(instagramTopicsList[acc.id] || []).length}/3 selected
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {['Travel', 'Technology', 'Fitness', 'Fashion', 'Business', 'Food & Drink', 'Art & Design', 'Music'].map(topic => {
+                                          const current = instagramTopicsList[acc.id] || [];
+                                          const isSelected = current.includes(topic);
+                                          return (
+                                            <button
+                                              key={topic}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) {
+                                                  setInstagramTopicsList(prev => ({ ...prev, [acc.id]: current.filter(t => t !== topic) }));
+                                                } else if (current.length < 3) {
+                                                  setInstagramTopicsList(prev => ({ ...prev, [acc.id]: [...current, topic] }));
+                                                }
+                                              }}
+                                              className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
+                                                isSelected
+                                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                              }`}
+                                            >
+                                              {topic} {isSelected ? '✓' : '+'}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* 4. TAGGED PRODUCTS FUNCTIONAL EDITOR */}
+                                  {instagramFeatureTabs[acc.id] === 'products' && (
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <span className="text-xs font-bold text-gray-900 block">Product Tagging (Instagram Shop)</span>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                          type="text"
+                                          value={newProductName[acc.id] || ''}
+                                          onChange={(e) => setNewProductName(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                                          placeholder="Product Name"
+                                          className="text-xs border border-gray-200 rounded-xl p-2 bg-gray-50/50"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={newProductSku[acc.id] || ''}
+                                          onChange={(e) => setNewProductSku(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                                          placeholder="SKU or Catalog ID"
+                                          className="text-xs border border-gray-200 rounded-xl p-2 bg-gray-50/50"
+                                        />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const name = newProductName[acc.id]?.trim();
+                                          if (!name) return;
+                                          const sku = newProductSku[acc.id]?.trim() || `SKU-${Date.now().toString().slice(-4)}`;
+                                          setInstagramProductsList(prev => ({
+                                            ...prev,
+                                            [acc.id]: [...(prev[acc.id] || []), { name, sku, url: '' }],
+                                          }));
+                                          setNewProductName(prev => ({ ...prev, [acc.id]: '' }));
+                                          setNewProductSku(prev => ({ ...prev, [acc.id]: '' }));
+                                        }}
+                                        className="w-full py-1.5 px-3 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                                      >
+                                        + Add Product Tag
+                                      </button>
+                                      {/* Product list */}
+                                      {(instagramProductsList[acc.id] || []).map((p, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-200 text-xs">
+                                          <div>
+                                            <span className="font-bold text-gray-900 block">{p.name}</span>
+                                            <span className="text-[10px] text-gray-400 font-mono">{p.sku}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => setInstagramProductsList(prev => ({
+                                              ...prev,
+                                              [acc.id]: prev[acc.id].filter((_, i) => i !== idx),
+                                            }))}
+                                            className="text-gray-400 hover:text-rose-600 p-1"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* 5. LINK STICKER FUNCTIONAL EDITOR */}
+                                  {instagramFeatureTabs[acc.id] === 'link' && (
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <div className="flex items-center space-x-1.5">
+                                        <LinkIcon className="w-4 h-4 text-blue-600" />
+                                        <span className="text-xs font-bold text-gray-900">Story & Reel Link Sticker</span>
+                                      </div>
+                                      <input
+                                        type="url"
+                                        value={instagramLinkSticker[acc.id]?.url || ''}
+                                        onChange={(e) => setInstagramLinkSticker(prev => ({
+                                          ...prev,
+                                          [acc.id]: { url: e.target.value, text: prev[acc.id]?.text || '' },
+                                        }))}
+                                        placeholder="https://example.com/collection"
+                                        className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-blue-500 bg-gray-50/50"
+                                      />
                                       <input
                                         type="text"
-                                        value={instagramTopics[acc.id] || ''}
-                                        onChange={(e) => setInstagramTopics((prev) => ({ ...prev, [acc.id]: e.target.value }))}
-                                        placeholder="e.g. Fashion, Travel, Fitness (comma separated)"
-                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
+                                        value={instagramLinkSticker[acc.id]?.text || ''}
+                                        onChange={(e) => setInstagramLinkSticker(prev => ({
+                                          ...prev,
+                                          [acc.id]: { url: prev[acc.id]?.url || '', text: e.target.value },
+                                        }))}
+                                        placeholder="Custom sticker text (e.g. Shop The Drop)"
+                                        className="w-full text-xs border border-gray-200 rounded-xl p-2 bg-gray-50/50"
                                       />
                                     </div>
                                   )}
 
-                                  {/* Tag Products Panel */}
-                                  {instagramFeatureTabs[acc.id] === 'products' && (
-                                    <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 animate-in fade-in duration-150">
-                                      <p className="text-[11px] text-gray-500">Tag products from your Instagram Shop. Your account must be eligible for Instagram Shopping. Enter product names or IDs to tag.</p>
-                                      <input
-                                        type="text"
-                                        value={instagramProductTags[acc.id] || ''}
-                                        onChange={(e) => setInstagramProductTags((prev) => ({ ...prev, [acc.id]: e.target.value }))}
-                                        placeholder="e.g. Product Name, SKU-001"
-                                        className="w-full text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500 bg-gray-50/50"
-                                      />
+                                  {/* 6. MENTIONS FUNCTIONAL EDITOR */}
+                                  {instagramFeatureTabs[acc.id] === 'mention' && (
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <span className="text-xs font-bold text-gray-900 block">User Mentions</span>
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          value={mentionInput[acc.id] || ''}
+                                          onChange={(e) => setMentionInput(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                                          placeholder="@username"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              const u = (mentionInput[acc.id] || '').trim().replace(/^@/, '');
+                                              if (u) {
+                                                setInstagramMentionsList(prev => ({ ...prev, [acc.id]: [...(prev[acc.id] || []), `@${u}`] }));
+                                                setMentionInput(prev => ({ ...prev, [acc.id]: '' }));
+                                              }
+                                            }
+                                          }}
+                                          className="flex-1 text-xs border border-gray-200 rounded-xl p-2 bg-gray-50/50"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const u = (mentionInput[acc.id] || '').trim().replace(/^@/, '');
+                                            if (u) {
+                                              setInstagramMentionsList(prev => ({ ...prev, [acc.id]: [...(prev[acc.id] || []), `@${u}`] }));
+                                              setMentionInput(prev => ({ ...prev, [acc.id]: '' }));
+                                            }
+                                          }}
+                                          className="px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {(instagramMentionsList[acc.id] || []).map((m, idx) => (
+                                          <span key={idx} className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center space-x-1">
+                                            <span>{m}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setInstagramMentionsList(prev => ({
+                                                ...prev,
+                                                [acc.id]: prev[acc.id].filter((_, i) => i !== idx),
+                                              }))}
+                                              className="hover:text-rose-600 cursor-pointer ml-1"
+                                            >
+                                              ×
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* 7. TAGS / HASHTAGS FUNCTIONAL EDITOR */}
+                                  {instagramFeatureTabs[acc.id] === 'tags' && (
+                                    <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
+                                      <span className="text-xs font-bold text-gray-900 block">Hashtags & Tags</span>
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          value={tagInput[acc.id] || ''}
+                                          onChange={(e) => setTagInput(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                                          placeholder="#hashtag"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              const t = (tagInput[acc.id] || '').trim().replace(/^#/, '');
+                                              if (t) {
+                                                setInstagramTagsList(prev => ({ ...prev, [acc.id]: [...(prev[acc.id] || []), `#${t}`] }));
+                                                setTagInput(prev => ({ ...prev, [acc.id]: '' }));
+                                              }
+                                            }
+                                          }}
+                                          className="flex-1 text-xs border border-gray-200 rounded-xl p-2 bg-gray-50/50"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const t = (tagInput[acc.id] || '').trim().replace(/^#/, '');
+                                            if (t) {
+                                              setInstagramTagsList(prev => ({ ...prev, [acc.id]: [...(prev[acc.id] || []), `#${t}`] }));
+                                              setTagInput(prev => ({ ...prev, [acc.id]: '' }));
+                                            }
+                                          }}
+                                          className="px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {['#reels', '#viral', '#explore', '#contentcreator', '#fyp'].map(sug => (
+                                          <button
+                                            key={sug}
+                                            type="button"
+                                            onClick={() => {
+                                              const cur = instagramTagsList[acc.id] || [];
+                                              if (!cur.includes(sug)) {
+                                                setInstagramTagsList(prev => ({ ...prev, [acc.id]: [...cur, sug] }));
+                                              }
+                                            }}
+                                            className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-semibold cursor-pointer"
+                                          >
+                                            {sug}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                        {(instagramTagsList[acc.id] || []).map((t, idx) => (
+                                          <span key={idx} className="bg-purple-50 text-purple-800 text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center space-x-1">
+                                            <span>{t}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setInstagramTagsList(prev => ({
+                                                ...prev,
+                                                [acc.id]: prev[acc.id].filter((_, i) => i !== idx),
+                                              }))}
+                                              className="hover:text-rose-600 cursor-pointer ml-1"
+                                            >
+                                              ×
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -2251,23 +2722,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </span>
               </div>
 
-              {/* Platform Preview Selector Bar */}
+              {/* Synchronized Platform Preview Selector Bar */}
               <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/70">
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                   {selectedAccountIds.length > 1 ? (
-                    selectedAccountIds.map((accId) => {
+                    selectedAccountIds.map((accId, idx) => {
                       const acc = accounts.find((a) => a.id === accId);
                       if (!acc) return null;
-                      const isActive = previewAccount?.id === acc.id;
-                      const hasCustomCaption = Boolean(
-                        accountCaptions[acc.id]?.caption?.trim() || accountCaptions[acc.id]?.title?.trim()
-                      );
+                      const isActive = previewCarouselIndex === idx;
+                      const accFmt = accountFormats[accId] || (acc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post'));
 
                       return (
                         <button
                           key={acc.id}
                           type="button"
                           onClick={() => {
+                            setPreviewCarouselIndex(idx);
                             setActivePreviewAccountId(acc.id);
                             setActivePreviewPlatform(acc.platform);
                           }}
@@ -2279,12 +2749,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         >
                           <PlatformLogo platform={acc.platform} className="w-3.5 h-3.5" />
                           <span className="truncate max-w-[120px]">{acc.displayName || acc.username}</span>
-                          {hasCustomCaption && (
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-white/20 shrink-0"
-                              title="Customized caption"
-                            />
-                          )}
+                          <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                            {accFmt}
+                          </span>
                         </button>
                       );
                     })
@@ -2398,7 +2865,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       selectedPlatform={previewPlatform}
                       activeAccount={carouselAcc}
                       previewType={carouselFormat as PostType}
-                      aspectRatio={isVertical ? '9:16' : aspectRatio}
+                      aspectRatio={accountAspectRatios[carouselAccId] || (isVertical ? '9:16' : '1:1')}
                       mediaFitMode={mediaFitMode}
                     />
                   </div>

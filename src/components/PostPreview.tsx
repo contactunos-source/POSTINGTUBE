@@ -20,8 +20,10 @@ import {
   Music2,
   Check,
   ExternalLink,
+  Link as LinkIcon,
   Info,
   Download,
+  X,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 
@@ -51,7 +53,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
   const caption = override?.caption || post.content || '';
   const isAiGenerated = Boolean(override?.isAiGenerated ?? post.isAiGenerated);
   const collaborator = override?.collaborator || post.collaborators;
-  const media = post.media && post.media.length > 0 ? post.media[0] : null;
+  const media = (override?.media && override.media.length > 0) ? override.media[0] : (post.media && post.media.length > 0 ? post.media[0] : null);
 
   const username = activeAccount?.username || 'your_channel';
   const displayName = activeAccount?.displayName || 'Your Channel';
@@ -62,9 +64,11 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
       ? `https://graph.facebook.com/${(activeAccount.pageId || activeAccount.id || '').replace(/^fb_/, '')}/picture?type=large`
       : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=059669&color=fff&size=256&bold=true`;
 
+  const effectiveRatio = override?.aspectRatio || aspectRatio;
+
   // Compute container aspect ratio class based on user choice
   const getMediaAspectClass = () => {
-    switch (aspectRatio) {
+    switch (effectiveRatio) {
       case '1:1':
         return 'aspect-square';
       case '4:5':
@@ -79,47 +83,102 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
     }
   };
 
-  const isReelOrShort =
-    previewType === 'reel' ||
-    previewType === 'story' ||
-    previewType === 'short' ||
-    aspectRatio === '9:16' ||
-    (media?.type === 'video' && aspectRatio !== '16:9' && previewType !== 'post' && previewType !== 'video');
-
+  const isReel = previewType === 'reel';
+  const isStory = previewType === 'story';
+  const isShort = previewType === 'short';
   const fitClass = mediaFitMode === 'cover' ? 'object-cover' : 'object-contain';
 
   return (
     <div className="w-full max-w-sm mx-auto select-none font-sans space-y-3">
       {/* 1. INSTAGRAM PREVIEW */}
       {selectedPlatform === 'instagram' && (
-        isReelOrShort ? (
+        isStory ? (
+          /* Instagram Story Preview (Authentic 9:16 Story Canvas) */
+          <div className="relative bg-black rounded-3xl overflow-hidden aspect-[9/16] text-white shadow-xl border border-gray-800 flex flex-col justify-between">
+            {/* Top Segmented Story Progress Bar */}
+            <div className="absolute top-2.5 left-3 right-3 z-30 flex gap-1.5">
+              <div className="h-0.5 flex-1 bg-white rounded-full shadow-xs" />
+              <div className="h-0.5 flex-1 bg-white/40 rounded-full" />
+            </div>
+
+            {/* Story Header */}
+            <div className="relative z-30 pt-5 px-3.5 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600">
+                  <img src={avatar} alt={username} className="w-7 h-7 rounded-full object-cover border border-black" />
+                </div>
+                <span className="font-bold text-white text-xs">{username}</span>
+                <span className="text-[10px] text-white/60">Just now</span>
+              </div>
+              <div className="flex items-center space-x-2 text-white/80">
+                <MoreHorizontal className="w-4 h-4 cursor-pointer" />
+                <X className="w-4 h-4 cursor-pointer" />
+              </div>
+            </div>
+
+            {/* Background Story Media */}
+            <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
+              {media ? (
+                media.type === 'video' ? (
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
+                ) : (
+                  <img src={media.thumbnailUrl || media.url} alt="Story frame" className={`w-full h-full ${fitClass}`} />
+                )
+              ) : (
+                <div className="text-gray-500 text-xs text-center p-4">Story media placeholder</div>
+              )}
+            </div>
+
+            {/* Story Text Overlay (if specified via Text AI Feature) */}
+            {override?.textOverlay?.text && (
+              <div className={`absolute z-20 left-4 right-4 ${
+                override.textOverlay.position === 'top' ? 'top-16' : override.textOverlay.position === 'bottom' ? 'bottom-20' : 'top-1/2 -translate-y-1/2'
+              } text-center`}>
+                <span className="inline-block bg-black/65 text-white font-bold text-sm px-4 py-2 rounded-2xl backdrop-blur-xs shadow-lg border border-white/10">
+                  {override.textOverlay.text}
+                </span>
+              </div>
+            )}
+
+            {/* Story Link Sticker (if specified via Link Feature) */}
+            {override?.linkSticker?.url && (
+              <div className="absolute z-20 bottom-24 left-1/2 -translate-x-1/2">
+                <div className="bg-white text-gray-900 px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center space-x-1.5 shadow-xl border border-gray-100">
+                  <LinkIcon className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="truncate max-w-[130px]">{override.linkSticker.text || override.linkSticker.url.replace(/^https?:\/\//, '')}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Story Interaction Bar */}
+            <div className="relative z-30 p-3 pb-3.5 flex items-center space-x-2.5">
+              <div className="flex-1 bg-white/20 backdrop-blur-md rounded-full px-4 py-2 text-white/70 text-xs border border-white/20">
+                Send message...
+              </div>
+              <Heart className="w-5 h-5 text-white cursor-pointer hover:scale-110 transition-transform" />
+              <Send className="w-5 h-5 text-white cursor-pointer hover:scale-110 transition-transform" />
+            </div>
+          </div>
+        ) : isReel ? (
           /* Instagram Reels Preview */
           <div className="relative bg-black rounded-3xl overflow-hidden aspect-[9/16] text-white shadow-xl border border-gray-800 flex flex-col justify-between">
             {/* Background Media */}
             <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
               {media ? (
                 media.type === 'video' ? (
-                  <video
-                    src={media.url}
-                    className={`w-full h-full ${fitClass}`}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
                 ) : (
                   <img src={media.thumbnailUrl || media.url} alt="Reel media" className={`w-full h-full ${fitClass}`} />
                 )
               ) : (
                 <div className="text-gray-500 text-xs text-center p-4">No media attached</div>
               )}
-              {/* Subtle gradient overlay for readability */}
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
             </div>
 
             {/* Top Reel Bar */}
             <div className="relative z-10 p-3.5 flex items-center justify-between text-xs font-bold">
-              <span>{previewType === 'story' ? 'Your Story' : 'Reels'}</span>
+              <span>Reels</span>
               <div className="w-6 h-6 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
                 <Volume2 className="w-3.5 h-3.5" />
               </div>
@@ -158,7 +217,12 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             <div className="relative z-10 p-3.5 space-y-2">
               <div className="flex items-center space-x-2">
                 <img src={avatar} referrerPolicy="no-referrer" alt={username} className="w-7 h-7 rounded-full object-cover ring-2 ring-white/60" />
-                <span className="text-xs font-bold text-white">@{username}{collaborator ? ` & @${collaborator.replace(/^@/, '')}` : ''}</span>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-white bg-black/50 border border-white/20 px-1.5 py-0.5 rounded-full backdrop-blur-xs"><Sparkles className="w-2.5 h-2.5 text-purple-300" />AI info</span>)}
+                <span className="text-xs font-bold text-white">@{username}{collaborator ? ` & @${collaborator.replace(/^@/, '')}` : ''}</span>
+                {isAiGenerated && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-white bg-black/50 border border-white/20 px-1.5 py-0.5 rounded-full backdrop-blur-xs">
+                    <Sparkles className="w-2.5 h-2.5 text-purple-300" />AI
+                  </span>
+                )}
                 <button type="button" className="text-[10px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
                   Follow
                 </button>
@@ -168,7 +232,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               </p>
               <div className="flex items-center space-x-1.5 text-[10px] text-white/80">
                 <Music2 className="w-3 h-3" />
-                <span className="truncate">Original audio • {displayName}</span>
+                <span className="truncate">{override?.music?.title ? `${override.music.title} • ${override.music.artist || displayName}` : `Original audio • ${displayName}`}</span>
               </div>
             </div>
           </div>
@@ -180,7 +244,14 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               <div className="flex items-center space-x-2.5">
                 <img src={avatar} referrerPolicy="no-referrer" alt={username} className="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200" />
                 <div>
-                  <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{collaborator ? `${username} and @${collaborator.replace(/^@/, '')}` : username}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
+                  <div className="flex items-center space-x-1.5">
+                    <div className="text-xs font-bold text-gray-900 leading-tight">{collaborator ? `${username} and @${collaborator.replace(/^@/, '')}` : username}</div>
+                    {isAiGenerated && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full">
+                        <Sparkles className="w-2.5 h-2.5 text-purple-600" />AI
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-gray-400">Sponsored • Original Audio</div>
                 </div>
               </div>
@@ -191,14 +262,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             <div className={`relative bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center overflow-hidden`}>
               {media ? (
                 media.type === 'video' ? (
-                  <video
-                    src={media.url}
-                    className={`w-full h-full ${fitClass}`}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
                 ) : (
                   <img src={media.thumbnailUrl || media.url} alt="Instagram Media" className={`w-full h-full ${fitClass}`} />
                 )
@@ -228,8 +292,6 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 <span className="whitespace-pre-line">{caption || 'Write your Instagram caption in the composer...'}</span>
               </div>
 
-              
-
               <div className="text-[10px] text-gray-400 mt-2 uppercase tracking-wider">Just now</div>
             </div>
           </div>
@@ -238,92 +300,168 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 
       {/* 2. FACEBOOK PAGE PREVIEW */}
       {selectedPlatform === 'facebook' && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-          {/* Header */}
-          <div className="p-3.5 flex items-center justify-between border-b border-gray-100">
-            <div className="flex items-center space-x-2.5">
-              <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-              <div>
-                <div className="flex items-center space-x-1.5"><div className="text-xs font-bold text-gray-900 leading-tight">{displayName}</div>{isAiGenerated && (<span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full"><Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info</span>)}</div>
-                <div className="text-[11px] text-gray-500 flex items-center space-x-1 mt-0.5">
-                  <span>Just now</span>
-                  <span>·</span>
-                  <Globe className="w-3 h-3 text-gray-400" />
-                </div>
-              </div>
-            </div>
-            <MoreHorizontal className="w-4 h-4 text-gray-400 cursor-pointer" />
-          </div>
-
-          {/* Caption text */}
-          <div className="px-3.5 py-2.5 text-xs text-gray-900 whitespace-pre-line leading-relaxed break-words">
-            {caption || 'Add your Facebook post description here...'}
-          </div>
-
-          {/* Media Asset */}
-          {media && (
-            <div className={`bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center overflow-hidden border-y border-gray-100`}>
-              {media.type === 'video' ? (
-                <video
-                  src={media.url}
-                  className={`w-full h-full ${fitClass}`}
-                  controls
-                  playsInline
-                />
-              ) : (
-                <img
-                  src={media.thumbnailUrl || media.url}
-                  alt="Facebook Post Media"
-                  className={`w-full h-full ${fitClass}`}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Social Stats Summary */}
-          <div className="px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-500 border-b border-gray-100">
-            <div className="flex items-center space-x-1">
-              <span className="text-sm">👍💙</span>
-              <span className="font-semibold text-gray-700">482</span>
-            </div>
-            <span>34 comments • 12 shares</span>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-3 p-1 text-xs text-gray-600 font-semibold text-center">
-            <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
-              <ThumbsUp className="w-4 h-4 text-gray-500" />
-              <span>Like</span>
-            </button>
-            <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
-              <MessageCircle className="w-4 h-4 text-gray-500" />
-              <span>Comment</span>
-            </button>
-            <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
-              <Share2 className="w-4 h-4 text-gray-500" />
-              <span>Share</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 3. YOUTUBE PREVIEW (Watch Card or Shorts) */}
-      {selectedPlatform === 'youtube' && (
-        isReelOrShort ? (
-          /* YouTube Shorts Preview */
+        isStory ? (
+          /* Facebook Story Preview */
           <div className="relative bg-black rounded-3xl overflow-hidden aspect-[9/16] text-white shadow-xl border border-gray-800 flex flex-col justify-between">
-            {/* Background Video */}
+            {/* Top Facebook Story Bar */}
+            <div className="absolute top-2.5 left-3 right-3 z-30 flex gap-1.5">
+              <div className="h-0.5 flex-1 bg-white rounded-full" />
+              <div className="h-0.5 flex-1 bg-white/40 rounded-full" />
+            </div>
+            <div className="relative z-30 pt-5 px-3.5 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <div className="p-0.5 rounded-full bg-blue-600">
+                  <img src={avatar} alt={displayName} className="w-7 h-7 rounded-full object-cover border border-black" />
+                </div>
+                <span className="font-bold text-white text-xs">{displayName}</span>
+                <span className="text-[10px] text-white/60">Facebook Story</span>
+              </div>
+              <X className="w-4 h-4 text-white/80" />
+            </div>
+
+            {/* Story Media */}
             <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
               {media ? (
                 media.type === 'video' ? (
-                  <video
-                    src={media.url}
-                    className={`w-full h-full ${fitClass}`}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
+                ) : (
+                  <img src={media.thumbnailUrl || media.url} alt="Story frame" className={`w-full h-full ${fitClass}`} />
+                )
+              ) : (
+                <div className="text-gray-500 text-xs">Facebook Story media</div>
+              )}
+            </div>
+
+            {/* Bottom reply to Story */}
+            <div className="relative z-30 p-3 pb-3.5 flex items-center space-x-2">
+              <div className="flex-1 bg-white/20 backdrop-blur-md rounded-full px-4 py-2 text-white/70 text-xs border border-white/20">
+                Reply to {displayName}...
+              </div>
+              <ThumbsUp className="w-5 h-5 text-blue-500 fill-blue-500" />
+            </div>
+          </div>
+        ) : isReel ? (
+          /* Facebook Reel Preview */
+          <div className="relative bg-black rounded-3xl overflow-hidden aspect-[9/16] text-white shadow-xl border border-gray-800 flex flex-col justify-between">
+            <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
+              {media ? (
+                media.type === 'video' ? (
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
+                ) : (
+                  <img src={media.thumbnailUrl || media.url} alt="Reel frame" className={`w-full h-full ${fitClass}`} />
+                )
+              ) : (
+                <div className="text-gray-500 text-xs">Facebook Reel media</div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
+            </div>
+
+            <div className="relative z-10 p-3.5 flex items-center justify-between text-xs font-bold">
+              <span>Facebook Reel</span>
+              <Volume2 className="w-3.5 h-3.5" />
+            </div>
+
+            <div className="relative z-10 self-end p-3 flex flex-col items-center space-y-4 mb-2">
+              <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
+                <ThumbsUp className="w-5 h-5 text-white" />
+              </div>
+              <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 text-white" />
+              </div>
+              <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
+                <Share2 className="w-4 h-4 text-white" />
+              </div>
+            </div>
+
+            <div className="relative z-10 p-3.5 space-y-1.5">
+              <div className="flex items-center space-x-2">
+                <img src={avatar} alt={displayName} className="w-7 h-7 rounded-full object-cover border border-white" />
+                <span className="text-xs font-bold text-white">{displayName}</span>
+              </div>
+              <p className="text-xs text-white/90 line-clamp-2 leading-relaxed">
+                {caption || 'Facebook Reel description...'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* Facebook Feed Post Preview */
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="p-3.5 flex items-center justify-between border-b border-gray-100">
+              <div className="flex items-center space-x-2.5">
+                <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <div className="text-xs font-bold text-gray-900 leading-tight">{displayName}</div>
+                    {isAiGenerated && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded-full">
+                        <Sparkles className="w-2.5 h-2.5 text-purple-600" />AI info
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center space-x-1 mt-0.5">
+                    <span>Just now</span>
+                    <span>·</span>
+                    <Globe className="w-3 h-3 text-gray-400" />
+                  </div>
+                </div>
+              </div>
+              <MoreHorizontal className="w-4 h-4 text-gray-400 cursor-pointer" />
+            </div>
+
+            {/* Caption text */}
+            <div className="px-3.5 py-2.5 text-xs text-gray-900 whitespace-pre-line leading-relaxed break-words">
+              {caption || 'Add your Facebook post description here...'}
+            </div>
+
+            {/* Media Asset */}
+            {media && (
+              <div className={`bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center overflow-hidden border-y border-gray-100`}>
+                {media.type === 'video' ? (
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} controls playsInline />
+                ) : (
+                  <img src={media.thumbnailUrl || media.url} alt="Facebook Post Media" className={`w-full h-full ${fitClass}`} />
+                )}
+              </div>
+            )}
+
+            {/* Social Stats Summary */}
+            <div className="px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-500 border-b border-gray-100">
+              <div className="flex items-center space-x-1">
+                <span className="text-sm">👍💙</span>
+                <span className="font-semibold text-gray-700">482</span>
+              </div>
+              <span>34 comments • 12 shares</span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-3 p-1 text-xs text-gray-600 font-semibold text-center">
+              <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                <ThumbsUp className="w-4 h-4 text-gray-500" />
+                <span>Like</span>
+              </button>
+              <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                <MessageCircle className="w-4 h-4 text-gray-500" />
+                <span>Comment</span>
+              </button>
+              <button type="button" className="flex items-center justify-center space-x-1.5 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                <Share2 className="w-4 h-4 text-gray-500" />
+                <span>Share</span>
+              </button>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* 3. YOUTUBE PREVIEW (Watch Card or Shorts or Community Post) */}
+      {selectedPlatform === 'youtube' && (
+        isShort ? (
+          /* YouTube Shorts Preview */
+          <div className="relative bg-black rounded-3xl overflow-hidden aspect-[9/16] text-white shadow-xl border border-gray-800 flex flex-col justify-between">
+            <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
+              {media ? (
+                media.type === 'video' ? (
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
                 ) : (
                   <img src={media.thumbnailUrl || media.url} alt="Shorts frame" className={`w-full h-full ${fitClass}`} />
                 )
@@ -333,10 +471,9 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
             </div>
 
-            {/* Top Shorts Logo */}
             <div className="relative z-10 p-3.5 flex items-center justify-between">
               <div className="flex items-center space-x-1 bg-red-600 px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase">
-                <span>{previewType === 'short' ? 'Shorts' : previewType === 'reel' ? 'Shorts' : 'Shorts'}</span>
+                <span>Shorts</span>
               </div>
               <div className="flex items-center space-x-3 text-white">
                 <Volume2 className="w-4 h-4" />
@@ -344,7 +481,6 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               </div>
             </div>
 
-            {/* Right Action Icons Column */}
             <div className="relative z-10 self-end p-3 flex flex-col items-center space-y-4 mb-2">
               <div className="flex flex-col items-center">
                 <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xs flex items-center justify-center">
@@ -370,13 +506,11 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 </div>
                 <span className="text-[10px] font-bold mt-1">Share</span>
               </div>
-              {/* Sound Square */}
               <div className="w-8 h-8 rounded-lg bg-gray-900 border border-white/40 flex items-center justify-center">
                 <Music2 className="w-4 h-4 text-white" />
               </div>
             </div>
 
-            {/* Bottom Channel Info & Title */}
             <div className="relative z-10 p-3.5 space-y-2">
               <div className="flex items-center space-x-2">
                 <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-7 h-7 rounded-full object-cover" />
@@ -385,22 +519,25 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                   Subscribe
                 </span>
               </div>
-              {isAiGenerated && (<div className="mb-1 inline-flex items-center gap-1 text-[9px] font-semibold text-white bg-black/60 border border-white/20 px-2 py-0.5 rounded-full backdrop-blur-xs"><Sparkles className="w-2.5 h-2.5 text-blue-300" />Altered content</div>)}
+              {isAiGenerated && (
+                <div className="mb-1 inline-flex items-center gap-1 text-[9px] font-semibold text-white bg-black/60 border border-white/20 px-2 py-0.5 rounded-full backdrop-blur-xs">
+                  <Sparkles className="w-2.5 h-2.5 text-blue-300" />Altered content
+                </div>
+              )}
               <h4 className="text-xs font-bold text-white leading-snug line-clamp-2">
                 {override?.title || post.platformOverrides?.youtube?.title || caption.split('\n')[0] || 'Shorts Video Title'}
               </h4>
             </div>
           </div>
         ) : (
-          /* YouTube Standard Post Preview */
+          /* YouTube Standard Post / Video Watch Card */
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-            {/* Channel Header Row */}
             <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-gray-100">
               <div className="flex items-center space-x-2.5 min-w-0">
                 <img src={avatar} referrerPolicy="no-referrer" alt={displayName} className="w-8 h-8 rounded-full object-cover shrink-0" />
                 <div className="min-w-0">
                   <h5 className="text-xs font-bold text-gray-900 truncate">{displayName}</h5>
-                  <span className="text-[10px] text-gray-400 block">YouTube Channel</span>
+                  <span className="text-[10px] text-gray-400 block">{previewType === 'post' ? 'YouTube Community Post' : 'YouTube Video'}</span>
                 </div>
               </div>
               <button type="button" className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold shrink-0">
@@ -408,36 +545,30 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               </button>
             </div>
 
-            {/* Post Caption */}
-            {isAiGenerated && (<div className="mx-3.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center space-x-1.5 text-[11px] text-gray-600"><Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>Altered or synthetic content disclosed</span></div>)}
+            {isAiGenerated && (
+              <div className="mx-3.5 mt-2.5 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-200/80 flex items-center space-x-1.5 text-[11px] text-gray-600">
+                <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span>Altered or synthetic content disclosed</span>
+              </div>
+            )}
             <div className="px-3.5 pt-3 pb-2 text-xs text-gray-800 leading-relaxed whitespace-pre-line">
               {caption || 'Enter your post caption in the composer...'}
             </div>
 
-            {/* Attached Media Preview */}
             {media && (
               <div className="px-3.5 pb-3">
                 {media.type === 'video' ? (
-                  <div className="relative aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
-                    <video
-                      src={media.url}
-                      className="w-full h-full object-contain"
-                      controls
-                    />
+                  <div className={`relative ${getMediaAspectClass()} bg-black rounded-xl overflow-hidden flex items-center justify-center`}>
+                    <video src={media.url} className="w-full h-full object-contain" controls />
                   </div>
                 ) : (
-                  <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50 max-h-[380px] flex items-center justify-center">
-                    <img
-                      src={media.url}
-                      alt="YouTube post media"
-                      className="w-full h-auto max-h-[380px] object-cover"
-                    />
+                  <div className={`rounded-xl overflow-hidden border border-gray-100 bg-gray-50 ${getMediaAspectClass()} flex items-center justify-center`}>
+                    <img src={media.thumbnailUrl || media.url} alt="YouTube post media" className={`w-full h-full ${fitClass}`} />
                   </div>
                 )}
               </div>
             )}
 
-            {/* Action Bar (Like, Dislike, Share) */}
             <div className="px-3.5 py-2.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600">
               <div className="flex items-center space-x-2">
                 <div className="flex items-center bg-gray-100 rounded-full px-3 py-1 font-semibold space-x-1.5">
@@ -457,7 +588,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         )
       )}
 
-      {/* 5. THREADS PREVIEW */}
+      {/* 4. THREADS PREVIEW */}
       {selectedPlatform === 'threads' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">
           <div className="flex items-start space-x-3">
@@ -486,7 +617,6 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 </div>
               )}
 
-              {/* Action Icons */}
               <div className="flex items-center space-x-4 text-gray-700 text-xs mt-3 pt-1">
                 <Heart className="w-4 h-4 hover:text-rose-500 cursor-pointer" />
                 <MessageCircle className="w-4 h-4 cursor-pointer" />
@@ -498,7 +628,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         </div>
       )}
 
-      {/* 6. LINKEDIN PREVIEW */}
+      {/* 5. LINKEDIN PREVIEW */}
       {selectedPlatform === 'linkedin' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-gray-900 space-y-3">
           <div className="flex items-start justify-between">
@@ -529,13 +659,11 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             </div>
           )}
 
-          {/* Social Counts */}
           <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-b border-gray-100 pb-2">
             <span>👍💡❤️ 128</span>
             <span>24 comments • 6 reposts</span>
           </div>
 
-          {/* Action Row */}
           <div className="grid grid-cols-4 gap-1 text-xs font-semibold text-gray-600 text-center">
             <div className="flex items-center justify-center space-x-1 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
               <ThumbsUp className="w-3.5 h-3.5" />
@@ -557,7 +685,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
         </div>
       )}
 
-      {/* 7. PINTEREST PREVIEW */}
+      {/* 6. PINTEREST PREVIEW */}
       {selectedPlatform === 'pinterest' && (
         <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm max-w-[280px] mx-auto text-gray-900">
           <div className="relative">

@@ -201,9 +201,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <nav className="space-y-0.5">
               <button
                 onClick={() => handleTabClick('new-post')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === 'new-post' || activeTab === 'create-composer'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -215,15 +215,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Content */}
           <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5 mt-2">
               Content
             </div>
             <nav className="space-y-0.5">
               <button
                 onClick={() => handleTabClick('posts-all')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab.startsWith('posts-')
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -232,9 +232,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <button
                 onClick={() => handleTabClick('calendar')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === 'calendar'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -246,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Analytics */}
           <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1 flex items-center justify-between">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5 mt-2 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -255,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer text-left ${
                   activeTab === 'insights' && (!selectedInsightsAccountId || selectedInsightsAccountId === 'all')
-                    ? 'text-emerald-700 font-bold'
+                    ? 'text-[#6d3ee8] font-bold'
                     : 'text-gray-400 hover:text-gray-700'
                 }`}
               >
@@ -275,7 +275,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }}
                     className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 pl-4 rounded-lg text-xs font-medium transition-colors truncate cursor-pointer ${
                       isSelected
-                        ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                        ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                     title={acc.displayName || acc.username}
@@ -292,15 +292,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Workspace */}
           <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">
-              Workspace
+            <div className="text-[10px] font-bold text-[#6d3ee8] uppercase tracking-wider px-3 mb-1.5 mt-2">
+              WORKSPACE
             </div>
             <nav className="space-y-0.5">
               <button
                 onClick={() => handleTabClick('connections')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === 'connections'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -309,9 +309,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <button
                 onClick={() => handleTabClick('analytics')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === 'analytics'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -320,9 +320,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <button
                 onClick={() => handleTabClick('settings')}
-                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-2xl text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === 'settings'
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    ? 'bg-[#f4eeff] text-[#6d3ee8] font-semibold shadow-2xs'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
