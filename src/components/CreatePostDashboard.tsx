@@ -611,34 +611,46 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     setPlatformMediaMap(prev => ({ ...prev, [accId]: [] }));
   };
 
-  const handlePlatformFilesSelected = (accId: string, files: FileList | null) => {
+  const handlePlatformFilesSelected = async (accId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    const blobUrl = URL.createObjectURL(file);
+    let blobUrl = '';
+    try {
+      blobUrl = URL.createObjectURL(file);
+    } catch {}
+
     const newMedia: PostMedia = {
       id: `platform_${accId}_${Date.now()}`,
-      url: blobUrl,
-      thumbnailUrl: blobUrl,
+      url: blobUrl || '',
+      thumbnailUrl: blobUrl || '',
       type: file.type.startsWith('video') ? 'video' : 'image',
       name: file.name,
       size: file.size,
     };
-    // Upload to server in background then update URL
-    const formData = new FormData();
-    formData.append('file', file);
-    fetch('/api/media/upload', { method: 'POST', body: formData })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.url) {
-          setPlatformMediaMap(prev => ({
-            ...prev,
-            [accId]: [{ ...newMedia, url: data.url, thumbnailUrl: data.thumbnailUrl || data.url }],
-          }));
-          URL.revokeObjectURL(blobUrl);
+
+    // Immediately display local preview
+    setPlatformMediaMap((prev) => ({ ...prev, [accId]: [newMedia] }));
+
+    // Safely upload using robust XHR-based uploadFileWithProgress (never throws 'Failed to fetch')
+    try {
+      const res = await uploadFileWithProgress(file, () => {});
+      if (res.success && res.url) {
+        const uploadedUrl: string = res.url;
+        setPlatformMediaMap((prev) => ({
+          ...prev,
+          [accId]: [{ ...newMedia, url: uploadedUrl, thumbnailUrl: res.thumbnailUrl || uploadedUrl }],
+        }));
+        if (blobUrl) {
+          try {
+            URL.revokeObjectURL(blobUrl);
+          } catch {}
         }
-      })
-      .catch(err => console.error('Platform media upload error:', err));
-    setPlatformMediaMap(prev => ({ ...prev, [accId]: [newMedia] }));
+      } else {
+        console.warn('[PlatformUpload] Notice:', res.error);
+      }
+    } catch (err) {
+      console.warn('[PlatformUpload] Catch:', err);
+    }
   };
 
   // Sync platformMediaMap when customizeMediaPerPlatform is first enabled
@@ -1155,18 +1167,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   const fileObj = new File([blobData], item.name || 'upload.jpg', {
                     type: blobData.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg'),
                   });
-                  const formData = new FormData();
-                  formData.append('file', fileObj);
-                  const uploadRes = await fetch('/api/media/upload', {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  const uploadJson = await uploadRes.json();
-                  if (uploadJson.success && uploadJson.url) {
+                  const uploadRes = await uploadFileWithProgress(fileObj, () => {});
+                  if (uploadRes.success && uploadRes.url) {
                     return {
                       ...item,
-                      url: uploadJson.url,
-                      thumbnailUrl: uploadJson.thumbnailUrl || uploadJson.url,
+                      url: uploadRes.url,
+                      thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
                     };
                   }
                 } catch (uploadErr) {
