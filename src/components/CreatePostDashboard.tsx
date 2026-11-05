@@ -71,6 +71,7 @@ import {
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
+import { OFFICIAL_YOUTUBE_CATEGORIES } from '@/app/api/youtube/categories/route';
 
 interface CreatePostDashboardProps {
   postType: 'text' | 'image' | 'video';
@@ -202,12 +203,10 @@ const getPlatformVisualConfig = (platform: SocialPlatform): PlatformVisualConfig
         activeTabBg: 'bg-red-600 text-white shadow-xs',
         cloudIconClass: 'text-red-600',
         supportedFormats: [
-          { id: 'video', label: 'Video' },
-          { id: 'short', label: 'Short' },
-          { id: 'post', label: 'Community Post' },
+          { id: 'short', label: 'Shorts' },
         ],
         limit: 5000,
-        placeholder: 'Write video description, links, and timestamps...',
+        placeholder: 'Write YouTube Shorts description, tags, and links...',
       };
     case 'linkedin':
       return {
@@ -675,6 +674,15 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const platformFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // Per-platform aspect ratios (1:1, 4:5, 9:16, 16:9)
   const [accountAspectRatios, setAccountAspectRatios] = useState<Record<string, '1:1' | '4:5' | '9:16' | '16:9'>>({});
+  // YouTube Studio Shorts metadata state
+  const [youtubeTitles, setYoutubeTitles] = useState<Record<string, string>>({});
+  const [youtubeCategories, setYoutubeCategories] = useState<Record<string, string>>({});
+  const [youtubeMadeForKids, setYoutubeMadeForKids] = useState<Record<string, boolean>>({});
+  const [youtubePrivacies, setYoutubePrivacies] = useState<Record<string, 'public' | 'unlisted' | 'private'>>({});
+
+  // Autosave and Unfinished Draft state
+  const [hasUnfinishedDraft, setHasUnfinishedDraft] = useState<boolean>(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   // YouTube image warning dismissals
   const [dismissedYoutubeWarnings, setDismissedYoutubeWarnings] = useState<Record<string, boolean>>({});
   // Live Feed Preview carousel index
@@ -735,6 +743,45 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
+
+  // Content-Type Platform Compatibility logic
+  const hasYoutubeSelected = useMemo(() => {
+    return selectedAccountIds.some(id => accounts.find(a => a.id === id)?.platform === 'youtube');
+  }, [selectedAccountIds, accounts]);
+
+  const hasInstagramSelected = useMemo(() => {
+    return selectedAccountIds.some(id => accounts.find(a => a.id === id)?.platform === 'instagram');
+  }, [selectedAccountIds, accounts]);
+
+  const isOnlyYoutubeSelected = useMemo(() => {
+    return selectedAccountIds.length > 0 && selectedAccountIds.every(id => accounts.find(a => a.id === id)?.platform === 'youtube');
+  }, [selectedAccountIds, accounts]);
+
+  const isTextDisabled = hasYoutubeSelected || hasInstagramSelected;
+  const textDisabledReason =
+    hasYoutubeSelected && hasInstagramSelected
+      ? 'YouTube & Instagram do not support text-only posts'
+      : hasYoutubeSelected
+      ? 'YouTube Shorts requires video'
+      : hasInstagramSelected
+      ? 'Instagram requires image or video'
+      : '';
+
+  const isImageDisabled = isOnlyYoutubeSelected;
+  const imageDisabledReason = isOnlyYoutubeSelected ? 'YouTube Shorts requires video' : '';
+
+  // Auto-switch postType if currently selected postType becomes disabled
+  useEffect(() => {
+    if (currentPostType === 'text' && isTextDisabled) {
+      if (!isImageDisabled) {
+        setCurrentPostType('image');
+      } else {
+        setCurrentPostType('video');
+      }
+    } else if (currentPostType === 'image' && isImageDisabled) {
+      setCurrentPostType('video');
+    }
+  }, [currentPostType, isTextDisabled, isImageDisabled]);
 
   // Compute selected platforms from selectedAccountIds
   const selectedPlatforms = useMemo(() => {
@@ -862,6 +909,156 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     facebookAiLabel,
     youtubeAiLabel,
   ]);
+
+  // 1. Check for unfinished post draft on component mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('pb_draft_autosave');
+      if (raw) {
+        const d = JSON.parse(raw);
+        const hasContent =
+          (d.mainCaption && d.mainCaption.trim().length > 0) ||
+          (Array.isArray(d.mediaList) && d.mediaList.length > 0) ||
+          (d.platformMediaMap && Object.values(d.platformMediaMap).some((arr: any) => Array.isArray(arr) && arr.length > 0));
+        if (hasContent) {
+          setHasUnfinishedDraft(true);
+          setDraftSavedAt(d.savedAt || null);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // 2. Debounced Autosave Effect: preserves full editing progress (media, captions, per-platform settings, aspect ratios, YouTube & Instagram settings)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const timer = setTimeout(() => {
+      const hasContent =
+        mainCaption.trim().length > 0 ||
+        mediaList.length > 0 ||
+        Object.values(platformMediaMap).some((arr) => Array.isArray(arr) && arr.length > 0);
+
+      if (!hasContent) return;
+
+      const draftPayload = {
+        mainCaption,
+        accountCaptions,
+        accountFormats,
+        accountAspectRatios,
+        selectedAccountIds,
+        currentPostType,
+        mediaList,
+        customizeMediaPerPlatform,
+        platformMediaMap,
+        scheduledDate,
+        scheduledTime,
+        scheduleMode,
+        youtubeTitles,
+        youtubeCategories,
+        youtubeMadeForKids,
+        youtubePrivacies,
+        instagramMusic,
+        instagramTextOverlay,
+        instagramTopicsList,
+        instagramProductsList,
+        instagramLinkSticker,
+        instagramMentionsList,
+        instagramTagsList,
+        instagramAiLabel,
+        facebookAiLabel,
+        youtubeAiLabel,
+        isInstagramCollabEnabled,
+        instagramCollaborators,
+        savedAt: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem('pb_draft_autosave', JSON.stringify(draftPayload));
+      } catch (err) {
+        console.warn('Draft autosave warning:', err);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [
+    mainCaption,
+    accountCaptions,
+    accountFormats,
+    accountAspectRatios,
+    selectedAccountIds,
+    currentPostType,
+    mediaList,
+    customizeMediaPerPlatform,
+    platformMediaMap,
+    scheduledDate,
+    scheduledTime,
+    scheduleMode,
+    youtubeTitles,
+    youtubeCategories,
+    youtubeMadeForKids,
+    youtubePrivacies,
+    instagramMusic,
+    instagramTextOverlay,
+    instagramTopicsList,
+    instagramProductsList,
+    instagramLinkSticker,
+    instagramMentionsList,
+    instagramTagsList,
+    instagramAiLabel,
+    facebookAiLabel,
+    youtubeAiLabel,
+    isInstagramCollabEnabled,
+    instagramCollaborators,
+  ]);
+
+  const handleResumeDraft = () => {
+    try {
+      const raw = localStorage.getItem('pb_draft_autosave');
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.mainCaption !== undefined) setMainCaption(d.mainCaption);
+      if (d.accountCaptions) setAccountCaptions(d.accountCaptions);
+      if (d.accountFormats) setAccountFormats(d.accountFormats);
+      if (d.accountAspectRatios) setAccountAspectRatios(d.accountAspectRatios);
+      if (Array.isArray(d.selectedAccountIds) && d.selectedAccountIds.length > 0) setSelectedAccountIds(d.selectedAccountIds);
+      if (d.currentPostType) setCurrentPostType(d.currentPostType);
+      if (Array.isArray(d.mediaList)) setMediaList(d.mediaList);
+      if (d.customizeMediaPerPlatform !== undefined) setCustomizeMediaPerPlatform(d.customizeMediaPerPlatform);
+      if (d.platformMediaMap) setPlatformMediaMap(d.platformMediaMap);
+      if (d.scheduledDate) setScheduledDate(d.scheduledDate);
+      if (d.scheduledTime) setScheduledTime(d.scheduledTime);
+      if (d.scheduleMode) setScheduleMode(d.scheduleMode);
+      if (d.youtubeTitles) setYoutubeTitles(d.youtubeTitles);
+      if (d.youtubeCategories) setYoutubeCategories(d.youtubeCategories);
+      if (d.youtubeMadeForKids) setYoutubeMadeForKids(d.youtubeMadeForKids);
+      if (d.youtubePrivacies) setYoutubePrivacies(d.youtubePrivacies);
+      if (d.instagramMusic) setInstagramMusic(d.instagramMusic);
+      if (d.instagramTextOverlay) setInstagramTextOverlay(d.instagramTextOverlay);
+      if (d.instagramTopicsList) setInstagramTopicsList(d.instagramTopicsList);
+      if (d.instagramProductsList) setInstagramProductsList(d.instagramProductsList);
+      if (d.instagramLinkSticker) setInstagramLinkSticker(d.instagramLinkSticker);
+      if (d.instagramMentionsList) setInstagramMentionsList(d.instagramMentionsList);
+      if (d.instagramTagsList) setInstagramTagsList(d.instagramTagsList);
+      if (d.instagramAiLabel !== undefined) setInstagramAiLabel(d.instagramAiLabel);
+      if (d.facebookAiLabel !== undefined) setFacebookAiLabel(d.facebookAiLabel);
+      if (d.youtubeAiLabel !== undefined) setYoutubeAiLabel(d.youtubeAiLabel);
+      if (d.isInstagramCollabEnabled !== undefined) setIsInstagramCollabEnabled(d.isInstagramCollabEnabled);
+      if (d.instagramCollaborators !== undefined) setInstagramCollaborators(d.instagramCollaborators);
+
+      setHasUnfinishedDraft(false);
+      showToast('Unfinished draft resumed successfully.');
+    } catch {
+      showToast('Failed to restore draft.');
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem('pb_draft_autosave');
+    } catch {}
+    setHasUnfinishedDraft(false);
+    showToast('Unfinished draft discarded.');
+  };
 
   // Circular Platform Selection Handler
   const handleTogglePlatform = (platformId: SocialPlatform) => {
@@ -1230,21 +1427,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           caption: captionText,
           title:
             acc.platform === 'youtube'
-              ? accData?.title?.trim() || mainCaption.split('\n')[0] || 'Post'
+              ? (youtubeTitles[accId]?.trim() || accData?.title?.trim() || mainCaption.split('\n')[0] || 'YouTube Short').slice(0, 100)
               : undefined,
+          categoryId: acc.platform === 'youtube' ? (youtubeCategories[accId] || '22') : undefined,
+          madeForKids: acc.platform === 'youtube' ? (youtubeMadeForKids[accId] ?? false) : undefined,
+          privacyStatus: acc.platform === 'youtube' ? (youtubePrivacies[accId] || 'public') : undefined,
           isAiGenerated: isAi,
           collaborator: collab,
           media: getEffectiveMediaForAccount(accId),
           postType:
-            accountFormats[accId] ||
-            (acc.platform === 'youtube'
-              ? currentPostType === 'video'
-                ? 'video'
-                : 'post'
-              : currentPostType === 'video'
-              ? 'reel'
-              : 'post'),
-          aspectRatio: accountAspectRatios[accId],
+            acc.platform === 'youtube'
+              ? 'short'
+              : accountFormats[accId] ||
+                (currentPostType === 'video'
+                  ? 'reel'
+                  : 'post'),
+          aspectRatio: acc.platform === 'youtube' ? '9:16' : accountAspectRatios[accId],
           music: instagramMusic[accId],
           textOverlay: instagramTextOverlay[accId],
           topics: instagramTopicsList[accId],
@@ -1274,7 +1472,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       selectedAccountIds.forEach(accId => {
         const acc = accounts.find(a => a.id === accId);
         if (!acc) return;
-        const fmt = accountFormats[accId] || (acc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post'));
+        const fmt = accountFormats[accId] || (acc.platform === 'youtube' ? 'short' : (currentPostType === 'video' ? 'reel' : 'post'));
         formatCounts[fmt] = (formatCounts[fmt] || 0) + 1;
       });
       const dominantFormat = Object.entries(formatCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || (currentPostType === 'video' ? 'reel' : 'post');
@@ -1362,6 +1560,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           };
         });
 
+        try {
+          localStorage.removeItem('pb_draft_autosave');
+          setHasUnfinishedDraft(false);
+        } catch {}
         if (initialDestinations.length > 0) {
           showToast(
             initialDestinations.length === 1
@@ -1373,6 +1575,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       }
 
       await onSave(payload, action);
+      try {
+        localStorage.removeItem('pb_draft_autosave');
+        setHasUnfinishedDraft(false);
+      } catch {}
       showToast(
         action === 'schedule'
           ? 'Post successfully scheduled!'
@@ -1450,41 +1656,61 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   : 'Create Text Post'}
               </h1>
 
-              {/* Format Switcher Pills */}
-              <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200/80">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPostType('image')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    currentPostType === 'image'
-                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Image
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPostType('video')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    currentPostType === 'video'
-                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Video
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPostType('text')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    currentPostType === 'text'
-                      ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Text
-                </button>
+              {/* Format Switcher Pills with Compatibility Checking */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200/80">
+                  <button
+                    type="button"
+                    disabled={isImageDisabled}
+                    onClick={() => !isImageDisabled && setCurrentPostType('image')}
+                    title={isImageDisabled ? imageDisabledReason : 'Create Image Post'}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      isImageDisabled
+                        ? 'opacity-40 cursor-not-allowed text-gray-400'
+                        : currentPostType === 'image'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold cursor-pointer'
+                        : 'text-gray-500 hover:text-gray-800 cursor-pointer'
+                    }`}
+                  >
+                    Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPostType('video')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      currentPostType === 'video'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                        : 'text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    Video
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isTextDisabled}
+                    onClick={() => !isTextDisabled && setCurrentPostType('text')}
+                    title={isTextDisabled ? textDisabledReason : 'Create Text Post'}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      isTextDisabled
+                        ? 'opacity-40 cursor-not-allowed text-gray-400'
+                        : currentPostType === 'text'
+                        ? 'bg-white text-emerald-700 shadow-2xs font-bold cursor-pointer'
+                        : 'text-gray-500 hover:text-gray-800 cursor-pointer'
+                    }`}
+                  >
+                    Text
+                  </button>
+                </div>
+
+                {(isTextDisabled || isImageDisabled) && (
+                  <span className="text-[11px] font-medium text-gray-400 hidden md:inline">
+                    {isTextDisabled && isImageDisabled
+                      ? '• Only Video supported by YouTube Shorts'
+                      : isTextDisabled
+                      ? `• Text disabled (${textDisabledReason})`
+                      : `• Image disabled (${imageDisabledReason})`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1528,6 +1754,43 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           className="hidden"
         />
 
+        {/* Unfinished Post Draft Resume / Discard Prompt */}
+        {hasUnfinishedDraft && (
+          <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-900">You have an unfinished post</h4>
+                <p className="text-[11px] text-gray-600">
+                  {draftSavedAt
+                    ? `Saved automatically on ${new Date(draftSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+                    : 'Unsaved edits were detected from your previous session.'}{' '}
+                  Would you like to resume where you left off?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-amber-100/60 transition-colors cursor-pointer"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleResumeDraft}
+                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Resume Post</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* WORKSPACE TOOLBAR WITH HORIZONTAL SLIDING CONTROLS */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200/90 p-3.5 px-5 shadow-xs">
           <div className="flex items-center space-x-3">
@@ -1558,11 +1821,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             )}
           </div>
 
-          {/* Same Media for All - Professional ON/OFF Toggle */}
+          {/* Same [Toggle Switch] Media for All */}
           {currentPostType !== 'text' && selectedAccountIds.length > 1 && (
-            <div className="flex items-center space-x-2.5 bg-gray-50 border border-gray-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
-              <FileImage className="w-3.5 h-3.5 text-gray-600" />
-              <span className="text-xs font-semibold text-gray-800">Same Media for All</span>
+            <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200/90 px-3.5 py-1.5 rounded-xl shadow-2xs">
+              <span className="text-xs font-semibold text-gray-800 tracking-tight">Same</span>
               <button
                 type="button"
                 role="switch"
@@ -1571,7 +1833,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                   !customizeMediaPerPlatform ? 'bg-emerald-600' : 'bg-gray-300'
                 }`}
-                title={!customizeMediaPerPlatform ? 'Same Media for All is ON (shared)' : 'Per-Platform Media is ON (independent)'}
+                title={!customizeMediaPerPlatform ? 'Same Media for All is active (one file shared across all channels)' : 'Per-Platform Media is active (separate files for each channel)'}
               >
                 <span
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
@@ -1579,9 +1841,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   }`}
                 />
               </button>
-              <span className={`text-[11px] font-bold ${!customizeMediaPerPlatform ? 'text-emerald-700' : 'text-gray-500'}`}>
-                {!customizeMediaPerPlatform ? 'ON' : 'OFF'}
-              </span>
+              <span className="text-xs font-semibold text-gray-800 tracking-tight">Media for All</span>
             </div>
           )}
 
@@ -1706,9 +1966,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   const activeFormat =
                     accountFormats[accId] ||
                     (acc.platform === 'youtube'
-                      ? currentPostType === 'video'
-                        ? 'video'
-                        : 'post'
+                      ? 'short'
                       : currentPostType === 'video'
                       ? 'reel'
                       : 'post');
@@ -2045,6 +2303,26 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         );
                       })()}
 
+                      {/* YouTube Shorts Title Field (Separate Input) */}
+                      {acc.platform === 'youtube' && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-gray-800">Shorts Title</label>
+                            <span className="text-[10px] font-mono text-gray-400">
+                              {(youtubeTitles[acc.id] || '').length}/100
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            maxLength={100}
+                            value={youtubeTitles[acc.id] || ''}
+                            onChange={(e) => setYoutubeTitles(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                            placeholder="Add a title that describes your Short (required)"
+                            className="w-full text-xs text-gray-900 border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:border-red-500 bg-white shadow-2xs font-medium"
+                          />
+                        </div>
+                      )}
+
                       {/* 4. EXPANDABLE CAPTIONS ROW (Directly Below Upload Media) */}
                       <div className="space-y-2">
                         <button
@@ -2061,7 +2339,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700 font-bold">
                               <Type className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-xs font-bold text-gray-800">Captions</span>
+                            <span className="text-xs font-bold text-gray-800">{acc.platform === 'youtube' ? 'Description & #Shorts' : 'Captions'}</span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-[11px] font-mono text-gray-400">
@@ -2207,39 +2485,57 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                     <span className="text-[10px] text-emerald-600 font-semibold">Active & Persistent</span>
                                   </div>
 
-                                  {/* 7 Pill Buttons matching reference image media_1793725284061_1e6665bd.png */}
+                                  {/* Format-Specific Instagram AI Features (Neutral Light Grey Styling) */}
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    {([
-                                      { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
-                                      { id: 'text' as const, label: 'Text', icon: <span className="text-amber-500 font-bold text-xs shrink-0">Aa</span> },
-                                      { id: 'topics' as const, label: 'Topics', icon: <span className="text-amber-500 font-bold text-xs shrink-0">#</span> },
-                                      { id: 'products' as const, label: 'Tag Products', icon: <ShoppingBag className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
-                                      { id: 'link' as const, label: 'Link', icon: <LinkIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
-                                      { id: 'mention' as const, label: 'Mention', icon: <span className="text-amber-500 font-bold text-xs shrink-0">@</span> },
-                                      { id: 'tags' as const, label: 'Tags', icon: <Hash className="w-3.5 h-3.5 text-amber-500 shrink-0" /> },
-                                    ]).map((feat) => {
-                                      const isActive = instagramFeatureTabs[acc.id] === feat.id;
-                                      return (
-                                        <button
-                                          key={feat.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setInstagramFeatureTabs((prev) => ({
-                                              ...prev,
-                                              [acc.id]: prev[acc.id] === feat.id ? null : feat.id,
-                                            }))
-                                          }
-                                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                                            isActive
-                                              ? 'bg-[#5c493e] text-white ring-2 ring-amber-500 shadow-xs'
-                                              : 'bg-[#4a3b32] hover:bg-[#58463c] text-white border border-[#5c493e]/50'
-                                          }`}
-                                        >
-                                          {feat.icon}
-                                          <span className="text-white font-medium">{feat.label}</span>
-                                        </button>
-                                      );
-                                    })}
+                                    {(() => {
+                                      // Dynamic feature set:
+                                      // Instagram Post: Music, Tagged Products, Text
+                                      // Instagram Reel: Music, Text, Topics, Tagged Products
+                                      // Instagram Story: Text, Link, Music
+                                      const featureList =
+                                        activeFormat === 'story'
+                                          ? [
+                                              { id: 'text' as const, label: 'Text', icon: <span className="font-bold text-xs shrink-0">Aa</span> },
+                                              { id: 'link' as const, label: 'Link', icon: <LinkIcon className="w-3.5 h-3.5 shrink-0" /> },
+                                              { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 shrink-0" /> },
+                                            ]
+                                          : activeFormat === 'reel'
+                                          ? [
+                                              { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 shrink-0" /> },
+                                              { id: 'text' as const, label: 'Text', icon: <span className="font-bold text-xs shrink-0">Aa</span> },
+                                              { id: 'topics' as const, label: 'Topics', icon: <span className="font-bold text-xs shrink-0">#</span> },
+                                              { id: 'products' as const, label: 'Tagged Products', icon: <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> },
+                                            ]
+                                          : [
+                                              { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 shrink-0" /> },
+                                              { id: 'products' as const, label: 'Tagged Products', icon: <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> },
+                                              { id: 'text' as const, label: 'Text', icon: <span className="font-bold text-xs shrink-0">Aa</span> },
+                                            ];
+
+                                      return featureList.map((feat) => {
+                                        const isActive = instagramFeatureTabs[acc.id] === feat.id;
+                                        return (
+                                          <button
+                                            key={feat.id}
+                                            type="button"
+                                            onClick={() =>
+                                              setInstagramFeatureTabs((prev) => ({
+                                                ...prev,
+                                                [acc.id]: prev[acc.id] === feat.id ? null : feat.id,
+                                              }))
+                                            }
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                              isActive
+                                                ? 'bg-gray-900 text-white shadow-xs'
+                                                : 'bg-[#f0f1f3] hover:bg-[#e4e6ea] text-gray-700 border border-gray-200/80'
+                                            }`}
+                                          >
+                                            <span className={isActive ? 'text-white' : 'text-gray-600'}>{feat.icon}</span>
+                                            <span>{feat.label}</span>
+                                          </button>
+                                        );
+                                      });
+                                    })()}
                                   </div>
 
                                   {/* 1. MUSIC FUNCTIONAL EDITOR */}
@@ -2247,7 +2543,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                     <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-1.5">
-                                          <Music2 className="w-4 h-4 text-amber-500" />
+                                          <Music2 className="w-4 h-4 text-gray-700" />
                                           <span className="text-xs font-bold text-gray-900">Audio Track Selection</span>
                                         </div>
                                         {instagramMusic[acc.id]?.title && (
@@ -2266,14 +2562,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                           value={instagramMusic[acc.id]?.title || ''}
                                           onChange={(e) => setInstagramMusic(prev => ({ ...prev, [acc.id]: { title: e.target.value, artist: prev[acc.id]?.artist || '' } }))}
                                           placeholder="Track Title (e.g. Blinding Lights)"
-                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
+                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-gray-900 bg-gray-50/50"
                                         />
                                         <input
                                           type="text"
                                           value={instagramMusic[acc.id]?.artist || ''}
                                           onChange={(e) => setInstagramMusic(prev => ({ ...prev, [acc.id]: { title: prev[acc.id]?.title || '', artist: e.target.value } }))}
                                           placeholder="Artist Name (e.g. The Weeknd)"
-                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
+                                          className="text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-gray-900 bg-gray-50/50"
                                         />
                                       </div>
                                       <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
@@ -2287,7 +2583,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                             key={s.title}
                                             type="button"
                                             onClick={() => setInstagramMusic(prev => ({ ...prev, [acc.id]: s }))}
-                                            className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-amber-50 hover:text-amber-800 text-[10px] text-gray-600 transition-colors cursor-pointer"
+                                            className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-gray-200 hover:text-gray-900 text-[10px] text-gray-600 transition-colors cursor-pointer"
                                           >
                                             {s.title}
                                           </button>
@@ -2304,7 +2600,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                     <div className="p-3.5 bg-white rounded-2xl border border-gray-200/90 shadow-xs space-y-2.5 animate-in fade-in duration-150">
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-1.5">
-                                          <Type className="w-4 h-4 text-amber-500" />
+                                          <Type className="w-4 h-4 text-gray-700" />
                                           <span className="text-xs font-bold text-gray-900">Visual Text Overlay</span>
                                         </div>
                                         {instagramTextOverlay[acc.id]?.text && (
@@ -2329,7 +2625,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                           },
                                         }))}
                                         placeholder="Type overlay text (e.g. NEW DROP 🔥 Available Now)"
-                                        className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500 bg-gray-50/50"
+                                        className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:border-gray-900 bg-gray-50/50"
                                       />
                                       <div className="flex items-center justify-between gap-2 pt-1">
                                         <div className="flex items-center space-x-1 text-[11px]">
@@ -2674,26 +2970,104 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                             )}
 
                             {acc.platform === 'youtube' && (
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
-                                <div className="flex items-center space-x-2">
-                                  <Sparkles className="w-3.5 h-3.5 text-red-600" />
-                                  <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={youtubeAiLabel}
-                                  onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
-                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                                    youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
-                                  }`}
-                                >
-                                  <span
-                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                      youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
+                              <div className="space-y-3">
+                                {/* AI-Generated Content Toggle */}
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 shadow-2xs">
+                                  <div className="flex items-center space-x-2">
+                                    <Sparkles className="w-3.5 h-3.5 text-red-600" />
+                                    <span className="text-xs font-semibold text-gray-800">AI-Generated Content</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={youtubeAiLabel}
+                                    onClick={() => setYoutubeAiLabel(!youtubeAiLabel)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                                      youtubeAiLabel ? 'bg-red-600' : 'bg-gray-200'
                                     }`}
-                                  />
-                                </button>
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                        youtubeAiLabel ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                {/* Made for Kids (COPPA Compliance) */}
+                                <div className="p-3 rounded-2xl bg-white border border-gray-200 shadow-2xs space-y-2">
+                                  <div>
+                                    <span className="text-xs font-bold text-gray-800 block">Audience (Made for Kids)</span>
+                                    <span className="text-[10px] text-gray-400 block">Is this Short made for kids? (Required by COPPA)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setYoutubeMadeForKids(prev => ({ ...prev, [acc.id]: false }))}
+                                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center ${
+                                        !(youtubeMadeForKids[acc.id] ?? false)
+                                          ? 'bg-gray-900 text-white font-bold shadow-xs'
+                                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      No, not for kids
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setYoutubeMadeForKids(prev => ({ ...prev, [acc.id]: true }))}
+                                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center ${
+                                        youtubeMadeForKids[acc.id] === true
+                                          ? 'bg-gray-900 text-white font-bold shadow-xs'
+                                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      Yes, made for kids
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Visibility */}
+                                <div className="p-3 rounded-2xl bg-white border border-gray-200 shadow-2xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-800">Visibility</span>
+                                    <span className="text-[10px] text-gray-400 capitalize font-medium">{youtubePrivacies[acc.id] || 'public'}</span>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    {(['public', 'unlisted', 'private'] as const).map(vis => (
+                                      <button
+                                        key={vis}
+                                        type="button"
+                                        onClick={() => setYoutubePrivacies(prev => ({ ...prev, [acc.id]: vis }))}
+                                        className={`py-1.5 px-2 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer text-center ${
+                                          (youtubePrivacies[acc.id] || 'public') === vis
+                                            ? 'bg-gray-900 text-white font-bold shadow-xs'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        {vis}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Category */}
+                                <div className="p-3 rounded-2xl bg-white border border-gray-200 shadow-2xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-800">Category</span>
+                                    <span className="text-[10px] text-gray-400">Official YouTube Category</span>
+                                  </div>
+                                  <select
+                                    value={youtubeCategories[acc.id] || '22'}
+                                    onChange={(e) => setYoutubeCategories(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                                    className="w-full text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-xl p-2.5 focus:outline-hidden focus:border-red-500 cursor-pointer font-medium"
+                                  >
+                                    {OFFICIAL_YOUTUBE_CATEGORIES.map(cat => (
+                                      <option key={cat.id} value={cat.id}>
+                                        {cat.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
                             )}
 
@@ -2736,7 +3110,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       const acc = accounts.find((a) => a.id === accId);
                       if (!acc) return null;
                       const isActive = previewCarouselIndex === idx;
-                      const accFmt = accountFormats[accId] || (acc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post'));
+                      const accFmt = accountFormats[accId] || (acc.platform === 'youtube' ? 'short' : (currentPostType === 'video' ? 'reel' : 'post'));
 
                       return (
                         <button
@@ -2795,7 +3169,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 const carouselAccId = selectedAccountIds[previewCarouselIndex] || selectedAccountIds[0];
                 const carouselAcc = accounts.find(a => a.id === carouselAccId);
                 const carouselFormat = carouselAcc
-                  ? (accountFormats[carouselAccId] || (carouselAcc.platform === 'youtube' ? (currentPostType === 'video' ? 'video' : 'post') : (currentPostType === 'video' ? 'reel' : 'post')))
+                  ? (accountFormats[carouselAccId] || (carouselAcc.platform === 'youtube' ? 'short' : (currentPostType === 'video' ? 'reel' : 'post')))
                   : 'post';
                 const isVertical = ['reel', 'story', 'short'].includes(carouselFormat);
                 const previewPlatform = carouselAcc?.platform || activePreviewPlatform;
@@ -2806,7 +3180,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   content: (accountCaptions[carouselAccId]?.caption?.trim() ? accountCaptions[carouselAccId].caption : mainCaption) || '',
                 };
                 const formatLabel: Record<string, string> = {
-                  post: 'Post', reel: 'Reel', story: 'Story', video: 'Video', short: 'Short', article: 'Article',
+                  post: 'Post', reel: 'Reel', story: 'Story', video: 'Video', short: 'Shorts', article: 'Article',
                 };
                 const communityPostWarning = previewPlatform === 'youtube' && carouselFormat === 'post' && currentPostType === 'image';
                 return (
