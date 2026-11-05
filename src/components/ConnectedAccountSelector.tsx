@@ -9,6 +9,7 @@ interface ConnectedAccountSelectorProps {
   accounts: SocialAccount[];
   selectedAccountIds: string[];
   postType?: 'image' | 'video' | 'text';
+  monthlyUsageByAccount?: Record<string, { usedCount: number; limit: number; remaining: number }>;
   onToggleAccount: (id: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
@@ -20,6 +21,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
   accounts,
   selectedAccountIds,
   postType = 'image',
+  monthlyUsageByAccount,
   onToggleAccount,
   onSelectAll,
   onClearAll,
@@ -120,8 +122,20 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   {/* Caret arrow pointing up */}
                   <div className="w-2 h-2 bg-[#222b35] rotate-45 mx-auto -mb-1 shadow-xs" />
                   {/* Tooltip Content */}
-                  <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center">
+                  <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center space-y-0.5">
                     <div>{account.displayName || `@${account.username}`}</div>
+                    {(() => {
+                      const usage = monthlyUsageByAccount?.[account.id];
+                      if (!usage || usage.limit <= 0) return null;
+                      const isReached = usage.usedCount >= usage.limit;
+                      return (
+                        <div className={`text-[10px] font-normal ${isReached ? 'text-amber-300 font-bold' : 'text-gray-300'}`}>
+                          {isReached
+                            ? `Monthly limit reached (${usage.usedCount}/${usage.limit})`
+                            : `${usage.usedCount}/${usage.limit} posts used this month (${usage.remaining} left)`}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

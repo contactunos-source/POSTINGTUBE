@@ -587,6 +587,29 @@ export default function DashboardPage() {
     action: 'schedule' | 'publish-now' | 'draft',
     onProgress?: (update: any) => void
   ) => {
+    // 1. Monthly limit enforcement for Free plan (5 posts per account per month)
+    // Applies to both immediate publishing and scheduling. Drafts are exempt.
+    if (action === 'schedule' || action === 'publish-now') {
+      const { SubscriptionService } = await import('@/lib/subscription');
+      const check = await SubscriptionService.checkCanPublishOrSchedulePosts({
+        userId: authUser?.id,
+        email: authUser?.email,
+        targetAccountIds: postData.targetAccountIds || [],
+        existingPosts: posts,
+        accounts,
+        excludePostId: editingPost?.id,
+        scheduledFor: action === 'schedule' ? postData.scheduledFor : undefined,
+      });
+
+      if (!check.allowed) {
+        alert(
+          check.reason ||
+            'Monthly post limit reached (5 scheduled or published posts per connected account per month on Free plan). Upgrade to Pro for unlimited posting.'
+        );
+        return;
+      }
+    }
+
     if (action === 'publish-now') {
       const tempPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
@@ -635,20 +658,6 @@ export default function DashboardPage() {
       }
       return summary;
     } else {
-      if (action === 'schedule') {
-        const { SubscriptionService } = await import('@/lib/subscription');
-        const check = await SubscriptionService.checkCanSchedulePosts(
-          authUser?.id,
-          authUser?.email,
-          postData.targetAccountIds || [],
-          posts.filter((p) => p.id !== editingPost?.id)
-        );
-        if (!check.allowed) {
-          alert(check.reason || 'Scheduling limit reached for your plan (5 scheduled posts per channel on Free plan). Upgrade to Pro for unlimited scheduling.');
-          return;
-        }
-      }
-
       const newPost: Post = {
         id: editingPost?.id || `post_${Date.now()}`,
         userId: authUser?.id,
@@ -1006,6 +1015,7 @@ export default function DashboardPage() {
         {activeTab === 'connections' && (
           <ConnectedAccounts
             accounts={accounts}
+            posts={posts}
             currentWorkspaceId={currentWorkspaceId}
             onAddAccount={handleAddAccount}
             onRemoveAccount={handleRemoveAccount}

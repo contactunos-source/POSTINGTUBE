@@ -345,15 +345,19 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <ul className="space-y-2 text-xs text-gray-600">
                 <li className="flex items-start space-x-2">
                   <Check className="w-3.5 h-3.5 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
-                  <span>Up to 3 connected social channels</span>
+                  <span>Maximum 3 connected social accounts</span>
                 </li>
                 <li className="flex items-start space-x-2">
                   <Check className="w-3.5 h-3.5 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
-                  <span>5 scheduled posts per connected channel</span>
+                  <span>5 scheduled/published posts per connected account per month</span>
                 </li>
                 <li className="flex items-start space-x-2">
                   <Check className="w-3.5 h-3.5 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
-                  <span>1 user account</span>
+                  <span>Maximum 15 posts per month across 3 connected accounts</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <Check className="w-3.5 h-3.5 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />
+                  <span>1 user</span>
                 </li>
                 <li className="flex items-start space-x-2">
                   <Check className="w-3.5 h-3.5 text-gray-400 stroke-[2.2] shrink-0 mt-0.5" />

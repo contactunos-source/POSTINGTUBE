@@ -94,6 +94,30 @@ function getSupabaseClient() {
 // SUBSCRIPTION SERVICE
 // ==============================================================================
 
+export interface AccountMonthlyUsage {
+  accountId: string;
+  accountName: string;
+  platform: string;
+  usedCount: number;
+  limit: number;
+  remaining: number;
+  monthKey: string;
+  monthLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  resetsAt: string;
+}
+
+export interface MonthlyUsageSummary {
+  planId: 'free' | 'pro';
+  monthLabel: string;
+  resetsAt: string;
+  totalPostsUsed: number;
+  totalPostsLimit: number;
+  perAccountLimit: number;
+  accounts: Record<string, AccountMonthlyUsage>;
+}
+
 export const SubscriptionService = {
   /**
    * Returns list of all defined plans with live pricing.
@@ -107,7 +131,9 @@ export const SubscriptionService = {
         pricePerChannelUsd: 0,
         minChannels: 1,
         maxChannels: PRICING_CONFIG.free.maxChannels,
-        scheduledPostsPerChannel: PRICING_CONFIG.free.scheduledPostsPerChannel,
+        monthlyPostsPerChannel: 5,
+        maxMonthlyPostsTotal: 15,
+        scheduledPostsPerChannel: 5,
         userLimit: 1,
         analyticsTier: 'basic',
         features: [
@@ -126,6 +152,8 @@ export const SubscriptionService = {
         pricePerChannelUsd: PRICING_CONFIG.pro.pricePerChannelUsd,
         minChannels: PRICING_CONFIG.pro.minChannels,
         maxChannels: PRICING_CONFIG.pro.maxChannels,
+        monthlyPostsPerChannel: -1,
+        maxMonthlyPostsTotal: -1,
         scheduledPostsPerChannel: -1,
         userLimit: 1,
         analyticsTier: 'advanced',
@@ -278,18 +306,207 @@ export const SubscriptionService = {
     };
   },
 
+    /**
+   * Computes the calendar month window for monthly post usage calculation.
+   * Automatically resets at 00:00:00 UTC on the 1st of every month.
+   */
+  getMonthWindow(date: Date = new Date()): {
+    start: Date;
+    end: Date;
+    resetsAt: Date;
+    monthKey: string;
+    monthLabel: string;
+    resetsAtLabel: string;
+  } {
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth(); // 0-indexed (0 = Jan, 11 = Dec)
+    const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+    const resetsAt = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0));
+    const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const monthLabel = start.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const resetsAtLabel = resetsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    return { start, end, resetsAt, monthKey, monthLabel, resetsAtLabel };
+  },
+
   /**
-   * Enforces 5 scheduled posts per channel limit for Free plan.
-   * Pro plan has unlimited scheduling.
-   *
-   * @param targetChannelIds Channels selected for the scheduled post
-   * @param existingPosts All posts currently in database for this workspace/user
+   * Calculates monthly post usage separately for each connected social account.
+   * - Counted statuses: 'scheduled', 'published', 'publishing'
+   * - Ignored statuses: 'draft' (explicitly excluded), 'failed' (unless succeeded)
+   * - Prevents duplicate counting when a post is retried or edited (excludePostId).
+   * - Automatically resets each calendar month as old posts fall outside the month window.
+   */
+  calculateMonthlyUsage(
+    posts: any[],
+    accounts: any[],
+    planId: 'free' | 'pro',
+    options?: {
+      targetDate?: Date;
+      excludePostId?: string;
+    }
+  ): MonthlyUsageSummary {
+    const { start, end, resetsAt, monthKey, monthLabel } = this.getMonthWindow(options?.targetDate || new Date());
+    const limitPerChannel = planId === 'pro' ? -1 : (PRICING_CONFIG.free.monthlyPostsPerChannel || 5);
+    const totalMaxPosts = planId === 'pro' ? -1 : (PRICING_CONFIG.free.maxMonthlyPostsTotal || 15);
+
+    // Filter relevant posts for this month window
+    // Ignore drafts, failed (without partial success), and exclude current post if retrying/editing
+    const countedPosts = (posts || []).filter((p) => {
+      if (!p) return false;
+      if (options?.excludePostId && p.id === options.excludePostId) return false;
+      if (p.status === 'draft') return false; // DRAFTS NEVER COUNT
+      if (p.status === 'failed' && !p.results) return false;
+
+      // Determine the timestamp to evaluate
+      const ts = p.publishedAt || p.scheduledFor || p.createdAt || p.updatedAt;
+      if (!ts) return false;
+      const postDate = new Date(ts);
+      if (isNaN(postDate.getTime())) return false;
+
+      return postDate >= start && postDate <= end;
+    });
+
+    const accountUsageMap: Record<string, AccountMonthlyUsage> = {};
+    let totalUsedAllAccounts = 0;
+
+    for (const acc of accounts || []) {
+      const accId = acc.id;
+      const matchingPosts = countedPosts.filter((p) => {
+        const targets = p.targetAccountIds || p.target_account_ids || [];
+        return Array.isArray(targets) && targets.includes(accId);
+      });
+
+      const usedCount = matchingPosts.length;
+      totalUsedAllAccounts += usedCount;
+
+      accountUsageMap[accId] = {
+        accountId: accId,
+        accountName: acc.displayName || acc.username || 'Channel',
+        platform: acc.platform || 'social',
+        usedCount,
+        limit: limitPerChannel,
+        remaining: limitPerChannel === -1 ? 9999 : Math.max(0, limitPerChannel - usedCount),
+        monthKey,
+        monthLabel,
+        periodStart: start.toISOString(),
+        periodEnd: end.toISOString(),
+        resetsAt: resetsAt.toISOString(),
+      };
+    }
+
+    return {
+      planId,
+      monthLabel,
+      resetsAt: resetsAt.toISOString(),
+      totalPostsUsed: totalUsedAllAccounts,
+      totalPostsLimit: totalMaxPosts,
+      perAccountLimit: limitPerChannel,
+      accounts: accountUsageMap,
+    };
+  },
+
+  /**
+   * Enforces 5 posts per account per month limit for Free plan.
+   * Enforced on BOTH scheduling and immediate publishing.
+   * Pro plan has unlimited scheduling and publishing.
+   */
+  async checkCanPublishOrSchedulePosts(params: {
+    userId?: string;
+    email?: string;
+    targetAccountIds: string[];
+    existingPosts: any[];
+    accounts?: any[];
+    excludePostId?: string;
+    scheduledFor?: string;
+  }): Promise<{
+    allowed: boolean;
+    reason?: string;
+    blockedAccounts: { id: string; name: string; platform: string; count: number; limit: number }[];
+    allowedAccountIds: string[];
+    usageSummary: MonthlyUsageSummary;
+    planId: 'free' | 'pro';
+  }> {
+    const { userId, email, targetAccountIds, existingPosts, accounts = [], excludePostId, scheduledFor } = params;
+    const sub = await this.getUserSubscription(userId, email);
+
+    const targetDate = scheduledFor ? new Date(scheduledFor) : new Date();
+    const usageSummary = this.calculateMonthlyUsage(existingPosts, accounts, sub.planId, {
+      targetDate: isNaN(targetDate.getTime()) ? new Date() : targetDate,
+      excludePostId,
+    });
+
+    // Pro subscribers have unlimited publishing & scheduling
+    if (sub.planId === 'pro') {
+      return {
+        allowed: true,
+        blockedAccounts: [],
+        allowedAccountIds: targetAccountIds,
+        usageSummary,
+        planId: 'pro',
+      };
+    }
+
+    // Free plan: strictly enforce 5 posts per account per month
+    const blocked: { id: string; name: string; platform: string; count: number; limit: number }[] = [];
+    const allowedIds: string[] = [];
+    const limit = PRICING_CONFIG.free.monthlyPostsPerChannel || 5;
+
+    for (const chId of targetAccountIds) {
+      const usage = usageSummary.accounts[chId];
+      const count = usage ? usage.usedCount : 0;
+      const acc = accounts.find((a) => a.id === chId);
+      const name = acc?.displayName || acc?.username || usage?.accountName || 'Channel';
+      const platform = acc?.platform || usage?.platform || 'social';
+
+      if (count >= limit) {
+        blocked.push({
+          id: chId,
+          name,
+          platform,
+          count,
+          limit,
+        });
+      } else {
+        allowedIds.push(chId);
+      }
+    }
+
+    if (blocked.length > 0) {
+      const blockedNames = blocked.map((b) => `"${b.name}"`).join(', ');
+      const resetsDate = new Date(usageSummary.resetsAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+      return {
+        allowed: false,
+        reason: `${blockedNames} reached the Free plan monthly limit of 5 posts (${blocked[0].count}/${limit} used this month). Usage automatically resets on ${resetsDate}. Upgrade to Pro for unlimited posts.`,
+        blockedAccounts: blocked,
+        allowedAccountIds: allowedIds,
+        usageSummary,
+        planId: 'free',
+      };
+    }
+
+    return {
+      allowed: true,
+      blockedAccounts: [],
+      allowedAccountIds: targetAccountIds,
+      usageSummary,
+      planId: 'free',
+    };
+  },
+
+  /**
+   * Backward-compatible wrapper for checkCanSchedulePosts.
    */
   async checkCanSchedulePosts(
     userId: string | undefined,
     email: string | undefined,
     targetChannelIds: string[],
-    existingPosts: any[]
+    existingPosts: any[],
+    accounts: any[] = []
   ): Promise<{
     allowed: boolean;
     reason?: string;
@@ -297,50 +514,32 @@ export const SubscriptionService = {
     channelUsage: Record<string, { scheduledCount: number; limit: number }>;
     planId: 'free' | 'pro';
   }> {
-    const sub = await this.getUserSubscription(userId, email);
+    const res = await this.checkCanPublishOrSchedulePosts({
+      userId,
+      email,
+      targetAccountIds: targetChannelIds,
+      existingPosts,
+      accounts,
+    });
 
-    // Pro subscribers have unlimited scheduling
-    if (sub.planId === 'pro') {
-      const channelUsage: Record<string, { scheduledCount: number; limit: number }> = {};
-      for (const chId of targetChannelIds) {
-        channelUsage[chId] = { scheduledCount: 0, limit: -1 };
-      }
-      return { allowed: true, channelUsage, planId: 'pro' };
-    }
-
-    // For Free plan: calculate scheduled posts for each channel
-    const scheduledPosts = existingPosts.filter((p) => p.status === 'scheduled');
     const channelUsage: Record<string, { scheduledCount: number; limit: number }> = {};
-    const limit = PRICING_CONFIG.free.scheduledPostsPerChannel; // 5
-
     for (const chId of targetChannelIds) {
-      const countForChannel = scheduledPosts.filter((p) => {
-        const targets = p.targetAccountIds || p.target_account_ids || [];
-        return targets.includes(chId);
-      }).length;
-
+      const u = res.usageSummary.accounts[chId];
       channelUsage[chId] = {
-        scheduledCount: countForChannel,
-        limit,
+        scheduledCount: u?.usedCount || 0,
+        limit: u?.limit || 5,
       };
-
-      if (countForChannel >= limit) {
-        return {
-          allowed: false,
-          reason: `One or more selected channels have reached the Free plan limit of 5 scheduled posts (${countForChannel}/${limit} scheduled). Upgrade to Pro for unlimited scheduled posts.`,
-          blockedChannelId: chId,
-          channelUsage,
-          planId: 'free',
-        };
-      }
     }
 
     return {
-      allowed: true,
+      allowed: res.allowed,
+      reason: res.reason,
+      blockedChannelId: res.blockedAccounts[0]?.id,
       channelUsage,
-      planId: 'free',
+      planId: res.planId,
     };
   },
+
 
   /**
    * Activates or updates a Pro subscription upon verified payment.

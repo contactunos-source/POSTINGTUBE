@@ -22,9 +22,11 @@ import {
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 import { DeleteChannelModal } from './DeleteChannelModal';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
+import { SubscriptionService } from '@/lib/subscription';
 
 interface ConnectedAccountsProps {
   accounts: SocialAccount[];
+  posts?: any[];
   currentWorkspaceId?: string;
   onAddAccount: (account: SocialAccount) => Promise<{ success: boolean; isDuplicate?: boolean; message?: string } | void> | void;
   onRemoveAccount: (id: string) => void;
@@ -48,6 +50,7 @@ interface DetectedPage {
 
 export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   accounts,
+  posts = [],
   currentWorkspaceId,
   onAddAccount,
   onRemoveAccount,

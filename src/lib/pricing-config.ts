@@ -10,7 +10,9 @@ export const PRICING_CONFIG = {
     pricePerChannelInr: 0,
     pricePerChannelUsd: 0,
     maxChannels: 3,
-    scheduledPostsPerChannel: 5,
+    monthlyPostsPerChannel: 5, // 5 scheduled/published posts per connected account per month
+    maxMonthlyPostsTotal: 15, // Maximum 15 posts per month across 3 accounts
+    scheduledPostsPerChannel: 5, // backwards compatibility
     userLimit: 1,
     analyticsTier: 'basic' as const,
   },
@@ -21,6 +23,8 @@ export const PRICING_CONFIG = {
     pricePerChannelUsd: 3.0,
     minChannels: 1,
     maxChannels: 100,
+    monthlyPostsPerChannel: -1, // -1 = Unlimited
+    maxMonthlyPostsTotal: -1, // -1 = Unlimited
     scheduledPostsPerChannel: -1, // -1 = Unlimited
     userLimit: 1,
     analyticsTier: 'advanced' as const,
@@ -34,6 +38,8 @@ export interface SubscriptionPlan {
   pricePerChannelUsd: number;
   minChannels: number;
   maxChannels: number;
+  monthlyPostsPerChannel: number;
+  maxMonthlyPostsTotal: number;
   scheduledPostsPerChannel: number;
   userLimit: number;
   analyticsTier: 'basic' | 'advanced';

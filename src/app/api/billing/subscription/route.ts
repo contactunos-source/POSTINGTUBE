@@ -20,7 +20,14 @@ export async function GET(req: NextRequest) {
     const scheduledPosts = posts.filter((p) => p.status === 'scheduled');
     const scheduledPostsCount = scheduledPosts.length;
 
-    // Calculate scheduled posts per channel for Free plan breakdown
+    // Calculate monthly post usage (scheduled + published, excluding drafts) for each account
+    const monthlyUsage = SubscriptionService.calculateMonthlyUsage(
+      posts,
+      accounts,
+      subscription.planId
+    );
+
+    // Calculate scheduled posts per channel for Free plan breakdown (backwards compatible)
     const channelUsage: Record<string, { name: string; platform: string; scheduledCount: number; limit: number }> = {};
     for (const acc of accounts) {
       const count = scheduledPosts.filter((p) => (p.targetAccountIds || []).includes(acc.id)).length;
@@ -43,6 +50,14 @@ export async function GET(req: NextRequest) {
           connected: connectedChannelsCount,
           limit: channelLimit,
           canConnectMore,
+        },
+        monthlyPosts: {
+          totalUsed: monthlyUsage.totalPostsUsed,
+          totalLimit: monthlyUsage.totalPostsLimit, // 15 for Free, -1 for Pro
+          perAccountLimit: monthlyUsage.perAccountLimit, // 5 for Free, -1 for Pro
+          monthLabel: monthlyUsage.monthLabel,
+          resetsAt: monthlyUsage.resetsAt,
+          byChannel: monthlyUsage.accounts,
         },
         scheduledPosts: {
           total: scheduledPostsCount,
