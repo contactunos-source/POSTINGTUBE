@@ -18,6 +18,14 @@ import {
   AlertCircle,
   HelpCircle,
   Zap,
+  Trash2,
+  Sparkles,
+  Link2,
+  Info,
+  Calendar,
+  Layers,
+  ArrowUpRight,
+  Radio,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 import { DeleteChannelModal } from './DeleteChannelModal';
@@ -869,122 +877,426 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Connected Accounts</h1>
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
-              <span>{accounts.length} / {subscriptionData?.planId === 'pro' ? (subscriptionData.channelsCount || 1) : 3} channels</span>
-              <span className="text-emerald-400">•</span>
-              <span className="uppercase text-[10px] tracking-wide font-extrabold">{subscriptionData?.planId === 'pro' ? 'Pro' : 'Free'}</span>
+      {/* Top Header & Quotas Overview Ribbon */}
+      <div className="space-y-6 mb-8 font-sans">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Connected Accounts</h1>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                subscriptionData?.planId === 'pro'
+                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                {subscriptionData?.planId === 'pro' ? '★ Pro Plan' : 'Free Plan (5 Posts / Channel / Mo)'}
+              </span>
             </div>
+            <p className="text-sm text-gray-500 mt-1.5 max-w-2xl leading-relaxed">
+              Manage your authorized social publishing channels, monitor live OAuth connections, and keep track of your monthly publishing quota.
+            </p>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Connect and manage your live Facebook Pages, Instagram accounts, and social channels.
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {subscriptionData?.planId !== 'pro' && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            {subscriptionData?.planId !== 'pro' && (
+              <button
+                type="button"
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer group"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white group-hover:scale-110 transition-transform" />
+                <span>Upgrade to Pro</span>
+              </button>
+            )}
+
             <button
-              onClick={() => setIsUpgradeModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
+              type="button"
+              onClick={handleRefreshAll}
+              disabled={isRefreshingAll}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100 text-xs font-semibold text-gray-700 flex items-center space-x-2 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Re-synchronize connected accounts and channel profiles directly from database"
             >
-              <Zap className="w-3.5 h-3.5 fill-white" />
-              <span>Upgrade Plan</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
+              <span>{isRefreshingAll ? 'Refreshing...' : 'Refresh Status'}</span>
             </button>
-          )}
-
-          <button
-            onClick={handleRefreshAll}
-            disabled={isRefreshingAll}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-2 transition-all cursor-pointer shadow-2xs w-full sm:w-fit justify-center disabled:opacity-50"
-            title="Re-synchronize connected accounts and channel profiles directly from database"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshingAll ? 'animate-spin' : ''}`} />
-            <span>{isRefreshingAll ? 'Refreshing Accounts...' : 'Refresh Accounts'}</span>
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Rows of Platforms */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
-        {platforms.map((platform) => {
-          const config = PLATFORM_CONFIGS[platform];
-          const platformAccounts = accounts.filter((a) => a.platform === platform);
+        {/* Quotas & Capacity Ribbon */}
+        {(() => {
+          const isFreePlan = subscriptionData?.planId !== 'pro';
+          const maxChannels = isFreePlan ? 3 : (subscriptionData?.channelsCount || 5);
+          const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
+          const channelUsagePercent = Math.min(100, Math.round((accounts.length / maxChannels) * 100));
+          const postsUsagePercent = isFreePlan ? Math.min(100, Math.round((monthlyUsage.totalPostsUsed / 15) * 100)) : 0;
 
           return (
-            <div
-              key={platform}
-              className="flex flex-col sm:flex-row sm:items-center gap-3 pb-4 border-b border-gray-100 last:border-b-0 last:pb-0"
-            >
-              {/* Left: Platform Logo + Connect Button */}
-              <div className="flex items-center space-x-3 w-full sm:w-60 shrink-0">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs"
-                  style={{ backgroundColor: config.color }}
-                >
-                  <PlatformLogo platform={platform} className="w-4 h-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {/* Card 1: Channel Slot Capacity */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Connected Channels</span>
+                  <span className="text-xs font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {accounts.length} / {maxChannels} slots
+                  </span>
                 </div>
-                <button
-                  onClick={() => handleStartConnect(platform)}
-                  className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-gray-900 hover:bg-gray-800 active:bg-black text-white transition-colors flex items-center space-x-1.5 cursor-pointer shadow-xs whitespace-nowrap min-h-[36px]"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Connect {config.name}</span>
-                </button>
+                <div className="mt-3">
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <span className="text-lg font-extrabold text-gray-900">{accounts.length} <span className="text-xs font-medium text-gray-500">active</span></span>
+                    <span className="text-[11px] text-gray-500 font-medium">{maxChannels - accounts.length} slots free</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        channelUsagePercent >= 100 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${channelUsagePercent}%` }}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Right: Badges / Chips of Connected Accounts */}
-              <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0">
-                {platformAccounts.length === 0 ? (
-                  <span className="text-xs text-gray-400 italic">No account connected yet</span>
-                ) : (
-                  platformAccounts.map((account) => (
+              {/* Card 2: Monthly Post Quota */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Monthly Post Usage</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isFreePlan ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-purple-50 text-purple-700'
+                  }`}>
+                    {isFreePlan ? '5 / Account / Mo' : 'Unlimited'}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <span className="text-lg font-extrabold text-gray-900">{isFreePlan ? `${monthlyUsage.totalPostsUsed} / 15 posts` : 'Unlimited'}</span>
+                    <span className="text-[11px] text-gray-400 font-medium">Resets 1st of month</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                     <div
-                      key={account.id}
-                      className="group flex items-center space-x-2 pl-1.5 pr-2 py-1 rounded-full bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200 transition-colors text-xs text-emerald-950 font-medium max-w-full"
-                    >
-                      {account.avatarUrl ? (
-                        <img
-                          src={account.avatarUrl}
-                          alt={account.displayName}
-                          referrerPolicy="no-referrer"
-                          className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-emerald-300"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null;
-                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                              account.displayName || 'A'
-                            )}&background=059669&color=fff&size=64&bold=true`;
-                          }}
-                        />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">
-                          {account.displayName.charAt(0)}
-                        </div>
-                      )}
-                      <span className="max-w-[120px] sm:max-w-[180px] truncate">{account.displayName}</span>
-                      <span className="text-[10px] bg-emerald-200/80 text-emerald-800 px-1.5 py-0.2 rounded font-semibold uppercase shrink-0">
-                        {account.platform === 'instagram' ? 'IG' : 'Page'}
-                      </span>
-                      <button
-                        onClick={() => setChannelToDelete(account)}
-                        title="Disconnect account"
-                        className="text-gray-400 hover:text-rose-600 transition-colors ml-1 p-0.5 rounded-full cursor-pointer shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))
-                )}
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        postsUsagePercent >= 90 ? 'bg-rose-500' : postsUsagePercent >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                      style={{ width: isFreePlan ? `${postsUsagePercent}%` : '100%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Platform OAuth Security */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">API Connection Status</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Operational
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center space-x-2 text-xs text-gray-700 font-semibold">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Official OAuth 2.0 & Graph API</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Direct tokens encrypted with standard security
+                  </p>
+                </div>
               </div>
             </div>
           );
-        })}
+        })()}
       </div>
 
+      {/* SECTION 1: Active Connected Channels */}
+      <div className="mb-10 font-sans">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">Active Connected Channels</h2>
+            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+              {accounts.length}
+            </span>
+          </div>
+          {accounts.length > 0 && (
+            <span className="text-xs text-gray-400 hidden sm:inline">
+              Channels ready for automated scheduling and instant publishing
+            </span>
+          )}
+        </div>
+
+        {accounts.length === 0 ? (
+          /* Empty State */
+          <div className="bg-white border border-gray-200/80 rounded-2xl p-8 sm:p-12 text-center shadow-2xs">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-2xs">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-1">No channels connected yet</h3>
+            <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
+              Connect your YouTube channel, Facebook Page, or Instagram account below to start scheduling and publishing high-performing content.
+            </p>
+            <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Free Plan includes up to 3 connected channels (5 posts/channel/mo)</span>
+            </div>
+          </div>
+        ) : (
+          /* Active Account Cards Grid */
+          (() => {
+            const isFreePlan = subscriptionData?.planId !== 'pro';
+            const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {accounts.map((account) => {
+                  const config = PLATFORM_CONFIGS[account.platform];
+                  const accUsage = monthlyUsage.accounts[account.id] || {
+                    usedCount: 0,
+                    limit: isFreePlan ? 5 : -1,
+                    remaining: isFreePlan ? 5 : 999999,
+                    isExceeded: false,
+                  };
+                  const usagePercent = isFreePlan ? Math.min(100, Math.round((accUsage.usedCount / 5) * 100)) : 0;
+                  const isExpired = account.status === 'expired' || account.status === 'error';
+
+                  return (
+                    <div
+                      key={account.id}
+                      className="bg-white border border-gray-200/90 hover:border-gray-300 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group"
+                    >
+                      {/* Top Row: Avatar with platform corner badge + Info + Status */}
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center space-x-3 min-w-0">
+                            {/* Profile Picture with Platform Overlay */}
+                            <div className="relative shrink-0">
+                              {account.avatarUrl ? (
+                                <img
+                                  src={account.avatarUrl}
+                                  alt={account.displayName}
+                                  referrerPolicy="no-referrer"
+                                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100 shadow-2xs"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null;
+                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                      account.displayName || 'A'
+                                    )}&background=059669&color=fff&size=80&bold=true`;
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-2xs">
+                                  {account.displayName.charAt(0)}
+                                </div>
+                              )}
+                              {/* Corner Platform Logo Badge */}
+                              <div
+                                className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white ring-2 ring-white shadow-xs"
+                                style={{ backgroundColor: config.color }}
+                              >
+                                <PlatformLogo platform={account.platform} className="w-3 h-3" />
+                              </div>
+                            </div>
+
+                            {/* Name & Username/Handle */}
+                            <div className="min-w-0 flex-1">
+                              <h4
+                                className="text-sm font-bold text-gray-950 truncate tracking-tight group-hover:text-emerald-700 transition-colors"
+                                title={account.displayName}
+                              >
+                                {account.displayName}
+                              </h4>
+                              <p className="text-xs text-gray-400 truncate mt-0.5">
+                                {account.username
+                                  ? (account.username.startsWith('@') ? account.username : `@${account.username}`)
+                                  : (account.platform === 'facebook' ? 'Facebook Page' : account.platform)}
+                              </p>
+                              <div className="mt-1.5">
+                                <span className="inline-flex items-center text-[10px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
+                                  {account.platform === 'youtube'
+                                    ? 'YouTube Shorts'
+                                    : account.platform === 'instagram'
+                                    ? 'Instagram Professional'
+                                    : account.platform === 'facebook'
+                                    ? 'Facebook Page'
+                                    : account.platform === 'linkedin'
+                                    ? 'LinkedIn Profile'
+                                    : config.name}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Indicator */}
+                          <div className="shrink-0">
+                            {isExpired ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                Re-auth
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Active
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Middle Box: Monthly Post Quota Usage Counter */}
+                        <div className="mt-4 bg-gray-50/80 border border-gray-100 rounded-xl p-3">
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className="text-[11px] font-semibold text-gray-500">Monthly Usage</span>
+                            <span className="font-bold text-gray-900 text-[11px]">
+                              {isFreePlan ? (
+                                <>
+                                  <span className={accUsage.usedCount >= 5 ? 'text-rose-600' : 'text-gray-900'}>
+                                    {accUsage.usedCount}
+                                  </span>{' '}
+                                  / 5 posts
+                                </>
+                              ) : (
+                                <span className="text-emerald-700 font-bold">Unlimited Pro</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {isFreePlan ? (
+                            <>
+                              <div className="w-full bg-gray-200/80 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                                    accUsage.usedCount >= 5
+                                      ? 'bg-rose-500'
+                                      : accUsage.usedCount >= 3
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                  }`}
+                                  style={{ width: `${usagePercent}%` }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1.5 font-medium">
+                                <span>{accUsage.remaining > 0 ? `${accUsage.remaining} remaining` : 'Limit reached'}</span>
+                                <span>Resets 1st of month</span>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-gray-400 font-medium">
+                              Full access to automated multi-channel posting
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Footer Actions */}
+                      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleStartConnect(account.platform)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+                          title="Reconnect or re-authenticate this account"
+                        >
+                          <RefreshCw className="w-3 h-3 text-gray-400" />
+                          <span>Reconnect</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChannelToDelete(account)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                          title="Disconnect account from PostingTube"
+                        >
+                          <Trash2 className="w-3 h-3 text-rose-500" />
+                          <span>Disconnect</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
+        )}
+      </div>
+
+      {/* SECTION 2: Available Platforms Integration Hub */}
+      <div className="font-sans">
+        <div className="mb-4">
+          <h2 className="text-base font-bold text-gray-900 tracking-tight">Available Platforms & Integrations</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Connect your official social media channels with direct OAuth 2.0 authorization.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {platforms.map((platform) => {
+            const config = PLATFORM_CONFIGS[platform];
+            const platformAccounts = accounts.filter((a) => a.platform === platform);
+            const isConnected = platformAccounts.length > 0;
+
+            const formatSummary =
+              platform === 'youtube'
+                ? 'YouTube Shorts vertical publishing'
+                : platform === 'instagram'
+                ? 'Reels, Stories & Feed posts'
+                : platform === 'facebook'
+                ? 'Page feed posts, Reels & videos'
+                : platform === 'linkedin'
+                ? 'Company Pages & Personal Profiles'
+                : platform === 'threads'
+                ? 'Text updates, photos & videos'
+                : 'Pins, boards & rich links';
+
+            return (
+              <div
+                key={platform}
+                className="bg-white border border-gray-200/80 hover:border-gray-300 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs"
+                        style={{ backgroundColor: config.color }}
+                      >
+                        <PlatformLogo platform={platform} className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-950">{config.name}</h4>
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          Direct API
+                        </span>
+                      </div>
+                    </div>
+
+                    {isConnected && (
+                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        {platformAccounts.length} Connected
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-500 leading-relaxed mb-4">
+                    {formatSummary}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-400 font-medium">
+                    {isConnected ? `${platformAccounts.length} active channel${platformAccounts.length > 1 ? 's' : ''}` : 'Ready to connect'}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStartConnect(platform)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black active:bg-gray-800 text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs hover:shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{isConnected ? `+ Add ${config.name}` : `Connect ${config.name}`}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
       {/* Buffer-Style Step-by-Step Connection Modal */}
       {connectingPlatform && (
         <div

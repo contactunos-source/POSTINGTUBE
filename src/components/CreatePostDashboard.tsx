@@ -2254,7 +2254,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                           <video
                                             src={effectiveMedia[0].url}
                                             controls={!isUploading}
-                                            className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
+                                            playsInline
+                                            preload="metadata"
+                                            className={`w-full h-full relative z-10 ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
                                           />
                                         ) : (
                                           <img
@@ -2264,27 +2266,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                           />
                                         )}
 
-                                        {/* Overlay Replace/Remove Controls – visible on hover */}
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 z-10">
-                                          <button
-                                            type="button"
-                                            onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
-                                            className="bg-white/95 text-gray-900 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-white transition-all cursor-pointer flex items-center gap-1.5"
-                                            title="Replace media"
-                                          >
-                                            <RotateCcw className="w-3.5 h-3.5" />
-                                            Replace
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handlePlatformRemoveMedia(accId)}
-                                            className="bg-rose-600/90 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg hover:bg-rose-600 transition-all cursor-pointer flex items-center gap-1.5"
-                                            title="Remove media"
-                                          >
-                                            <X className="w-3.5 h-3.5" />
-                                            Remove
-                                          </button>
-                                        </div>
+
 
                                         {/* Upload Progress Overlay */}
                                         {(isUploading || uploadState.stage === 'error') && !customizeMediaPerPlatform && (
@@ -2328,22 +2310,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full">Custom</span>
                                     )}
                                   </div>
-                                  <div className="flex items-center space-x-1 shrink-0">
+                                  <div className="flex items-center space-x-1.5 shrink-0">
                                     <button
                                       type="button"
                                       onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
-                                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer"
-                                      title="Replace"
+                                      className="px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-gray-200/80 shadow-2xs"
+                                      title="Replace media with a different file"
                                     >
-                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      <RotateCcw className="w-3 h-3 text-gray-500" />
+                                      <span>Replace</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handlePlatformRemoveMedia(accId)}
-                                      className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
-                                      title="Remove"
+                                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-rose-200/80 shadow-2xs"
+                                      title="Remove media from post"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <Trash2 className="w-3 h-3 text-rose-500" />
+                                      <span>Remove</span>
                                     </button>
                                   </div>
                                 </div>

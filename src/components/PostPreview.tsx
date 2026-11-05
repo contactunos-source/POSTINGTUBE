@@ -120,7 +120,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
               {media ? (
                 media.type === 'video' ? (
-                  <video src={media.url} className={`w-full h-full ${fitClass}`} autoPlay loop muted playsInline />
+                  <video src={media.url} className={`w-full h-full ${fitClass}`} controls playsInline preload="metadata" />
                 ) : (
                   <img src={media.thumbnailUrl || media.url} alt="Story frame" className={`w-full h-full ${fitClass}`} />
                 )
