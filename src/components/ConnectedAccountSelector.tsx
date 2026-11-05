@@ -30,7 +30,26 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  const isPlatformSupportedForPostType = (platform: string, type: string) => {
+    if (type === 'text') {
+      return platform !== 'youtube' && platform !== 'instagram';
+    }
+    if (type === 'image') {
+      return platform !== 'youtube';
+    }
+    return true;
+  };
+
   const handleAccountClick = (account: SocialAccount) => {
+    const isSupported = isPlatformSupportedForPostType(account.platform, postType);
+    if (!isSupported) {
+      if (onShowNotice) {
+        onShowNotice(
+          `Text posts are not supported on ${account.platform === 'youtube' ? 'YouTube' : 'Instagram'}. Please choose Video or Image.`
+        );
+      }
+      return;
+    }
     onToggleAccount(account.id);
   };
 
@@ -69,7 +88,8 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
       {/* Row of Circular Accounts */}
       <div className="flex items-center flex-wrap gap-3.5 sm:gap-4 py-2">
         {accounts.map((account) => {
-          const isSelected = selectedAccountIds.includes(account.id);
+          const isSupported = isPlatformSupportedForPostType(account.platform, postType);
+          const isSelected = isSupported && selectedAccountIds.includes(account.id);
           const isHovered = hoveredId === account.id;
 
           return (
@@ -83,12 +103,14 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
               <button
                 type="button"
                 onClick={() => handleAccountClick(account)}
-                className={`relative w-12 h-12 rounded-full transition-all duration-150 cursor-pointer focus:outline-none select-none flex items-center justify-center ${
-                  isSelected
-                    ? 'ring-[2.5px] ring-emerald-400 ring-offset-2 ring-offset-white shadow-sm scale-105'
-                    : 'grayscale opacity-40 hover:opacity-85 hover:grayscale-0 hover:scale-102'
+                className={`relative w-12 h-12 rounded-full transition-all duration-150 focus:outline-none select-none flex items-center justify-center ${
+                  !isSupported
+                    ? 'opacity-25 grayscale cursor-not-allowed ring-1 ring-gray-200'
+                    : isSelected
+                    ? 'ring-[2.5px] ring-emerald-400 ring-offset-2 ring-offset-white shadow-sm scale-105 cursor-pointer'
+                    : 'grayscale opacity-40 hover:opacity-85 hover:grayscale-0 hover:scale-102 cursor-pointer'
                 }`}
-                title={account.displayName || account.username}
+                title={!isSupported ? 'Text posts are not supported on this platform' : (account.displayName || account.username)}
               >
                 {/* Platform Badge Overlay (Top-Left) */}
                 <div className="absolute -top-1 -left-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm border border-gray-200/90 flex items-center justify-center z-10">
@@ -124,6 +146,11 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   {/* Tooltip Content */}
                   <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center space-y-0.5">
                     <div>{account.displayName || `@${account.username}`}</div>
+                    {!isSupported && (
+                      <div className="text-[10px] text-amber-300 font-bold">
+                        Text posts are not supported on this platform
+                      </div>
+                    )}
                     {(() => {
                       const usage = monthlyUsageByAccount?.[account.id];
                       if (!usage || usage.limit <= 0) return null;

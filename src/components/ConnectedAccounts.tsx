@@ -930,7 +930,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           const postsUsagePercent = isFreePlan ? Math.min(100, Math.round((monthlyUsage.totalPostsUsed / 15) * 100)) : 0;
 
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Card 1: Channel Slot Capacity */}
               <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
@@ -981,25 +981,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 </div>
               </div>
 
-              {/* Card 3: Platform OAuth Security */}
-              <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">API Connection Status</span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Operational
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <div className="flex items-center space-x-2 text-xs text-gray-700 font-semibold">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Official OAuth 2.0 & Graph API</span>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Direct tokens encrypted with standard security
-                  </p>
-                </div>
-              </div>
+
             </div>
           );
         })()}

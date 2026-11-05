@@ -759,43 +759,29 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   }, []);
 
   // Content-Type Platform Compatibility logic
-  const hasYoutubeSelected = useMemo(() => {
-    return selectedAccountIds.some(id => accounts.find(a => a.id === id)?.platform === 'youtube');
-  }, [selectedAccountIds, accounts]);
+  // All post types (Text, Image, Video) remain selectable and visually normal.
+  const handleSelectPostType = (type: 'text' | 'image' | 'video') => {
+    setCurrentPostType(type);
+    if (type === 'text') {
+      // In text mode, filter out platforms that do not support text (YouTube, Instagram)
+      const supportedIds = selectedAccountIds.filter(id => {
+        const plat = accounts.find(a => a.id === id)?.platform;
+        return plat !== 'youtube' && plat !== 'instagram';
+      });
 
-  const hasInstagramSelected = useMemo(() => {
-    return selectedAccountIds.some(id => accounts.find(a => a.id === id)?.platform === 'instagram');
-  }, [selectedAccountIds, accounts]);
-
-  const isOnlyYoutubeSelected = useMemo(() => {
-    return selectedAccountIds.length > 0 && selectedAccountIds.every(id => accounts.find(a => a.id === id)?.platform === 'youtube');
-  }, [selectedAccountIds, accounts]);
-
-  const isTextDisabled = hasYoutubeSelected || hasInstagramSelected;
-  const textDisabledReason =
-    hasYoutubeSelected && hasInstagramSelected
-      ? 'YouTube & Instagram do not support text-only posts'
-      : hasYoutubeSelected
-      ? 'YouTube Shorts requires video'
-      : hasInstagramSelected
-      ? 'Instagram requires image or video'
-      : '';
-
-  const isImageDisabled = isOnlyYoutubeSelected;
-  const imageDisabledReason = isOnlyYoutubeSelected ? 'YouTube Shorts requires video' : '';
-
-  // Auto-switch postType if currently selected postType becomes disabled
-  useEffect(() => {
-    if (currentPostType === 'text' && isTextDisabled) {
-      if (!isImageDisabled) {
-        setCurrentPostType('image');
-      } else {
-        setCurrentPostType('video');
+      // If user had unsupported accounts selected, update selection to only supported ones
+      if (supportedIds.length !== selectedAccountIds.length) {
+        if (supportedIds.length > 0) {
+          setSelectedAccountIds(supportedIds);
+        } else {
+          // Auto-select first available supported channel if any exist
+          const firstSupported = accounts.find(a => a.platform !== 'youtube' && a.platform !== 'instagram');
+          setSelectedAccountIds(firstSupported ? [firstSupported.id] : []);
+        }
+        showToast('Text mode activated. Unsupported channels (such as YouTube) are unselected.');
       }
-    } else if (currentPostType === 'image' && isImageDisabled) {
-      setCurrentPostType('video');
     }
-  }, [currentPostType, isTextDisabled, isImageDisabled]);
+  };
 
   // Compute selected platforms from selectedAccountIds
   const selectedPlatforms = useMemo(() => {
@@ -1680,25 +1666,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   {/* 1. Image Option */}
                   <button
                     type="button"
-                    disabled={isImageDisabled}
-                    onClick={() => !isImageDisabled && setCurrentPostType('image')}
-                    title={isImageDisabled ? imageDisabledReason : 'Create Image Post'}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
-                      isImageDisabled
-                        ? 'opacity-40 cursor-not-allowed text-gray-400 bg-transparent select-none'
-                        : currentPostType === 'image'
-                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20 cursor-pointer'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold cursor-pointer'
+                    onClick={() => handleSelectPostType('image')}
+                    title="Create Image Post"
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                      currentPostType === 'image'
+                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold'
                     }`}
                   >
-                    <FileImage className={`w-3.5 h-3.5 ${isImageDisabled ? 'text-gray-400' : currentPostType === 'image' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                    <FileImage className={`w-3.5 h-3.5 ${currentPostType === 'image' ? 'text-emerald-600' : 'text-gray-500'}`} />
                     <span>Image</span>
                   </button>
 
-                  {/* 2. Video Option (Always supported across Facebook, Instagram, YouTube) */}
+                  {/* 2. Video Option */}
                   <button
                     type="button"
-                    onClick={() => setCurrentPostType('video')}
+                    onClick={() => handleSelectPostType('video')}
                     title="Create Video or Reel Post"
                     className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                       currentPostType === 'video'
@@ -1713,34 +1696,18 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   {/* 3. Text Option */}
                   <button
                     type="button"
-                    disabled={isTextDisabled}
-                    onClick={() => !isTextDisabled && setCurrentPostType('text')}
-                    title={isTextDisabled ? textDisabledReason : 'Create Text Post'}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
-                      isTextDisabled
-                        ? 'opacity-40 cursor-not-allowed text-gray-400 bg-transparent select-none'
-                        : currentPostType === 'text'
-                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20 cursor-pointer'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold cursor-pointer'
+                    onClick={() => handleSelectPostType('text')}
+                    title="Create Text Post"
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                      currentPostType === 'text'
+                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold'
                     }`}
                   >
-                    <Type className={`w-3.5 h-3.5 ${isTextDisabled ? 'text-gray-400' : currentPostType === 'text' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                    <Type className={`w-3.5 h-3.5 ${currentPostType === 'text' ? 'text-emerald-600' : 'text-gray-500'}`} />
                     <span>Text</span>
                   </button>
                 </div>
-
-                {(isTextDisabled || isImageDisabled) && (
-                  <span className="text-[11px] font-medium text-gray-500 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md hidden lg:inline-flex items-center gap-1">
-                    <Info className="w-3 h-3 text-gray-400 shrink-0" />
-                    <span>
-                      {isTextDisabled && isImageDisabled
-                        ? 'YouTube Shorts requires video'
-                        : isTextDisabled
-                        ? textDisabledReason
-                        : imageDisabledReason}
-                    </span>
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -2054,9 +2021,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       </div>
 
                       {/* 2. PUBLISHING FORMAT SELECTORS (Post / Reel / Story - Premium Neutral Styling) */}
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${config.supportedFormats.length === 1 ? 'justify-center' : ''}`}>
                         {config.supportedFormats.map((fmt) => {
                           const isActive = activeFormat === fmt.id;
+                          const isSingle = config.supportedFormats.length === 1;
                           return (
                             <button
                               key={fmt.id}
@@ -2070,9 +2038,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   setAccountAspectRatios(prev => ({ ...prev, [acc.id]: '16:9' }));
                                 }
                               }}
-                              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center ${
+                              className={`${
+                                isSingle
+                                  ? 'py-1 px-5 rounded-full text-xs font-bold w-auto min-w-[100px] max-w-[140px] mx-auto shadow-2xs'
+                                  : 'flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold'
+                              } transition-all cursor-pointer text-center ${
                                 isActive
-                                  ? 'bg-gray-900 text-white font-bold shadow-xs'
+                                  ? 'bg-gray-900 text-white shadow-xs'
                                   : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80'
                               }`}
                             >

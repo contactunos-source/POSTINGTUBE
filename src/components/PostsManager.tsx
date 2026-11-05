@@ -677,74 +677,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
           })}
         </div>
 
-        {/* 1. Unified Status Navigation Bar & View Mode Switcher */}
-        <div className="bg-white border border-gray-200/90 rounded-2xl p-2 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-          <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none">
-            {[
-              { id: 'all', label: 'All Posts', count: counts.all },
-              { id: 'published', label: 'Published', count: counts.published },
-              { id: 'scheduled', label: 'Scheduled', count: counts.scheduled },
-              { id: 'draft', label: 'Drafts', count: counts.draft },
-              { id: 'failed', label: 'Failed', count: counts.failed },
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs font-bold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/70 border border-transparent'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`text-[11px] px-2 py-0.2 rounded-full font-bold ${
-                      isActive
-                        ? 'bg-emerald-200/90 text-emerald-900'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* View Mode Toggle (Cards vs List) */}
-          <div className="flex items-center self-end sm:self-auto bg-gray-100/90 p-0.5 rounded-xl border border-gray-200/80">
-            <button
-              type="button"
-              onClick={() => setViewMode('card')}
-              className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
-                viewMode === 'card'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-              title="Feed / Card View"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden md:inline text-[11px]">Cards</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-              title="Compact List View"
-            >
-              <List className="w-3.5 h-3.5" />
-              <span className="hidden md:inline text-[11px]">List</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Secondary Filter & Search Controls */}
+        {/* Search, Filter & View Mode Bar (Duplicate status tabs removed as filters are available in the 5 overview metric cards above) */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-gray-200/80 rounded-2xl p-3 shadow-2xs">
           <div className="flex items-center space-x-2.5 flex-1 max-w-lg">
             {/* Search Box */}
@@ -788,10 +721,41 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
             <button
               onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
               className="text-xs py-2 px-3 rounded-xl border border-gray-200/90 bg-white hover:bg-gray-50 text-gray-700 flex items-center space-x-1.5 shadow-2xs cursor-pointer font-medium"
+              title="Toggle Sort Direction"
             >
-              <ArrowUpDown className="w-3.5 h-3.5 text-gray-500" />
-              <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
+              <span>{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
             </button>
+
+            {/* View Mode Toggle (Cards vs List) */}
+            <div className="flex items-center bg-gray-100/90 p-0.5 rounded-xl border border-gray-200/80">
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
+                  viewMode === 'card'
+                    ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+                title="Feed / Card View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden md:inline text-[11px]">Cards</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+                title="Compact List View"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden md:inline text-[11px]">List</span>
+              </button>
+            </div>
           </div>
         </div>
 
