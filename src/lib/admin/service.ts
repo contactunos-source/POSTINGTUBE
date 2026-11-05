@@ -34,6 +34,9 @@ export interface AdminOverviewStats {
   };
   publishingTimeline: Array<{ date: string; published: number; scheduled: number; failed: number }>;
   revenueTimeline: Array<{ date: string; amount: number }>;
+  signupTimeline: Array<{ date: string; signups: number; cumulative: number }>;
+  timeframe: '7d' | '30d' | '90d' | 'all';
+  paidConversionRate: number;
   recentActivity: Array<{
     id: string;
     eventType: string;
@@ -552,6 +555,84 @@ export const AdminDataService = {
       timestamp: new Date().toISOString(),
     });
 
+    // 9. Signup Timeline calculation based on requested timeframe ('7d' | '30d' | '90d' | 'all')
+    const signupTimeline: Array<{ date: string; signups: number; cumulative: number }> = [];
+    const sortedProfiles = [...rawProfiles].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    if (dateRange === '7d') {
+      // 7 daily intervals
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+        const signupsOnDay = rawProfiles.filter(
+          (p) => p.created_at && p.created_at.startsWith(dateStr)
+        ).length;
+        const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59).toISOString();
+        const cumulative = sortedProfiles.filter((p) => p.created_at <= endOfDay).length;
+        signupTimeline.push({
+          date: dayLabel,
+          signups: signupsOnDay,
+          cumulative: Math.max(cumulative, signupsOnDay, 1),
+        });
+      }
+    } else if (dateRange === '90d') {
+      // 90 days in 3-day blocks (30 points)
+      for (let i = 29; i >= 0; i--) {
+        const endD = new Date(now.getTime() - i * 3 * 24 * 60 * 60 * 1000);
+        const startD = new Date(now.getTime() - (i + 1) * 3 * 24 * 60 * 60 * 1000);
+        const dayLabel = endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const signupsInBlock = rawProfiles.filter(
+          (p) => p.created_at && p.created_at > startD.toISOString() && p.created_at <= endD.toISOString()
+        ).length;
+        const cumulative = sortedProfiles.filter((p) => p.created_at <= endD.toISOString()).length;
+        signupTimeline.push({
+          date: dayLabel,
+          signups: signupsInBlock,
+          cumulative: Math.max(cumulative, 1),
+        });
+      }
+    } else if (dateRange === 'all') {
+      // 12 monthly intervals
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const monthLabel = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        const signupsInMonth = rawProfiles.filter(
+          (p) => p.created_at && p.created_at.startsWith(yearMonth)
+        ).length;
+        const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        const cumulative = sortedProfiles.filter((p) => p.created_at <= endOfMonth).length;
+        signupTimeline.push({
+          date: monthLabel,
+          signups: signupsInMonth,
+          cumulative: Math.max(cumulative, 1),
+        });
+      }
+    } else {
+      // Default: 30 days daily intervals
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const signupsOnDay = rawProfiles.filter(
+          (p) => p.created_at && p.created_at.startsWith(dateStr)
+        ).length;
+        const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59).toISOString();
+        const cumulative = sortedProfiles.filter((p) => p.created_at <= endOfDay).length;
+        signupTimeline.push({
+          date: dayLabel,
+          signups: signupsOnDay,
+          cumulative: Math.max(cumulative, signupsOnDay, 1),
+        });
+      }
+    }
+
+    const paidConversionRate =
+      totalUsers > 0 ? Math.round((paidSubscribersCount / totalUsers) * 1000) / 10 : 0;
+
     return {
       totalUsers,
       activeUsers,
@@ -578,6 +659,9 @@ export const AdminDataService = {
       subscriptionDistribution: subscriptionDist,
       publishingTimeline,
       revenueTimeline,
+      signupTimeline,
+      paidConversionRate,
+      timeframe: (dateRange as any) || '30d',
       recentActivity,
       systemAlerts,
     };

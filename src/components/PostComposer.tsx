@@ -106,7 +106,8 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   const [scheduledTime, setScheduledTime] = useState('20:54');
 
   const [activePreviewPlatform, setActivePreviewPlatform] = useState<SocialPlatform>('instagram');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<'schedule' | 'publish-now' | 'draft' | null>(null);
+  const isSubmitting = Boolean(submittingAction);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   const selectedAccounts = accounts.filter((a) => selectedAccountIds.includes(a.id));
@@ -236,7 +237,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
 
   // Execute Save / Schedule / Draft
   const handleExecuteSave = async (action: 'schedule' | 'publish-now' | 'draft') => {
-    setIsSubmitting(true);
+    setSubmittingAction(action);
     try {
       const scheduledIso =
         action === 'schedule' ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString() : undefined;
@@ -259,7 +260,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
 
       await onSave(payload, action);
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
@@ -829,7 +830,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
           onClick={() => handleExecuteSave('draft')}
           className="text-xs font-medium text-gray-400 hover:text-white transition-colors"
         >
-          Move to Drafts
+          {submittingAction === 'draft' ? 'Saving draft...' : 'Move to Drafts'}
         </button>
 
         {/* Right: Date Picker Button + Green Save Button */}

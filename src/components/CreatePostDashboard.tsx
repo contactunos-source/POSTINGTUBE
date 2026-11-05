@@ -558,8 +558,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   });
   const [isScheduleValid, setIsScheduleValid] = useState(true);
 
-  // UI state
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // UI state & granular submission action tracker (strictly isolates draft vs schedule vs live dispatch)
+  const [submittingAction, setSubmittingAction] = useState<'schedule' | 'publish-now' | 'draft' | null>(null);
+  const isSubmitting = Boolean(submittingAction);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -1320,7 +1321,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       const uploadSuccess = await waitForUploadToComplete();
       if (!uploadSuccess) {
         showToast('Operation cancelled: media upload failed. Please retry.');
-        setIsSubmitting(false);
+        setSubmittingAction(null);
         return;
       }
     }
@@ -1363,7 +1364,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       }
     }
 
-    setIsSubmitting(true);
+    setSubmittingAction(action);
     try {
       // Safety check: resolve any temporary local blob: URLs so Facebook/Instagram APIs receive real server URLs
       let finalMediaList = [...mediaList];
@@ -1402,7 +1403,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
       const stillHasBlob = finalMediaList.some((m) => m.url && m.url.startsWith('blob:'));
       if (stillHasBlob && action !== 'draft') {
-        setIsSubmitting(false);
+        setSubmittingAction(null);
         showToast('Media upload could not be completed. Please wait a moment or replace the image.');
         return;
       }
@@ -1596,14 +1597,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       } catch {}
       showToast(
         action === 'schedule'
-          ? 'Post successfully scheduled!'
-          : 'Post saved to drafts!'
+          ? 'Post scheduled successfully.'
+          : action === 'draft'
+          ? 'Draft saved successfully.'
+          : 'Post published live!'
       );
       if (onBack) onBack();
     } catch (err: any) {
       showToast(`Publishing error: ${err?.message || 'Could not save post'}`);
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
@@ -2266,7 +2269,22 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                           />
                                         )}
 
-
+                                        {/* Visual Text Overlay if configured for Instagram */}
+                                        {acc.platform === 'instagram' && instagramTextOverlay[acc.id]?.text && (
+                                          <div
+                                            className={`absolute z-20 left-3 right-3 ${
+                                              instagramTextOverlay[acc.id]?.position === 'top'
+                                                ? 'top-3'
+                                                : instagramTextOverlay[acc.id]?.position === 'bottom'
+                                                ? 'bottom-3'
+                                                : 'top-1/2 -translate-y-1/2'
+                                            } text-center pointer-events-none select-none`}
+                                          >
+                                            <span className="inline-block bg-black/75 text-white font-bold text-xs px-3 py-1.5 rounded-xl backdrop-blur-xs shadow-md border border-white/10 max-w-full truncate">
+                                              {instagramTextOverlay[acc.id].text}
+                                            </span>
+                                          </div>
+                                        )}
 
                                         {/* Upload Progress Overlay */}
                                         {(isUploading || uploadState.stage === 'error') && !customizeMediaPerPlatform && (
@@ -2542,8 +2560,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                             ]
                                           : [
                                               { id: 'music' as const, label: 'Music', icon: <Music2 className="w-3.5 h-3.5 shrink-0" /> },
-                                              { id: 'products' as const, label: 'Tagged Products', icon: <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> },
                                               { id: 'text' as const, label: 'Text', icon: <span className="font-bold text-xs shrink-0">Aa</span> },
+                                              { id: 'products' as const, label: 'Tagged Products', icon: <ShoppingBag className="w-3.5 h-3.5 shrink-0" /> },
                                             ];
 
                                       return featureList.map((feat) => {
@@ -3348,14 +3366,21 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     onClick={() => handleExecute('schedule')}
                     className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      {uploadState.isUploading
-                        ? `Uploading media (${displayProgress}%)...`
-                        : isSubmitting
-                        ? 'Scheduling your post...'
-                        : 'Schedule Post'}
-                    </span>
+                    {submittingAction === 'schedule' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Scheduling post...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {uploadState.isUploading
+                            ? `Uploading media (${displayProgress}%)...`
+                            : 'Schedule Post'}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               ) : (
@@ -3377,14 +3402,21 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     onClick={() => handleExecute('publish-now')}
                     className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <Send className="w-4 h-4" />
-                    <span>
-                      {uploadState.isUploading
-                        ? `Uploading media (${displayProgress}%)...`
-                        : isSubmitting
-                        ? 'Publishing live...'
-                        : 'Publish Live Now'}
-                    </span>
+                    {submittingAction === 'publish-now' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Publishing live...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>
+                          {uploadState.isUploading
+                            ? `Uploading media (${displayProgress}%)...`
+                            : 'Publish Live Now'}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -3406,10 +3438,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => handleExecute('draft')}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Save className="w-3.5 h-3.5 text-gray-500" />
-                  <span>Save as Draft</span>
+                  {submittingAction === 'draft' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                      <span>Saving draft...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5 text-gray-500" />
+                      <span>Save as Draft</span>
+                    </>
+                  )}
                 </button>
 
                 <button

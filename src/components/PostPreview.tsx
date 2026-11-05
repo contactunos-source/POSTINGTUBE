@@ -174,6 +174,23 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 <div className="text-gray-500 text-xs text-center p-4">No media attached</div>
               )}
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80 pointer-events-none" />
+
+              {/* Reel Text Overlay (from Instagram Text AI Feature) */}
+              {override?.textOverlay?.text && (
+                <div
+                  className={`absolute z-20 left-4 right-4 ${
+                    override.textOverlay.position === 'top'
+                      ? 'top-16'
+                      : override.textOverlay.position === 'bottom'
+                      ? 'bottom-24'
+                      : 'top-1/2 -translate-y-1/2'
+                  } text-center pointer-events-none select-none`}
+                >
+                  <span className="inline-block bg-black/70 text-white font-bold text-xs sm:text-sm px-3.5 py-1.5 rounded-2xl backdrop-blur-xs shadow-lg border border-white/10">
+                    {override.textOverlay.text}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Top Reel Bar */}
@@ -269,6 +286,23 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
               ) : (
                 <div className="flex flex-col items-center justify-center text-gray-400 text-xs">
                   <span>No media attached</span>
+                </div>
+              )}
+
+              {/* Feed Post Text Overlay (from Instagram Text AI Feature) */}
+              {override?.textOverlay?.text && (
+                <div
+                  className={`absolute z-20 left-4 right-4 ${
+                    override.textOverlay.position === 'top'
+                      ? 'top-4'
+                      : override.textOverlay.position === 'bottom'
+                      ? 'bottom-4'
+                      : 'top-1/2 -translate-y-1/2'
+                  } text-center pointer-events-none select-none`}
+                >
+                  <span className="inline-block bg-black/75 text-white font-bold text-xs sm:text-sm px-3.5 py-1.5 rounded-xl backdrop-blur-xs shadow-lg border border-white/10 max-w-full">
+                    {override.textOverlay.text}
+                  </span>
                 </div>
               )}
             </div>

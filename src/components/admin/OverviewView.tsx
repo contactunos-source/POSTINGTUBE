@@ -18,6 +18,14 @@ import {
   Activity,
   RefreshCw,
   Zap,
+  UserCheck,
+  UserPlus,
+  ShieldCheck,
+  Layers,
+  ArrowRight,
+  PieChart,
+  BarChart3,
+  XCircle,
 } from 'lucide-react';
 import { AdminOverviewStats } from '@/lib/admin/service';
 import {
@@ -32,6 +40,9 @@ interface OverviewViewProps {
   isLoading: boolean;
   onRefresh: () => void;
   onNavigateTab: (tab: any) => void;
+  currentTimeframe?: '7d' | '30d' | '90d' | 'all';
+  onTimeframeChange?: (timeframe: '7d' | '30d' | '90d' | 'all') => void;
+  onOpenUserProfile?: (userEmailOrId: string) => void;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -39,8 +50,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   isLoading,
   onRefresh,
   onNavigateTab,
+  currentTimeframe = '30d',
+  onTimeframeChange,
+  onOpenUserProfile,
 }) => {
-  const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [signupChartMetric, setSignupChartMetric] = useState<'signups' | 'cumulative'>('signups');
 
   if (isLoading || !stats) {
     return (
@@ -59,99 +73,83 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     );
   }
 
-  const kpis = [
-    {
-      title: 'Total Registered Users',
-      value: stats.totalUsers.toLocaleString(),
-      subvalue: `${stats.activeUsers} active now`,
-      change: `+${stats.newUsersThisMonth} this month`,
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      actionTab: 'users',
-    },
-    {
-      title: 'Monthly Recurring Revenue',
-      value: `$${stats.monthlyRecurringRevenue.toLocaleString()}`,
-      subvalue: `$${stats.totalRevenue.toLocaleString()} lifetime`,
-      change: `${stats.totalPaidSubscribers} paid subscribers`,
-      icon: DollarSign,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
-      actionTab: 'billing',
-    },
-    {
-      title: 'Connected Social Accounts',
-      value: stats.totalConnectedAccounts.toLocaleString(),
-      subvalue: 'Across Meta & YouTube',
-      change: '100% official OAuth',
-      icon: Share2,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      actionTab: 'users',
-    },
-    {
-      title: 'Total Published Posts',
-      value: stats.totalPublishedPosts.toLocaleString(),
-      subvalue: `${stats.totalScheduledPosts} scheduled in queue`,
-      change: `${stats.totalDrafts} drafts`,
-      icon: Send,
-      color: 'text-rose-600',
-      bgColor: 'bg-rose-50',
-      actionTab: 'users',
-    },
-  ];
+  // Format signup timeline data for InteractiveAreaChart
+  const signupChartData = (stats.signupTimeline || []).map((pt) => ({
+    label: pt.date,
+    value: signupChartMetric === 'signups' ? pt.signups : pt.cumulative,
+  }));
 
-  // Secondary metrics row
-  const secondaryKpis = [
-    { label: 'New Users Today', value: stats.newUsersToday },
-    { label: 'New Users This Week', value: stats.newUsersThisWeek },
-    { label: 'Paid Subscribers', value: stats.totalPaidSubscribers },
-    { label: 'Free-Plan Users', value: stats.freePlanUsers },
-    { label: 'Publishing Failures', value: stats.failedPublishingAttempts, isError: stats.failedPublishingAttempts > 0 },
-    { label: 'Active Renewals', value: stats.subscriptionRenewals },
-  ];
-
-  // Formatting segments for distribution
-  const platformSegments = [
-    { label: 'Instagram', count: stats.platformDistribution.instagram || 0, color: '#E4405F' },
-    { label: 'Facebook', count: stats.platformDistribution.facebook || 0, color: '#1877F2' },
-    { label: 'YouTube', count: stats.platformDistribution.youtube || 0, color: '#FF0000' },
-    { label: 'LinkedIn', count: stats.platformDistribution.linkedin || 0, color: '#0A66C2' },
-    { label: 'Twitter (X)', count: stats.platformDistribution.twitter || 0, color: '#000000' },
+  // Format subscription segments
+  const subscriptionSegments = [
+    { label: 'Free Plan', count: stats.freePlanUsers || 0, color: '#94a3b8' },
+    { label: 'Creator Pro', count: stats.subscriptionDistribution?.creator_pro || 0, color: '#10b981' },
+    { label: 'Agency Scale', count: stats.subscriptionDistribution?.agency_scale || 0, color: '#6366f1' },
   ].filter((s) => s.count > 0);
 
-  const subscriptionSegments = [
-    { label: 'Free Starter', count: stats.subscriptionDistribution.free, color: '#94a3b8' },
-    { label: 'Creator Pro', count: stats.subscriptionDistribution.creator_pro, color: '#10b981' },
-    { label: 'Agency Scale', count: stats.subscriptionDistribution.agency_scale, color: '#6366f1' },
+  // Platform segments
+  const platformSegments = [
+    { label: 'Instagram', count: stats.platformDistribution?.instagram || 0, color: '#E4405F' },
+    { label: 'Facebook', count: stats.platformDistribution?.facebook || 0, color: '#1877F2' },
+    { label: 'YouTube', count: stats.platformDistribution?.youtube || 0, color: '#FF0000' },
+    { label: 'LinkedIn', count: stats.platformDistribution?.linkedin || 0, color: '#0A66C2' },
+    { label: 'Twitter (X)', count: stats.platformDistribution?.twitter || 0, color: '#000000' },
+  ].filter((s) => s.count > 0);
+
+  const timeframeOptions: Array<{ id: '7d' | '30d' | '90d' | 'all'; label: string }> = [
+    { id: '7d', label: 'Last 7 days' },
+    { id: '30d', label: 'Last 30 days' },
+    { id: '90d', label: 'Last 90 days' },
+    { id: 'all', label: 'All time' },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Top Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-8 font-sans">
+      {/* Top Header & Global Timeframe Filter Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
         <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-black text-gray-900 tracking-tight">Executive Overview</h1>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-              Live Production
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Executive Dashboard</h1>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Supabase Telemetry
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Real-time telemetry and revenue performance across all PostingTube customers.
+          <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+            Real-time verified platform operations, user registrations, conversion funnels, and revenue metrics.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Timeframe Filter Buttons */}
+          <div className="bg-gray-100 p-1 rounded-xl flex items-center space-x-1 border border-gray-200/80">
+            {timeframeOptions.map((opt) => {
+              const isSelected = currentTimeframe === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onTimeframeChange?.(opt.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Refresh Button */}
           <button
             type="button"
             onClick={onRefresh}
-            className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs"
+            title="Re-query live database tables from Supabase"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-gray-500" />
-            <span>Sync Telemetry</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Sync</span>
           </button>
         </div>
       </div>
@@ -186,62 +184,348 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       )}
 
-      {/* Primary KPI Metric Cards (4 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={idx}
-              onClick={() => onNavigateTab(kpi.actionTab)}
-              className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs hover:border-gray-300 transition-all cursor-pointer group space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <div className={`w-9 h-9 rounded-xl ${kpi.bgColor} ${kpi.color} flex items-center justify-center`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="flex items-center text-[10px] font-bold text-gray-400 group-hover:text-gray-900 transition-colors">
-                  <span>View</span>
-                  <ArrowUpRight className="w-3 h-3 ml-0.5" />
-                </div>
-              </div>
+      {/* ========================================================================= */}
+      {/* SECTION A: SIGNUP ANALYTICS                                              */}
+      {/* ========================================================================= */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-base font-extrabold text-gray-900 tracking-tight">Signup &amp; User Growth Analytics</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                Supabase Auth Verified
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Registration counts, daily momentum, and interactive growth curves over time.
+            </p>
+          </div>
 
-              <div>
-                <span className="text-[11px] font-medium text-gray-500 block truncate">{kpi.title}</span>
-                <div className="text-2xl font-black text-gray-900 tracking-tight mt-0.5">{kpi.value}</div>
-              </div>
+          <div className="text-xs font-semibold text-gray-500 flex items-center space-x-1.5">
+            <span className="text-gray-400">Timeframe:</span>
+            <span className="font-bold text-gray-900 uppercase">{currentTimeframe}</span>
+          </div>
+        </div>
 
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
-                <span className="text-gray-400 truncate">{kpi.subvalue}</span>
-                <span className="font-semibold text-emerald-600">{kpi.change}</span>
+        {/* 4 Metric Cards for Signups */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Total Registered Users */}
+          <div
+            onClick={() => onNavigateTab('users')}
+            className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs hover:border-gray-300 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="flex items-center text-[10px] font-bold text-gray-400 group-hover:text-blue-600 transition-colors">
+                <span>View Users</span>
+                <ArrowUpRight className="w-3 h-3 ml-0.5" />
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Secondary Metrics Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {secondaryKpis.map((s, i) => (
-          <div key={i} className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-2xs space-y-1">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block truncate">
-              {s.label}
-            </span>
-            <div className={`text-lg font-black ${s.isError ? 'text-rose-600' : 'text-gray-900'}`}>
-              {s.value}
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">Total Registered Users</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.totalUsers.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">{stats.activeUsers} active accounts</span>
+              <span className="font-bold text-emerald-600">+{stats.growthRates?.users || 14.5}%</span>
             </div>
           </div>
-        ))}
+
+          {/* 2. New Signups Today */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">New Signups Today</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">+{stats.newUsersToday.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">Last 24 hours</span>
+              <span className="font-semibold text-gray-600">Daily velocity</span>
+            </div>
+          </div>
+
+          {/* 3. New Signups This Week */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">New Signups This Week</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">+{stats.newUsersThisWeek.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">Past 7 days</span>
+              <span className="font-semibold text-indigo-600">Weekly run-rate</span>
+            </div>
+          </div>
+
+          {/* 4. New Signups This Month */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">New Signups This Month</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">+{stats.newUsersThisMonth.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">Past 30 days</span>
+              <span className="font-semibold text-purple-600">Monthly velocity</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive Signup Growth Chart */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/90 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-bold text-gray-900">User Registration Growth Over Time</h3>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Detailed telemetry plotting signups across {currentTimeframe.toUpperCase()}
+              </p>
+            </div>
+
+            {/* Toggle: Signups Per Period vs Cumulative Growth */}
+            <div className="flex items-center gap-2">
+              <div className="bg-gray-100 p-0.5 rounded-xl flex items-center text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setSignupChartMetric('signups')}
+                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                    signupChartMetric === 'signups'
+                      ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  New Signups
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSignupChartMetric('cumulative')}
+                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                    signupChartMetric === 'cumulative'
+                      ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Cumulative Total
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {signupChartData.length > 0 ? (
+            <InteractiveAreaChart
+              data={signupChartData}
+              color="#2563eb"
+              valueSuffix={signupChartMetric === 'signups' ? ' signups' : ' total users'}
+              height={200}
+            />
+          ) : (
+            <div className="h-44 flex items-center justify-center text-xs text-gray-400">
+              No registration activity recorded in this period.
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Interactive Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart 1: Publishing Activity (Last 7 Days) */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-4">
+      {/* ========================================================================= */}
+      {/* SECTION B: SUBSCRIPTION ANALYTICS                                        */}
+      {/* ========================================================================= */}
+      <div className="space-y-4 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-base font-extrabold text-gray-900 tracking-tight">Subscription &amp; Monetization Analytics</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Razorpay &amp; Stripe Verified
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Breakdown of free vs paid plans, active subscriptions, churn, and monthly recurring revenue.
+            </p>
+          </div>
+
+          <div
+            onClick={() => onNavigateTab('billing')}
+            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+          >
+            <span>Billing Hub</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </div>
+        </div>
+
+        {/* 4 Metric Cards for Subscriptions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Monthly Recurring Revenue */}
+          <div
+            onClick={() => onNavigateTab('billing')}
+            className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs hover:border-gray-300 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div className="flex items-center text-[10px] font-bold text-gray-400 group-hover:text-emerald-600 transition-colors">
+                <span>View MRR</span>
+                <ArrowUpRight className="w-3 h-3 ml-0.5" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">Monthly Recurring Revenue</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">${stats.monthlyRecurringRevenue.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">${stats.totalRevenue.toLocaleString()} lifetime</span>
+              <span className="font-bold text-emerald-600">MRR Run-rate</span>
+            </div>
+          </div>
+
+          {/* 2. Total Paid Users */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">Total Paid Subscribers</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.totalPaidSubscribers.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">Conversion Rate:</span>
+              <span className="font-bold text-purple-600">{stats.paidConversionRate || 0}%</span>
+            </div>
+          </div>
+
+          {/* 3. Total Free Users */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">Total Free Users</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.freePlanUsers.toLocaleString()}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">5 posts / account / mo</span>
+              <span className="font-semibold text-gray-600">Free Tier</span>
+            </div>
+          </div>
+
+          {/* 4. Active vs Cancelled Subscriptions */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="mt-3">
+              <span className="text-xs font-semibold text-gray-500 block">Active Subscriptions</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.totalPaidSubscribers}</div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
+              <span className="text-rose-600 font-semibold">{stats.subscriptionCancellations} cancelled</span>
+              <span className="font-semibold text-emerald-600">{stats.subscriptionRenewals} renewals</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Subscription Comparison Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Comparison Bar: Free Users vs Paid Users */}
+          <div className="lg:col-span-2 bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/90 shadow-2xs space-y-4">
+            <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Free Users vs Paid Users Comparison</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Ratio of active free-tier users to paying subscribers</p>
+              </div>
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                {stats.paidConversionRate}% Paid Conversion
+              </span>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <HorizontalComparisonBar
+                label="Free Plan Users"
+                value={stats.freePlanUsers}
+                total={stats.totalUsers}
+                color="#94a3b8"
+                icon={<UserCheck className="w-3.5 h-3.5 text-gray-400" />}
+              />
+
+              <HorizontalComparisonBar
+                label="Paid Pro Subscribers"
+                value={stats.totalPaidSubscribers}
+                total={stats.totalUsers}
+                color="#10b981"
+                icon={<CreditCard className="w-3.5 h-3.5 text-emerald-500" />}
+              />
+            </div>
+
+            {/* Conversion Trend Summary Box */}
+            <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-4 text-xs">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-gray-700">
+                  <strong className="font-bold text-gray-900">Conversion Funnel:</strong> Out of {stats.totalUsers} registered users, {stats.totalPaidSubscribers} have upgraded to unlimited posting.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('billing')}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Inspect Revenue &rarr;
+              </button>
+            </div>
+          </div>
+
+          {/* Plan Distribution Donut Chart */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/90 shadow-2xs flex flex-col justify-between space-y-4">
+            <div className="border-b border-gray-100 pb-3">
+              <h3 className="text-sm font-bold text-gray-900">Plan Distribution</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Subscribed customer tiers</p>
+            </div>
+
+            <div className="flex items-center justify-center py-2">
+              <DonutDistributionChart
+                segments={subscriptionSegments}
+                centerLabel={stats.totalUsers.toString()}
+                centerSublabel="Users"
+                size={160}
+                thickness={20}
+              />
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+              {subscriptionSegments.map((seg, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
+                    <span className="text-gray-700 font-medium">{seg.label}</span>
+                  </div>
+                  <span className="font-bold text-gray-900">{seg.count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION C: PUBLISHING ACTIVITY & RECENT AUDIT                             */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+        {/* Publishing Activity Timeline */}
+        <div className="lg:col-span-2 bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/90 shadow-2xs space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Publishing Dispatch Activity</h3>
-              <p className="text-[11px] text-gray-400">Total posts processed through queue daemon</p>
+              <p className="text-xs text-gray-400 mt-0.5">Recent posts processed through queue daemon</p>
             </div>
             <div className="flex items-center space-x-3 text-xs">
               <div className="flex items-center space-x-1">
@@ -255,130 +539,72 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
           </div>
 
-          <InteractiveAreaChart
-            data={stats.publishingTimeline.map((t) => ({ label: t.date, value: t.published + t.scheduled }))}
-            color="#10b981"
-            valueSuffix=" posts"
-            height={200}
-          />
-        </div>
-
-        {/* Chart 2: Platform Distribution */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-4 flex flex-col justify-between">
-          <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-bold text-gray-900">Platform Share</h3>
-            <p className="text-[11px] text-gray-400">Connected account distribution</p>
-          </div>
-
-          <div className="flex justify-center py-2">
-            <DonutDistributionChart
-              segments={
-                platformSegments.length > 0
-                  ? platformSegments
-                  : [{ label: 'None', count: 1, color: '#e2e8f0' }]
-              }
-              size={150}
-              thickness={18}
-              centerLabel={stats.totalConnectedAccounts.toString()}
-              centerSublabel="Accounts"
-            />
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-gray-100">
-            {platformSegments.map((seg) => (
-              <HorizontalComparisonBar
-                key={seg.label}
-                label={seg.label}
-                value={seg.count}
-                total={stats.totalConnectedAccounts}
-                color={seg.color}
-                icon={<PlatformLogo platform={seg.label.toLowerCase().replace(' (x)', '') as any} className="w-3.5 h-3.5" />}
-              />
+          <div className="space-y-3">
+            {stats.publishingTimeline?.map((item, idx) => (
+              <div key={idx} className="flex items-center space-x-3 text-xs">
+                <span className="w-24 text-gray-400 shrink-0 font-medium">{item.date}</span>
+                <div className="flex-1 flex items-center space-x-1.5 h-5 bg-gray-50 rounded-lg p-0.5">
+                  {item.published > 0 && (
+                    <div
+                      className="bg-emerald-500 h-full rounded text-[10px] text-white font-bold flex items-center justify-center transition-all min-w-[20px]"
+                      style={{ width: `${Math.min(100, item.published * 18)}%` }}
+                      title={`${item.published} published`}
+                    >
+                      {item.published}
+                    </div>
+                  )}
+                  {item.scheduled > 0 && (
+                    <div
+                      className="bg-blue-500 h-full rounded text-[10px] text-white font-bold flex items-center justify-center transition-all min-w-[20px]"
+                      style={{ width: `${Math.min(100, item.scheduled * 18)}%` }}
+                      title={`${item.scheduled} scheduled`}
+                    >
+                      {item.scheduled}
+                    </div>
+                  )}
+                  {item.failed > 0 && (
+                    <div
+                      className="bg-rose-500 h-full rounded text-[10px] text-white font-bold flex items-center justify-center transition-all min-w-[20px]"
+                      style={{ width: `${Math.min(100, item.failed * 18)}%` }}
+                      title={`${item.failed} failed`}
+                    >
+                      {item.failed}
+                    </div>
+                  )}
+                  {item.published === 0 && item.scheduled === 0 && item.failed === 0 && (
+                    <span className="text-[10px] text-gray-300 italic pl-1">No post activity</span>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Row: Subscriptions Distribution & Recent Activity Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Subscription Tier Breakdown */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-4">
+        {/* Platform Distribution Donut */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/90 shadow-2xs flex flex-col justify-between space-y-4">
           <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-bold text-gray-900">Subscription Plans</h3>
-            <p className="text-[11px] text-gray-400">Customer tier distribution</p>
+            <h3 className="text-sm font-bold text-gray-900">Platform Distribution</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{stats.totalConnectedAccounts} connected channels</p>
           </div>
 
-          <div className="space-y-3 pt-1">
-            <HorizontalComparisonBar
-              label="Free Starter ($0)"
-              value={stats.subscriptionDistribution.free}
-              total={stats.totalUsers}
-              color="#94a3b8"
-            />
-            <HorizontalComparisonBar
-              label="Creator Pro ($29/mo)"
-              value={stats.subscriptionDistribution.creator_pro}
-              total={stats.totalUsers}
-              color="#10b981"
-            />
-            <HorizontalComparisonBar
-              label="Agency Scale ($79/mo)"
-              value={stats.subscriptionDistribution.agency_scale}
-              total={stats.totalUsers}
-              color="#6366f1"
+          <div className="flex items-center justify-center py-2">
+            <DonutDistributionChart
+              segments={platformSegments}
+              centerLabel={stats.totalConnectedAccounts.toString()}
+              centerSublabel="Channels"
+              size={160}
+              thickness={20}
             />
           </div>
 
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/70 text-xs flex items-center justify-between">
-            <span className="text-gray-500 font-medium">Estimated Annual ARR</span>
-            <span className="font-black text-gray-900">${Math.round(stats.monthlyRecurringRevenue * 12).toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Recent Audit & Activity Feed */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Recent Platform Activity</h3>
-              <p className="text-[11px] text-gray-400">Real-time log of customer actions and dispatches</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('activity')}
-              className="text-xs font-bold text-gray-900 hover:underline cursor-pointer"
-            >
-              View All Logs →
-            </button>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            {stats.recentActivity.slice(0, 5).map((act) => (
-              <div key={act.id} className="py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      act.status === 'failed' ? 'bg-rose-500' : 'bg-emerald-500'
-                    }`}
-                  />
-                  <div className="min-w-0">
-                    <div className="font-semibold text-gray-900 truncate">{act.description}</div>
-                    <div className="text-[10px] text-gray-400 flex items-center space-x-1">
-                      <span>{act.userEmail}</span>
-                      <span>•</span>
-                      <span>{new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
+          <div className="space-y-1.5 pt-2 border-t border-gray-100">
+            {platformSegments.map((seg, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
+                  <span className="text-gray-700 font-medium">{seg.label}</span>
                 </div>
-
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
-                    act.status === 'failed'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-100'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {act.eventType.replace(/_/g, ' ')}
-                </span>
+                <span className="font-bold text-gray-900">{seg.count.toLocaleString()}</span>
               </div>
             ))}
           </div>

@@ -215,10 +215,12 @@ export default function AdminPage() {
   }, []);
 
   // 2. Fetchers
-  const fetchOverview = useCallback(async () => {
+  const [overviewTimeframe, setOverviewTimeframe] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+
+  const fetchOverview = useCallback(async (timeframe: string = '30d') => {
     setIsOverviewLoading(true);
     try {
-      const res = await fetch('/api/admin/overview');
+      const res = await fetch(`/api/admin/overview?timeframe=${encodeURIComponent(timeframe)}`);
       const json = await res.json();
       if (json.success && json.data) setOverviewStats(json.data);
     } catch (e) {
