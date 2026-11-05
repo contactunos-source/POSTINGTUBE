@@ -2050,31 +2050,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                           </div>
                         </div>
 
-                        {isFreePlan ? (
-                          (() => {
-                            const usage = monthlyUsage.accounts[acc.id];
-                            const used = usage?.usedCount || 0;
-                            const limit = 5;
-                            const isLimitReached = used >= limit;
-                            return (
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
-                                  isLimitReached
-                                    ? 'bg-amber-50 text-amber-800 border border-amber-300'
-                                    : 'bg-gray-100 text-gray-700'
-                                }`}
-                                title={`${used}/${limit} posts used this month (${Math.max(0, limit - used)} left). Resets on 1st of month.`}
-                              >
-                                {isLimitReached && <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>}
-                                {used}/{limit} posts
-                              </span>
-                            );
-                          })()
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                            Pro • Unlimited
-                          </span>
-                        )}
+
                       </div>
 
                       {/* 2. PUBLISHING FORMAT SELECTORS (Post / Reel / Story - Premium Neutral Styling) */}
