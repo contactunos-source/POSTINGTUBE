@@ -38,6 +38,9 @@ import {
   ShieldCheck,
   RefreshCw,
   TrendingUp,
+  LayoutGrid,
+  List,
+  FileText,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds } from '@/lib/dateUtils';
@@ -246,6 +249,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [platformFilter, setPlatformFilter] = useState<SocialPlatform | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [selectedPostForDetails, setSelectedPostForDetails] = useState<Post | null>(null);
   const [menuOpenPostId, setMenuOpenPostId] = useState<string | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<string, boolean>>({});
@@ -599,7 +603,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Posts Management</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Posts Management</h1>
             <p className="text-xs text-gray-500 mt-1">
               Publish, schedule, and track real-time analytics across all your social channels.
             </p>
@@ -636,8 +640,45 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
           </div>
         </div>
 
-        {/* 1. Unified Status Navigation Bar (All Posts | Published | Scheduled | Drafts | Failed) */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-1.5 shadow-2xs">
+        {/* Quick Stat Overview Cards Ribbon */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[
+            { id: 'all', label: 'All Posts', count: counts.all, icon: FileText, color: 'text-gray-700', bg: 'bg-white border-gray-200/90', activeBg: 'bg-gray-50/80 border-gray-300' },
+            { id: 'published', label: 'Published / Live', count: counts.published, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-white border-gray-200/90', activeBg: 'bg-emerald-50/70 border-emerald-300' },
+            { id: 'scheduled', label: 'Scheduled', count: counts.scheduled, icon: Clock, color: 'text-sky-600', bg: 'bg-white border-gray-200/90', activeBg: 'bg-sky-50/70 border-sky-300' },
+            { id: 'draft', label: 'Drafts', count: counts.draft, icon: FileEdit, color: 'text-slate-600', bg: 'bg-white border-gray-200/90', activeBg: 'bg-slate-50/80 border-slate-300' },
+            { id: 'failed', label: 'Failed Alerts', count: counts.failed, icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-white border-gray-200/90', activeBg: 'bg-rose-50/70 border-rose-300' },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isCurrent = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id as any)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  isCurrent
+                    ? `${item.activeBg} ring-2 ring-emerald-500/20 shadow-xs scale-[1.01]`
+                    : 'bg-white border-gray-200/90 hover:border-gray-300 hover:shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{item.label}</span>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isCurrent ? 'bg-white shadow-2xs' : 'bg-gray-50'}`}>
+                    <Icon className={`w-3.5 h-3.5 ${item.color}`} />
+                  </div>
+                </div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">{item.count}</span>
+                  <span className="text-[11px] text-gray-400 font-medium">posts</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 1. Unified Status Navigation Bar & View Mode Switcher */}
+        <div className="bg-white border border-gray-200/90 rounded-2xl p-2 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none">
             {[
               { id: 'all', label: 'All Posts', count: counts.all },
@@ -651,17 +692,17 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-50 text-emerald-700 shadow-2xs font-bold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs font-bold'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/70 border border-transparent'
                   }`}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                    className={`text-[11px] px-2 py-0.2 rounded-full font-bold ${
                       isActive
-                        ? 'bg-emerald-200/80 text-emerald-800'
+                        ? 'bg-emerald-200/90 text-emerald-900'
                         : 'bg-gray-100 text-gray-500'
                     }`}
                   >
@@ -671,11 +712,41 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
               );
             })}
           </div>
+
+          {/* View Mode Toggle (Cards vs List) */}
+          <div className="flex items-center self-end sm:self-auto bg-gray-100/90 p-0.5 rounded-xl border border-gray-200/80">
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
+                viewMode === 'card'
+                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+              title="Feed / Card View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden md:inline text-[11px]">Cards</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+              title="Compact List View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden md:inline text-[11px]">List</span>
+            </button>
+          </div>
         </div>
 
         {/* Secondary Filter & Search Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 flex-1 max-w-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-gray-200/80 rounded-2xl p-3 shadow-2xs">
+          <div className="flex items-center space-x-2.5 flex-1 max-w-lg">
             {/* Search Box */}
             <div className="relative flex-1">
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-3" />
@@ -684,12 +755,12 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 placeholder="Search caption, tags, account..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full text-xs pl-8 pr-8 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:border-emerald-500 shadow-2xs"
+                className="w-full text-xs pl-8 pr-8 py-2.5 rounded-xl border border-gray-200/90 bg-gray-50/50 text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:border-emerald-500 focus:bg-white transition-all shadow-2xs"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -700,7 +771,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
             <select
               value={platformFilter}
               onChange={(e) => setPlatformFilter(e.target.value as any)}
-              className="text-xs py-2.5 px-3 rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-hidden focus:border-emerald-500 cursor-pointer shadow-2xs"
+              className="text-xs py-2.5 px-3 rounded-xl border border-gray-200/90 bg-gray-50/50 text-gray-700 focus:outline-hidden focus:border-emerald-500 focus:bg-white cursor-pointer shadow-2xs font-medium"
             >
               <option value="all">All Channels</option>
               <option value="facebook">Facebook</option>
@@ -716,7 +787,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
             {/* Sort Order */}
             <button
               onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-              className="text-xs py-2 px-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+              className="text-xs py-2 px-3 rounded-xl border border-gray-200/90 bg-white hover:bg-gray-50 text-gray-700 flex items-center space-x-1.5 shadow-2xs cursor-pointer font-medium"
             >
               <ArrowUpDown className="w-3.5 h-3.5 text-gray-500" />
               <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
@@ -760,614 +831,654 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
 
                 {/* Posts Timeline Items */}
-                <div className="space-y-5">
-                  {groupedPosts[dateKey].map((post) => {
-                    const postAccounts = getPostAccounts(post);
-                    const timeStr = formatTimeSafe(
-                      post.scheduledFor || post.publishedAt || post.createdAt,
-                      '12:00 PM'
-                    );
-                    const hasMedia = post.media && post.media.length > 0;
-                    const mediaItem = hasMedia ? post.media[0] : null;
-                    const isExpanded = !!expandedContentIds[post.id];
-                    const isLongContent = post.content.length > 180;
-                    const analytics = getAggregatedMetrics(post);
-                    const isPostRefreshing = refreshingPostId === post.id || isRefreshingAll;
+                {viewMode === 'list' ? (
+                  /* Compact Table / List Row View */
+                  <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden shadow-2xs divide-y divide-gray-100">
+                    {groupedPosts[dateKey].map((post) => {
+                      const postAccounts = getPostAccounts(post);
+                      const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt || post.createdAt, '12:00 PM');
+                      const hasMedia = post.media && post.media.length > 0;
+                      const mediaItem = hasMedia ? post.media[0] : null;
+                      const analytics = getAggregatedMetrics(post);
 
-                    return (
-                      <div key={post.id} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-4 md:gap-6">
-                        {/* Left Time Column (Horizontal status bar on mobile, vertical timestamp on sm+) */}
-                        <div className="w-full sm:w-24 md:w-28 shrink-0 pt-0 sm:pt-2 flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1.5 sm:space-y-1">
-                          <div className="text-xs md:text-sm font-bold text-gray-900 tracking-tight">
-                            {timeStr}
+                      return (
+                        <div key={post.id} className="p-3.5 sm:p-4 hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                          {/* Left: Thumbnail & Caption snippet */}
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                            {mediaItem ? (
+                              <div
+                                onClick={() => setSelectedPostForDetails(post)}
+                                className="w-12 h-12 rounded-xl border border-gray-200 overflow-hidden shrink-0 bg-gray-50 cursor-pointer relative"
+                              >
+                                {mediaItem.type === 'video' ? (
+                                  <div className="w-full h-full relative bg-gray-900 flex items-center justify-center text-white">
+                                    <Play className="w-4 h-4 fill-white" />
+                                  </div>
+                                ) : (
+                                  <img src={mediaItem.thumbnailUrl || mediaItem.url} alt="Media" className="w-full h-full object-cover" />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl border border-gray-200/80 bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
+                                <FileText className="w-5 h-5" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-relaxed">
+                                {post.content || <span className="italic text-gray-400">No caption</span>}
+                              </p>
+                              <div className="flex items-center space-x-2 text-[10px] text-gray-400 mt-1">
+                                <span>{timeStr}</span>
+                                <span>•</span>
+                                <span>{formatCreationRelativeTime(post.createdAt)}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-gray-400 flex items-center justify-end space-x-1">
-                            {post.status === 'scheduled' ? (
-                              <span className="text-sky-600 font-semibold flex items-center space-x-0.5">
-                                <Clock className="w-2.5 h-2.5 inline" />
-                                <span>Scheduled</span>
-                              </span>
-                            ) : post.status === 'published' ? (
-                              <span className="text-emerald-600 font-semibold flex items-center space-x-0.5">
-                                <CheckCircle2 className="w-2.5 h-2.5 inline" />
+
+                          {/* Center: Channels */}
+                          <div className="flex items-center space-x-1.5 shrink-0">
+                            {postAccounts.map((acc) => (
+                              <div key={acc.id} className="relative" title={`${acc.displayName} (${acc.platform})`}>
+                                <img
+                                  src={acc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`}
+                                  alt={acc.displayName}
+                                  className="w-6 h-6 rounded-lg object-cover border border-gray-200"
+                                />
+                                <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-white flex items-center justify-center shadow-xs">
+                                  <PlatformLogo platform={acc.platform} className="w-2 h-2" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Status Badge */}
+                          <div className="shrink-0">
+                            {post.status === 'published' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 <span>Live</span>
                               </span>
+                            ) : post.status === 'scheduled' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200">
+                                <Clock className="w-3 h-3 text-sky-600" />
+                                <span>Scheduled</span>
+                              </span>
                             ) : post.status === 'failed' ? (
-                              <span className="text-rose-600 font-semibold flex items-center space-x-0.5">
-                                <AlertTriangle className="w-2.5 h-2.5 inline" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
                                 <span>Failed</span>
                               </span>
                             ) : (
-                              <span className="text-gray-500 font-semibold">Draft</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-gray-700 bg-gray-100 border border-gray-200">
+                                <FileEdit className="w-3 h-3 text-gray-500" />
+                                <span>Draft</span>
+                              </span>
                             )}
                           </div>
 
-                          {/* Dynamic Relative Creation Timestamp */}
-                          <div
-                            className="hidden sm:flex text-[10px] text-gray-500 font-medium hover:text-gray-900 transition-colors cursor-help pt-1 items-center justify-end space-x-1"
-                            title={`Database Creation Time: ${formatDateTimeWithSeconds(post.createdAt)}`}
-                          >
-                            <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-                            <span className="truncate">{formatCreationRelativeTime(post.createdAt)}</span>
-                          </div>
-                        </div>
-
-                        {/* Right Post Card */}
-                        <div className="flex-1 min-w-0 bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs text-gray-900 transition-all hover:border-gray-300 space-y-4">
-                          {/* Upper Section: Target Platforms List & Status */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                            {/* All Selected Platforms with individual Status pills */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              {postAccounts.map((acc) => {
-                                const accResult = post.results?.[acc.id] || post.results?.[acc.platform];
-                                const isAccSuccess = accResult?.status === 'success' || (post.status === 'published' && !accResult);
-                                const isAccFailed = accResult?.status === 'failed' || (post.status === 'failed' && accResult?.errorMessage);
-
-                                return (
-                                  <div
-                                    key={acc.id}
-                                    className="flex items-center space-x-2 bg-gray-50/80 border border-gray-200/80 rounded-xl px-2.5 py-1"
-                                  >
-                                    <div className="relative">
-                                      <img
-                                        src={acc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`}
-                                        alt={acc.displayName}
-                                        referrerPolicy="no-referrer"
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          target.onerror = null;
-                                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
-                                        }}
-                                        className="w-5 h-5 rounded-md object-cover border border-gray-200"
-                                      />
-                                      <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-white flex items-center justify-center shadow-xs">
-                                        <PlatformLogo platform={acc.platform} className="w-2 h-2" />
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center space-x-1.5 text-xs">
-                                      <span className="font-semibold text-gray-800">
-                                        {acc.displayName || acc.username}
-                                      </span>
-
-                                      {/* Platform Individual Status Pill */}
-                                      {post.status === 'published' && isAccSuccess && (
-                                        <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md">
-                                          ✓ Live
-                                        </span>
-                                      )}
-                                      {post.status === 'scheduled' && (
-                                        <span className="inline-flex items-center text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded-md">
-                                          ⏱ Scheduled
-                                        </span>
-                                      )}
-                                      {(() => {
-                                        const isYtAssist = isYouTubeCommunityIssue(acc, accResult);
-                                        if (isYtAssist) {
-                                          return (
-                                            <span
-                                              className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200/60"
-                                              title="Official YouTube Data API v3 does not permit direct automated image publishing"
-                                            >
-                                              ✕ Failed (Image Unsupported)
-                                            </span>
-                                          );
-                                        }
-                                        if (isAccFailed) {
-                                          return (
-                                            <span
-                                              className="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md"
-                                              title={accResult?.errorMessage || 'Platform publishing failed'}
-                                            >
-                                              ✕ Failed
-                                            </span>
-                                          );
-                                        }
-                                        return null;
-                                      })()}
-                                      {post.status === 'draft' && (
-                                        <span className="inline-flex items-center text-[10px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.2 rounded-md">
-                                          Draft
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                          {/* Metrics summary for published */}
+                          {post.status === 'published' && (
+                            <div className="hidden lg:flex items-center space-x-3 text-[11px] text-gray-600 font-semibold shrink-0">
+                              <span>👁️ {analytics.totalViews ?? 0}</span>
+                              <span>❤️ {analytics.totalLikes}</span>
+                              <span>💬 {analytics.totalComments}</span>
                             </div>
+                          )}
 
-                            {/* View Details Pill Button */}
+                          {/* Actions */}
+                          <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
                             <button
                               onClick={() => setSelectedPostForDetails(post)}
-                              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center space-x-1 cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold cursor-pointer transition-colors"
                             >
-                              <Info className="w-3.5 h-3.5" />
-                              <span>View Details</span>
+                              Details
+                            </button>
+                            <button
+                              onClick={() => onEditPost(post)}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                              title="Edit post"
+                            >
+                              <FileEdit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeletePost(post.id)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Delete post"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Modern Redesigned Post Cards (Feed View) */
+                  <div className="space-y-5">
+                    {groupedPosts[dateKey].map((post) => {
+                      const postAccounts = getPostAccounts(post);
+                      const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt || post.createdAt, '12:00 PM');
+                      const hasMedia = post.media && post.media.length > 0;
+                      const mediaItem = hasMedia ? post.media[0] : null;
+                      const isExpanded = !!expandedContentIds[post.id];
+                      const isLongContent = (post.content || '').length > 180;
+                      const analytics = getAggregatedMetrics(post);
+                      const isPostRefreshing = refreshingPostId === post.id || isRefreshingAll;
 
-                          {/* Middle Section: Caption & Media Preview */}
-                          <div className="flex flex-col-reverse sm:flex-row items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0 w-full">
-                              <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed break-words font-normal">
-                                {isLongContent && !isExpanded
-                                  ? `${post.content.slice(0, 180)}...`
-                                  : post.content}
-                              </p>
+                      return (
+                        <div key={post.id} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-4 md:gap-5">
+                          {/* Left Time Badge (Column) */}
+                          <div className="w-full sm:w-28 md:w-32 shrink-0 pt-0 sm:pt-2 flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 sm:space-y-1.5">
+                            <div className="text-xs md:text-sm font-extrabold text-gray-900 tracking-tight flex items-center space-x-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span>{timeStr}</span>
+                            </div>
 
-                              {isLongContent && (
+                            <div
+                              className="text-[10px] text-gray-500 font-medium hover:text-gray-800 transition-colors cursor-help flex items-center justify-end space-x-1"
+                              title={`Database Created At: ${formatDateTimeWithSeconds(post.createdAt)}`}
+                            >
+                              <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                              <span className="truncate">{formatCreationRelativeTime(post.createdAt)}</span>
+                            </div>
+                          </div>
+
+                          {/* Right Modern Post Card */}
+                          <div className="flex-1 min-w-0 bg-white border border-gray-200/90 hover:border-gray-300 rounded-3xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4">
+                            {/* 1. Header Section: Status Badge & Target Accounts & Actions */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-gray-100">
+                              {/* Left: Prominent Status Badge */}
+                              <div className="flex items-center space-x-2">
+                                {post.status === 'published' ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 shadow-2xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Published & Live</span>
+                                  </span>
+                                ) : post.status === 'scheduled' ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-sky-800 bg-sky-50 border border-sky-200/90 shadow-2xs">
+                                    <Clock className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>Scheduled</span>
+                                  </span>
+                                ) : post.status === 'failed' ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-rose-800 bg-rose-50 border border-rose-200/90 shadow-2xs">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                    <span>Failed</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-gray-700 bg-gray-100 border border-gray-200/90 shadow-2xs">
+                                    <FileEdit className="w-3.5 h-3.5 text-gray-500" />
+                                    <span>Draft</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Right: Target Accounts Chips & Dropdown Menu */}
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {postAccounts.map((acc) => {
+                                    const accResult = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    const isAccSuccess = accResult?.status === 'success' || (post.status === 'published' && !accResult);
+                                    const isAccFailed = accResult?.status === 'failed' || (post.status === 'failed' && accResult?.errorMessage);
+
+                                    return (
+                                      <div
+                                        key={acc.id}
+                                        className="flex items-center space-x-2 bg-gray-50 border border-gray-200/80 rounded-xl px-2.5 py-1 text-xs"
+                                        title={`Target: ${acc.displayName} (@${acc.username})`}
+                                      >
+                                        <div className="relative">
+                                          <img
+                                            src={acc.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`}
+                                            alt={acc.displayName}
+                                            className="w-5 h-5 rounded-md object-cover border border-gray-200"
+                                          />
+                                          <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-white flex items-center justify-center shadow-xs">
+                                            <PlatformLogo platform={acc.platform} className="w-2 h-2" />
+                                          </div>
+                                        </div>
+                                        <span className="font-semibold text-gray-800 max-w-[130px] truncate">{acc.displayName || acc.username}</span>
+
+                                        {post.status === 'published' && isAccSuccess && (
+                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.2 rounded">✓</span>
+                                        )}
+                                        {post.status === 'scheduled' && (
+                                          <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-1.5 py-0.2 rounded">⏱</span>
+                                        )}
+                                        {isAccFailed && (
+                                          <span className="text-[10px] font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.2 rounded">✕</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
                                 <button
-                                  onClick={() => toggleContentExpansion(post.id)}
-                                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 mt-1 cursor-pointer"
+                                  onClick={() => setSelectedPostForDetails(post)}
+                                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-xl flex items-center space-x-1 cursor-pointer transition-colors"
                                 >
-                                  {isExpanded ? 'Show less' : 'Show more'}
+                                  <Info className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Details</span>
                                 </button>
-                              )}
 
-                              {/* Tags */}
-                              {post.tags && post.tags.length > 0 && (
-                                <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                                  <Tag className="w-3 h-3 text-gray-400" />
-                                  {post.tags.map((t) => (
+                                {/* Dropdown Menu (Edit, Duplicate, Delete) */}
+                                <div className="relative" ref={menuOpenPostId === post.id ? activeMenuRef : undefined}>
+                                  <button
+                                    onClick={() => setMenuOpenPostId(menuOpenPostId === post.id ? null : post.id)}
+                                    className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors border border-gray-200 cursor-pointer"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+
+                                  {menuOpenPostId === post.id && (
+                                    <div className="absolute right-0 bottom-full mb-1 w-44 bg-white border border-gray-200 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedPostForDetails(post);
+                                          setMenuOpenPostId(null);
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer font-medium"
+                                      >
+                                        <Info className="w-3.5 h-3.5 text-gray-500" />
+                                        <span>View Full Details</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          onEditPost(post);
+                                          setMenuOpenPostId(null);
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer font-medium"
+                                      >
+                                        <FileEdit className="w-3.5 h-3.5 text-gray-500" />
+                                        <span>Edit Post</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          handleDuplicatePost(post);
+                                          setMenuOpenPostId(null);
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer font-medium"
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-gray-500" />
+                                        <span>Duplicate Draft</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          onDeletePost(post.id);
+                                          setMenuOpenPostId(null);
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 flex items-center space-x-2 cursor-pointer font-medium border-t border-gray-100"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Delete Post</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Middle Content Section: Caption & Media Preview */}
+                            <div className="flex flex-col-reverse sm:flex-row items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0 w-full space-y-2.5">
+                                <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed break-words font-normal">
+                                  {isLongContent && !isExpanded
+                                    ? `${post.content.slice(0, 180)}...`
+                                    : post.content}
+                                </p>
+
+                                {isLongContent && (
+                                  <button
+                                    onClick={() => toggleContentExpansion(post.id)}
+                                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer block"
+                                  >
+                                    {isExpanded ? 'Show less' : 'Show more'}
+                                  </button>
+                                )}
+
+                                {/* Tags & AI Badges */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  {post.isAiGenerated && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80 font-bold">
+                                      <Sparkles className="w-3 h-3 text-purple-600" />
+                                      <span>AI Generated</span>
+                                    </span>
+                                  )}
+
+                                  {post.tags && post.tags.length > 0 && post.tags.map((t) => (
                                     <span
                                       key={t}
-                                      className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium"
+                                      className="text-[10px] px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-semibold border border-gray-200/60"
                                     >
                                       #{t}
                                     </span>
                                   ))}
                                 </div>
+                              </div>
+
+                              {/* Media Thumbnail Container */}
+                              {mediaItem && (
+                                <div
+                                  onClick={() => setSelectedPostForDetails(post)}
+                                  className="relative w-full sm:w-32 sm:h-32 md:w-36 md:h-36 h-48 sm:h-auto rounded-2xl overflow-hidden shrink-0 border border-gray-200/90 bg-gray-50 cursor-pointer group shadow-2xs"
+                                >
+                                  {mediaItem.type === 'video' ? (
+                                    <div className="w-full h-full relative">
+                                      <video src={mediaItem.url} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center text-white group-hover:bg-black/25 transition-all">
+                                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={mediaItem.thumbnailUrl || mediaItem.url}
+                                      alt="Post thumbnail"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                  )}
+                                  {post.media.length > 1 && (
+                                    <div className="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                                      +{post.media.length - 1}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
 
-                            {/* Right Media Preview (Full width banner on mobile, thumbnail on sm+) */}
-                            {mediaItem && (
-                              <div
-                                onClick={() => setSelectedPostForDetails(post)}
-                                className="relative w-full sm:w-28 sm:h-28 md:w-32 md:h-32 h-44 sm:h-auto rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-50 cursor-pointer group shadow-2xs"
-                              >
-                                {mediaItem.type === 'video' ? (
-                                  <div className="w-full h-full relative">
-                                    <video src={mediaItem.url} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white">
-                                      <Play className="w-6 h-6 fill-white" />
+                            {/* 3. Alerts (YouTube Community Assistance & Failure Alerts) */}
+                            {postAccounts.some((acc) =>
+                              isYouTubeCommunityIssue(acc, post.results?.[acc.id] || post.results?.[acc.platform])
+                            ) && (
+                              <div className="bg-rose-50 border border-rose-200/90 rounded-2xl p-3.5 text-xs text-rose-900 space-y-1">
+                                <div className="font-bold flex items-center space-x-1.5 text-rose-950">
+                                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  <span>YouTube Publishing Notice</span>
+                                </div>
+                                <p className="text-[11px] text-rose-800 leading-relaxed">
+                                  YouTube API v3 requires video uploads for automated Shorts. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy caption and post directly to your channel.
+                                </p>
+                              </div>
+                            )}
+
+                            {postAccounts.some((acc) => {
+                              const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                              return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
+                            }) && (
+                              <div className="bg-rose-50 border border-rose-200/90 rounded-2xl p-3.5 text-xs text-rose-800 space-y-1">
+                                <div className="font-bold flex items-center space-x-1.5 text-rose-900">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Publishing Alert</span>
+                                </div>
+                                {postAccounts
+                                  .filter((acc) => {
+                                    const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
+                                  })
+                                  .map((acc) => {
+                                    const r = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    return (
+                                      <div key={acc.id} className="text-[11px] text-rose-700">
+                                        • {acc.displayName || acc.username}: {r?.errorMessage || 'Unknown error'}
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
+
+                            {/* 4. Real-Time Analytics Bar for Published Posts */}
+                            {post.status === 'published' && (
+                              <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center space-x-2">
+                                    <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="font-bold text-gray-800">Verified Platform Analytics</span>
+                                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200/70 flex items-center space-x-1">
+                                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                      <span>Official API</span>
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center space-x-2">
+                                    {analytics.lastFetchedAt ? (
+                                      <span
+                                        className="text-[11px] text-gray-500 font-medium"
+                                        title={`Last verified via official API: ${new Date(analytics.lastFetchedAt).toLocaleString()}`}
+                                      >
+                                        Updated {formatRelativeTime(analytics.lastFetchedAt)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-gray-400">Click to fetch live</span>
+                                    )}
+
+                                    <button
+                                      onClick={() => handleRefreshSinglePost(post)}
+                                      disabled={isPostRefreshing}
+                                      className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-gray-200 disabled:opacity-40"
+                                      title="Fetch fresh real-time analytics from official platform APIs"
+                                    >
+                                      <RefreshCw className={`w-3.5 h-3.5 ${isPostRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Metric Cards Grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                                  {/* Views */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <Eye className="w-3 h-3 text-sky-500" />
+                                      <span>Views</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalViews !== null ? analytics.totalViews.toLocaleString() : (
+                                        <span className="text-[11px] text-gray-400 font-normal italic">N/A</span>
+                                      )}
                                     </div>
                                   </div>
-                                ) : (
-                                  <img
-                                    src={mediaItem.thumbnailUrl || mediaItem.url}
-                                    alt="Post media thumbnail"
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                  />
-                                )}
-                                {post.media.length > 1 && (
-                                  <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                                    +{post.media.length - 1}
+
+                                  {/* Impressions / Reach */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <TrendingUp className="w-3 h-3 text-indigo-500" />
+                                      <span>Impressions</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalImpressions !== null ? analytics.totalImpressions.toLocaleString() : analytics.totalReach !== null ? (
+                                        <span>{analytics.totalReach.toLocaleString()} <span className="text-[10px] text-gray-400">(Reach)</span></span>
+                                      ) : (
+                                        <span className="text-[11px] text-gray-400 font-normal italic">N/A</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Likes */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <Heart className="w-3 h-3 text-rose-500" />
+                                      <span>Likes</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalLikes.toLocaleString()}
+                                    </div>
+                                  </div>
+
+                                  {/* Comments */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <MessageCircle className="w-3 h-3 text-amber-500" />
+                                      <span>Comments</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalComments.toLocaleString()}
+                                    </div>
+                                  </div>
+
+                                  {/* Shares */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <Share2 className="w-3 h-3 text-emerald-500" />
+                                      <span>Shares</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalShares !== null ? analytics.totalShares.toLocaleString() : (
+                                        <span className="text-[11px] text-gray-400 font-normal italic">N/A</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Engagement Rate */}
+                                  <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
+                                    <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
+                                      <Sparkles className="w-3 h-3 text-purple-500" />
+                                      <span>Engagement</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {analytics.totalViews && analytics.totalViews > 0 ? (
+                                        <span>{(((analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) / analytics.totalViews) * 100).toFixed(1)}%</span>
+                                      ) : (analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) > 0 ? (
+                                        <span>{(analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)).toLocaleString()} <span className="text-[10px] text-gray-400">(Actions)</span></span>
+                                      ) : (
+                                        <span className="text-[11px] text-gray-400 font-normal italic">0%</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Platform breakdown pills */}
+                                {analytics.destinations.length > 0 && (
+                                  <div className="pt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                    <span className="text-gray-400 font-medium">Breakdown:</span>
+                                    {analytics.destinations.map((dest) => (
+                                      <div
+                                        key={`${dest.platform}_${dest.externalPostId}`}
+                                        className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-white border border-gray-200 text-gray-700 shadow-2xs"
+                                      >
+                                        <PlatformLogo platform={dest.platform} className="w-3 h-3" />
+                                        <span className="capitalize font-semibold">{dest.platform}:</span>
+                                        <span>
+                                          {dest.views !== null && dest.views !== undefined ? `${dest.views} views · ` : ''}
+                                          {dest.reach !== null && dest.reach !== undefined ? `${dest.reach} reach · ` : ''}
+                                          {dest.likes ?? 0} likes · {dest.comments ?? 0} comments
+                                        </span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
                             )}
-                          </div>
 
-                          {/* Assisted YouTube Community Post Notification */}
-                          {postAccounts.some((acc) =>
-                            isYouTubeCommunityIssue(acc, post.results?.[acc.id] || post.results?.[acc.platform])
-                          ) && (
-                            <div className="bg-rose-50 border border-rose-200/90 rounded-xl p-3 text-xs text-rose-900 space-y-1">
-                              <div className="font-bold flex items-center space-x-1.5 text-rose-950">
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                <span>YouTube Publishing Unsupported for Images</span>
-                              </div>
-                              <p className="text-[11px] text-rose-800 leading-relaxed">
-                                Official YouTube Data API v3 does not permit direct automated 3rd-party image publishing. Use the <strong>&quot;Publish to YouTube Community ↗&quot;</strong> button below to copy your caption and post on your channel directly.
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Failure Error Alert (if any platform failed with an unexpected error) */}
-                          {postAccounts.some((acc) => {
-                            const r = post.results?.[acc.id] || post.results?.[acc.platform];
-                            return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
-                          }) && (
-                            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 space-y-1">
-                              <div className="font-bold flex items-center space-x-1.5 text-rose-900">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                                <span>Publishing Alert</span>
-                              </div>
-                              {postAccounts
-                                .filter((acc) => {
-                                  const r = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  return r?.status === 'failed' && !isYouTubeCommunityIssue(acc, r);
-                                })
-                                .map((acc) => {
-                                  const r = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  return (
-                                    <div key={acc.id} className="text-[11px] text-rose-700">
-                                      • {acc.displayName || acc.username}: {r?.errorMessage || 'Unknown error'}
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          )}
-
-                          {/* Real-Time Social Media Analytics Bar (Official APIs) */}
-                          {post.status === 'published' && (
-                            <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3.5 space-y-2.5">
-                              {/* Analytics Header */}
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center space-x-2">
-                                  <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span className="font-bold text-gray-800">Official Social Analytics</span>
-                                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-semibold border border-emerald-200/60 flex items-center space-x-1">
-                                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                                    <span>Verified</span>
+                            {/* 5. Bottom Action Footer */}
+                            <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                              <div className="text-gray-500 flex flex-wrap items-center gap-3">
+                                {post.scheduledFor && (
+                                  <span className="flex items-center space-x-1 font-medium text-sky-800">
+                                    <Clock className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>Scheduled: {formatDateTimeWithSeconds(post.scheduledFor)}</span>
                                   </span>
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                  {analytics.lastFetchedAt ? (
-                                    <span
-                                      className="text-[11px] text-gray-500 font-medium"
-                                      title={`Last verified via official API: ${new Date(analytics.lastFetchedAt).toLocaleString()}`}
-                                    >
-                                      Updated {formatRelativeTime(analytics.lastFetchedAt)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[11px] text-gray-400">Click to fetch live</span>
-                                  )}
-
-                                  <button
-                                    onClick={() => handleRefreshSinglePost(post)}
-                                    disabled={isPostRefreshing}
-                                    className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-gray-200 disabled:opacity-40"
-                                    title="Fetch fresh real-time analytics from official platform APIs"
-                                  >
-                                    <RefreshCw className={`w-3 h-3 ${isPostRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Metric Cards Grid */}
-                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                                {/* Views */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <Eye className="w-3 h-3 text-sky-500" />
-                                    <span>Views</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalViews !== null ? (
-                                      analytics.totalViews.toLocaleString()
-                                    ) : (
-                                      <span
-                                        className="text-[11px] text-gray-400 font-normal italic"
-                                        title="Platform does not expose public view count for this post format"
-                                      >
-                                        Not available
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Impressions / Reach */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <TrendingUp className="w-3 h-3 text-indigo-500" />
-                                    <span>Impressions</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalImpressions !== null ? (
-                                      analytics.totalImpressions.toLocaleString()
-                                    ) : analytics.totalReach !== null ? (
-                                      <span>
-                                        {analytics.totalReach.toLocaleString()}{' '}
-                                        <span className="text-[10px] font-normal text-gray-400">(Reach)</span>
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className="text-[11px] text-gray-400 font-normal italic"
-                                        title="Impressions metric requires specific page insights permission"
-                                      >
-                                        Not available
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Likes */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <Heart className="w-3 h-3 text-rose-500" />
-                                    <span>Likes</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalLikes.toLocaleString()}
-                                  </div>
-                                </div>
-
-                                {/* Comments */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <MessageCircle className="w-3 h-3 text-amber-500" />
-                                    <span>Comments</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalComments.toLocaleString()}
-                                  </div>
-                                </div>
-
-                                {/* Shares */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <Share2 className="w-3 h-3 text-emerald-500" />
-                                    <span>Shares</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalShares !== null ? (
-                                      analytics.totalShares.toLocaleString()
-                                    ) : (
-                                      <span
-                                        className="text-[11px] text-gray-400 font-normal italic"
-                                        title="Platform does not expose share counts publicly"
-                                      >
-                                        Not available
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Engagement Rate / Interactions */}
-                                <div className="bg-white border border-gray-200/80 rounded-xl p-2.5 shadow-2xs">
-                                  <div className="flex items-center space-x-1 text-[11px] font-medium text-gray-500 mb-1">
-                                    <Sparkles className="w-3 h-3 text-purple-500" />
-                                    <span>Engagement</span>
-                                  </div>
-                                  <div className="text-sm font-bold text-gray-900">
-                                    {analytics.totalViews && analytics.totalViews > 0 ? (
-                                      <span>
-                                        {(((analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) / analytics.totalViews) * 100).toFixed(1)}%
-                                      </span>
-                                    ) : (analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)) > 0 ? (
-                                      <span>
-                                        {(analytics.totalLikes + analytics.totalComments + (analytics.totalShares || 0)).toLocaleString()}{' '}
-                                        <span className="text-[10px] font-normal text-gray-400">(Actions)</span>
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className="text-[11px] text-gray-400 font-normal italic"
-                                        title="Real-time verified engagement actions"
-                                      >
-                                        0%
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Per-Platform Live Breakdown Pills */}
-                              {analytics.destinations.length > 0 && (
-                                <div className="pt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                                  <span className="text-gray-400 font-medium">Breakdown:</span>
-                                  {analytics.destinations.map((dest) => (
-                                    <div
-                                      key={`${dest.platform}_${dest.externalPostId}`}
-                                      className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 shadow-2xs"
-                                    >
-                                      <PlatformLogo platform={dest.platform} className="w-3 h-3" />
-                                      <span className="capitalize font-semibold">{dest.platform}:</span>
-                                      <span>
-                                        {dest.views !== null && dest.views !== undefined ? `${dest.views} views · ` : ''}
-                                        {dest.reach !== null && dest.reach !== undefined ? `${dest.reach} reach · ` : ''}
-                                        {dest.likes ?? 0} likes · {dest.comments ?? 0} comments
-                                      </span>
-                                      {dest.fetchStatus === 'permission_error' && (
-                                        <span className="text-amber-600 font-medium ml-0.5" title={dest.errorMessage || 'Permission restricted'}>
-                                          ⚠️
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Bottom Action Footer */}
-                          <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-                            <div className="text-gray-500 flex flex-wrap items-center gap-3">
-                              {post.scheduledFor && (
-                                <span className="flex items-center space-x-1 font-medium">
-                                  <Clock className="w-3.5 h-3.5 text-sky-500" />
-                                  <span>
-                                    Scheduled: {formatDateTimeWithSeconds(post.scheduledFor)}
-                                  </span>
-                                </span>
-                              )}
-                              {post.publishedAt && (
-                                <span className="flex items-center space-x-1 font-medium text-emerald-700">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span>Published: {formatDateTimeWithSeconds(post.publishedAt)}</span>
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center space-x-2">
-                              {/* Publish Now */}
-                              {post.status === 'scheduled' && (
-                                <button
-                                  onClick={() => onPublishNow(post)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1 shadow-2xs transition-colors cursor-pointer"
-                                >
-                                  <Send className="w-3 h-3" />
-                                  <span>Publish Now</span>
-                                </button>
-                              )}
-
-                              {/* Retry Failed (for completely failed posts or unexpected failures) */}
-                              {(post.status === 'failed' ||
-                                (post.status === 'published' &&
-                                  postAccounts.some((a) => {
-                                    const r = post.results?.[a.id] || post.results?.[a.platform];
-                                    return r?.status === 'failed' && !isYouTubeCommunityIssue(a, r);
-                                  }))) && (
-                                <button
-                                  onClick={() => onRetryPost(post)}
-                                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                                  title="Retry only the failed destinations with strict idempotency"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                  <span>Retry Failed</span>
-                                </button>
-                              )}
-
-                              {/* 1-Click Assisted YouTube Community Publisher Button */}
-                              {postAccounts
-                                .filter((acc) => {
-                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  return isYouTubeCommunityIssue(acc, res);
-                                })
-                                .map((acc) => {
-                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  const liveUrl = getPlatformDestinationUrl(acc, res);
-                                  return (
-                                    <button
-                                      key={`yt-comm-${acc.id}`}
-                                      onClick={() => {
-                                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                          navigator.clipboard.writeText(post.content || '');
-                                        }
-                                        alert('Post caption copied to clipboard! Opening your channel\'s YouTube Community tab in a new tab.');
-                                        window.open(liveUrl, '_blank');
-                                      }}
-                                      className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
-                                      title="Copy caption and open YouTube Community tab to finalize post"
-                                    >
-                                      <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
-                                      <span>Publish to YouTube Community ↗</span>
-                                    </button>
-                                  );
-                                })}
-
-                              {/* Per-Platform Live Links (strictly to successful destinations and correct platforms) */}
-                              {postAccounts
-                                .filter((acc) => {
-                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  if (isYouTubeCommunityIssue(acc, res)) {
-                                    return false; // Dedicated YouTube Community button shown above
-                                  }
-                                  // Never show a live link if the account publishing failed or requires action
-                                  if (res?.status === 'failed' || res?.status === 'action_required') {
-                                    return false;
-                                  }
-                                  return (
-                                    res?.status === 'success' ||
-                                    (post.status === 'published' && Boolean(res?.externalPostId || res?.externalPostUrl))
-                                  );
-                                })
-                                .map((acc) => {
-                                  const res = post.results?.[acc.id] || post.results?.[acc.platform];
-                                  const liveUrl = getPlatformDestinationUrl(acc, res);
-
-                                  return (
-                                    <a
-                                      key={acc.id}
-                                      href={liveUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="px-2.5 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center space-x-1.5 transition-colors border border-gray-200/80 shadow-2xs"
-                                    >
-                                      <PlatformLogo platform={acc.platform} className="w-3 h-3" />
-                                      <span>Go to {acc.platform} ↗</span>
-                                    </a>
-                                  );
-                                })}
-
-                              {/* Dropdown Menu (Edit, Duplicate, Delete) */}
-                              <div
-                                className="relative"
-                                ref={menuOpenPostId === post.id ? activeMenuRef : undefined}
-                              >
-                                <button
-                                  onClick={() =>
-                                    setMenuOpenPostId(menuOpenPostId === post.id ? null : post.id)
-                                  }
-                                  className="w-8 h-8 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors border border-gray-200 cursor-pointer"
-                                >
-                                  <MoreVertical className="w-4 h-4" />
-                                </button>
-
-                                {menuOpenPostId === post.id && (
-                                  <div className="absolute right-0 bottom-full mb-1 w-40 bg-white border border-gray-200 rounded-xl shadow-xl py-1 z-50 text-xs">
-                                    <button
-                                      onClick={() => {
-                                        setSelectedPostForDetails(post);
-                                        setMenuOpenPostId(null);
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
-                                    >
-                                      <Info className="w-3.5 h-3.5 text-gray-500" />
-                                      <span>View Full Details</span>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        onEditPost(post);
-                                        setMenuOpenPostId(null);
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
-                                    >
-                                      <FileEdit className="w-3.5 h-3.5 text-gray-500" />
-                                      <span>Edit Post</span>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        handleDuplicatePost(post);
-                                        setMenuOpenPostId(null);
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700 flex items-center space-x-2 cursor-pointer"
-                                    >
-                                      <Copy className="w-3.5 h-3.5 text-gray-500" />
-                                      <span>Duplicate Draft</span>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        onDeletePost(post.id);
-                                        setMenuOpenPostId(null);
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 hover:bg-rose-50 text-rose-600 flex items-center space-x-2 cursor-pointer"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      <span>Delete</span>
-                                    </button>
-                                  </div>
                                 )}
+                                {post.publishedAt && (
+                                  <span className="flex items-center space-x-1 font-medium text-emerald-800">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Published: {formatDateTimeWithSeconds(post.publishedAt)}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                {/* Publish Now */}
+                                {post.status === 'scheduled' && (
+                                  <button
+                                    onClick={() => onPublishNow(post)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    <span>Publish Now</span>
+                                  </button>
+                                )}
+
+                                {/* Retry Failed */}
+                                {(post.status === 'failed' ||
+                                  (post.status === 'published' &&
+                                    postAccounts.some((a) => {
+                                      const r = post.results?.[a.id] || post.results?.[a.platform];
+                                      return r?.status === 'failed' && !isYouTubeCommunityIssue(a, r);
+                                    }))) && (
+                                  <button
+                                    onClick={() => onRetryPost(post)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer"
+                                    title="Retry failed destinations"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Retry Failed</span>
+                                  </button>
+                                )}
+
+                                {/* 1-Click Assisted YouTube Community Publisher Button */}
+                                {postAccounts
+                                  .filter((acc) => {
+                                    const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    return isYouTubeCommunityIssue(acc, res);
+                                  })
+                                  .map((acc) => {
+                                    const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    const liveUrl = getPlatformDestinationUrl(acc, res);
+                                    return (
+                                      <button
+                                        key={`yt-comm-${acc.id}`}
+                                        onClick={() => {
+                                          if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                            navigator.clipboard.writeText(post.content || '');
+                                          }
+                                          alert('Post caption copied to clipboard! Opening your channel\'s YouTube Community tab in a new tab.');
+                                          window.open(liveUrl, '_blank');
+                                        }}
+                                        className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                                        title="Copy caption and open YouTube Community tab to finalize post"
+                                      >
+                                        <PlatformLogo platform="youtube" className="w-3.5 h-3.5" />
+                                        <span>Publish to YouTube Community ↗</span>
+                                      </button>
+                                    );
+                                  })}
+
+                                {/* Per-Platform Live Links */}
+                                {postAccounts
+                                  .filter((acc) => {
+                                    const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    if (isYouTubeCommunityIssue(acc, res)) return false;
+                                    if (res?.status === 'failed' || res?.status === 'action_required') return false;
+                                    return (
+                                      res?.status === 'success' ||
+                                      (post.status === 'published' && Boolean(res?.externalPostId || res?.externalPostUrl))
+                                    );
+                                  })
+                                  .map((acc) => {
+                                    const res = post.results?.[acc.id] || post.results?.[acc.platform];
+                                    const liveUrl = getPlatformDestinationUrl(acc, res);
+
+                                    return (
+                                      <a
+                                        key={acc.id}
+                                        href={liveUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center space-x-1.5 transition-colors border border-gray-200/80 shadow-2xs"
+                                      >
+                                        <PlatformLogo platform={acc.platform} className="w-3 h-3" />
+                                        <span>Go to {acc.platform} ↗</span>
+                                      </a>
+                                    );
+                                  })}
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>

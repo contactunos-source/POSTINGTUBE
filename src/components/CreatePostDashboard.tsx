@@ -1671,59 +1671,71 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   : 'Create Text Post'}
               </h1>
 
-              {/* Format Switcher Pills with Compatibility Checking */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200/80">
+              {/* Content-Type Selector (Image | Video | Text) with Visual Hierarchy */}
+              <div className="flex items-center gap-2.5">
+                <div className="inline-flex items-center bg-gray-100/90 p-1 rounded-xl border border-gray-200/90 shadow-2xs gap-1">
+                  {/* 1. Image Option */}
                   <button
                     type="button"
                     disabled={isImageDisabled}
                     onClick={() => !isImageDisabled && setCurrentPostType('image')}
                     title={isImageDisabled ? imageDisabledReason : 'Create Image Post'}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
                       isImageDisabled
-                        ? 'opacity-40 cursor-not-allowed text-gray-400'
+                        ? 'opacity-40 cursor-not-allowed text-gray-400 bg-transparent select-none'
                         : currentPostType === 'image'
-                        ? 'bg-white text-emerald-700 shadow-2xs font-bold cursor-pointer'
-                        : 'text-gray-500 hover:text-gray-800 cursor-pointer'
+                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20 cursor-pointer'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold cursor-pointer'
                     }`}
                   >
-                    Image
+                    <FileImage className={`w-3.5 h-3.5 ${isImageDisabled ? 'text-gray-400' : currentPostType === 'image' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                    <span>Image</span>
                   </button>
+
+                  {/* 2. Video Option (Always supported across Facebook, Instagram, YouTube) */}
                   <button
                     type="button"
                     onClick={() => setCurrentPostType('video')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    title="Create Video or Reel Post"
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                       currentPostType === 'video'
-                        ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                        : 'text-gray-500 hover:text-gray-800'
+                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold'
                     }`}
                   >
-                    Video
+                    <Video className={`w-3.5 h-3.5 ${currentPostType === 'video' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                    <span>Video</span>
                   </button>
+
+                  {/* 3. Text Option */}
                   <button
                     type="button"
                     disabled={isTextDisabled}
                     onClick={() => !isTextDisabled && setCurrentPostType('text')}
                     title={isTextDisabled ? textDisabledReason : 'Create Text Post'}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
                       isTextDisabled
-                        ? 'opacity-40 cursor-not-allowed text-gray-400'
+                        ? 'opacity-40 cursor-not-allowed text-gray-400 bg-transparent select-none'
                         : currentPostType === 'text'
-                        ? 'bg-white text-emerald-700 shadow-2xs font-bold cursor-pointer'
-                        : 'text-gray-500 hover:text-gray-800 cursor-pointer'
+                        ? 'bg-white text-emerald-700 border border-emerald-500/40 shadow-2xs font-bold ring-1 ring-emerald-500/20 cursor-pointer'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 font-semibold cursor-pointer'
                     }`}
                   >
-                    Text
+                    <Type className={`w-3.5 h-3.5 ${isTextDisabled ? 'text-gray-400' : currentPostType === 'text' ? 'text-emerald-600' : 'text-gray-500'}`} />
+                    <span>Text</span>
                   </button>
                 </div>
 
                 {(isTextDisabled || isImageDisabled) && (
-                  <span className="text-[11px] font-medium text-gray-400 hidden md:inline">
-                    {isTextDisabled && isImageDisabled
-                      ? '• Only Video supported by YouTube Shorts'
-                      : isTextDisabled
-                      ? `• Text disabled (${textDisabledReason})`
-                      : `• Image disabled (${imageDisabledReason})`}
+                  <span className="text-[11px] font-medium text-gray-500 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-md hidden lg:inline-flex items-center gap-1">
+                    <Info className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span>
+                      {isTextDisabled && isImageDisabled
+                        ? 'YouTube Shorts requires video'
+                        : isTextDisabled
+                        ? textDisabledReason
+                        : imageDisabledReason}
+                    </span>
                   </span>
                 )}
               </div>
