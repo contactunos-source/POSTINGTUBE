@@ -110,6 +110,13 @@ async function handlePublishCron(req: NextRequest) {
               post.platform_overrides?.[account.platform] ||
               {};
 
+            const effectiveMedia = accountOverride.media && accountOverride.media.length > 0
+              ? accountOverride.media
+              : (post.media || []);
+            const mediaUrls = effectiveMedia.map((m: any) => m.url).filter(Boolean);
+            const overrideMediaUrl = mediaUrls[0] || mediaUrl;
+            const isCarousel = post.post_type === 'carousel' || mediaUrls.length > 1;
+
             try {
               if (account.platform === 'facebook') {
                 const res = await fetch(`${appUrl}/api/facebook/publish`, {
@@ -119,8 +126,9 @@ async function handlePublishCron(req: NextRequest) {
                     pageId: account.page_id || account.id,
                     accessToken: account.access_token,
                     message: accountOverride.caption || post.content,
-                    mediaUrl,
-                    postType: post.post_type,
+                    mediaUrl: overrideMediaUrl,
+                    mediaUrls,
+                    postType: isCarousel ? 'carousel' : post.post_type,
                     isAiGenerated: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
                   }),
                 });
@@ -161,8 +169,9 @@ async function handlePublishCron(req: NextRequest) {
                     igUserId: account.external_id || account.page_id || account.id,
                     accessToken: account.access_token,
                     caption: accountOverride.caption || post.content,
-                    mediaUrl,
-                    postType: post.post_type,
+                    mediaUrl: overrideMediaUrl,
+                    mediaUrls,
+                    postType: isCarousel ? 'carousel' : post.post_type,
                     isAiGenerated: Boolean(accountOverride.isAiGenerated ?? post.is_ai_generated),
                     collaborators: accountOverride.collaborator ?? post.collaborators,
                   }),

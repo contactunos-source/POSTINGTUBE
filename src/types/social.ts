@@ -9,7 +9,7 @@ export type SocialPlatform =
   | 'twitter'
   | 'youtube';
 
-export type PostType = 'post' | 'reel' | 'story' | 'video' | 'short';
+export type PostType = 'post' | 'reel' | 'story' | 'video' | 'short' | 'carousel';
 
 export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed' | 'needs_approval';
 

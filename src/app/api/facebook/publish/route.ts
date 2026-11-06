@@ -15,7 +15,13 @@ const recentFacebookPublishes = new Map<string, { timestamp: number; result: any
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    let { pageId, accessToken, message, mediaUrl, postType, scheduledTimestamp, isAiGenerated } = body;
+    let { pageId, accessToken, message, mediaUrl, mediaUrls: rawMediaUrls, postType, scheduledTimestamp, isAiGenerated } = body;
+    const mediaUrls: string[] = Array.isArray(rawMediaUrls) && rawMediaUrls.length > 0
+      ? rawMediaUrls
+      : mediaUrl ? [mediaUrl] : [];
+    if (!mediaUrl && mediaUrls.length > 0) {
+      mediaUrl = mediaUrls[0];
+    }
 
     // Fallback to server env variables if set
     if (!accessToken && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
@@ -72,6 +78,63 @@ export async function POST(req: NextRequest) {
             code: 400,
           },
         };
+      }
+
+      // 0. Multi-Photo Carousel Post
+      if (Array.isArray(mediaUrls) && mediaUrls.length > 1) {
+        const attachedMedia: Array<{ media_fbid: string }> = [];
+
+        for (const itemUrl of mediaUrls.slice(0, 10)) {
+          const photoUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanPageId)}/photos`;
+
+          if (itemUrl.startsWith('/uploads/')) {
+            const filePath = path.join(process.cwd(), 'public', itemUrl);
+            const fileBuffer = await readFile(filePath);
+            const ext = path.extname(itemUrl).toLowerCase();
+            const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+            const form = new FormData();
+            form.append('access_token', token);
+            form.append('published', 'false');
+            form.append('source', new Blob([fileBuffer], { type: mimeType }), path.basename(itemUrl));
+
+            const uploadRes = await fetch(photoUrl, { method: 'POST', body: form });
+            const uploadData = await uploadRes.json();
+            if (uploadData.id) {
+              attachedMedia.push({ media_fbid: uploadData.id });
+            }
+          } else if (itemUrl.startsWith('http')) {
+            const params = new URLSearchParams();
+            params.append('access_token', token);
+            params.append('published', 'false');
+            params.append('url', itemUrl);
+
+            const uploadRes = await fetch(photoUrl, { method: 'POST', body: params });
+            const uploadData = await uploadRes.json();
+            if (uploadData.id) {
+              attachedMedia.push({ media_fbid: uploadData.id });
+            }
+          }
+        }
+
+        if (attachedMedia.length > 0) {
+          const feedUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(cleanPageId)}/feed`;
+          const params = new URLSearchParams();
+          params.append('access_token', token);
+          if (message) params.append('message', message);
+          if (isAiGenerated) params.append('is_ai_generated', 'true');
+          params.append('attached_media', JSON.stringify(attachedMedia));
+          if (scheduledTimestamp) {
+            const unixTime = Math.floor(new Date(scheduledTimestamp).getTime() / 1000);
+            if (unixTime >= Math.floor(Date.now() / 1000) + 600) {
+              params.append('published', 'false');
+              params.append('scheduled_publish_time', unixTime.toString());
+            }
+          }
+
+          const res = await fetch(feedUrl, { method: 'POST', body: params });
+          return await res.json();
+        }
       }
 
       // 1. Text-Only Feed Post

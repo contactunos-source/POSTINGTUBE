@@ -17,7 +17,13 @@ const recentInstagramPublishes = new Map<string, { timestamp: number; result: an
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    let { igUserId, accessToken, caption, mediaUrl, postType, isAiGenerated, collaborators } = body;
+    let { igUserId, accessToken, caption, mediaUrl, mediaUrls: rawMediaUrls, postType, isAiGenerated, collaborators } = body;
+    const mediaUrls: string[] = Array.isArray(rawMediaUrls) && rawMediaUrls.length > 0
+      ? rawMediaUrls
+      : mediaUrl ? [mediaUrl] : [];
+    if (!mediaUrl && mediaUrls.length > 0) {
+      mediaUrl = mediaUrls[0];
+    }
 
     const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
@@ -93,6 +99,130 @@ export async function POST(req: NextRequest) {
       : 'https://graph.facebook.com/v20.0';
 
     let creationId = '';
+    const isCarousel = (Array.isArray(mediaUrls) && mediaUrls.length > 1) || postType === 'carousel';
+
+    // =========================================================================
+    // STRATEGY 0: MULTI-IMAGE CAROUSEL POST VIA META GRAPH API
+    // =========================================================================
+    if (isCarousel && mediaUrls.length > 1) {
+      const itemContainerIds: string[] = [];
+
+      // Instagram allows 2 to 10 carousel items
+      const slidesToPublish = mediaUrls.slice(0, 10);
+
+      for (let sIdx = 0; sIdx < slidesToPublish.length; sIdx++) {
+        const slideUrl = slidesToPublish[sIdx];
+        let publicSlideUrl = slideUrl;
+
+        // If local file, resolve to public accessible URL via CDN or public domain
+        if (slideUrl.startsWith('/uploads/')) {
+          try {
+            const filePath = path.join(process.cwd(), 'public', slideUrl);
+            const fileBuffer = await readFile(filePath);
+            const base64 = fileBuffer.toString('base64');
+
+            const form = new FormData();
+            form.append('key', '6d207e02198a847aa98d0a2a901485a5');
+            form.append('action', 'upload');
+            form.append('source', base64);
+            form.append('format', 'json');
+
+            const cdnRes = await fetch('https://freeimage.host/api/1/upload', {
+              method: 'POST',
+              body: form,
+            });
+            const cdnData = await cdnRes.json();
+            if (cdnData?.image?.url) {
+              publicSlideUrl = cdnData.image.url;
+            }
+          } catch (cdnErr) {
+            console.warn(`[Instagram Carousel Slide ${sIdx + 1}] Local relay notice:`, cdnErr);
+          }
+        }
+
+        const isSlideVideo = /\.(mp4|mov|webm|m4v)$/i.test(slideUrl);
+        const itemParams = new URLSearchParams();
+        itemParams.append('access_token', cleanToken);
+        itemParams.append('is_carousel_item', 'true');
+
+        if (isSlideVideo) {
+          itemParams.append('media_type', 'VIDEO');
+          itemParams.append('video_url', publicSlideUrl);
+        } else {
+          itemParams.append('image_url', publicSlideUrl);
+        }
+
+        const itemRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
+          method: 'POST',
+          body: itemParams,
+        });
+        const itemData = await itemRes.json();
+
+        if (itemData.error || !itemData.id) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: itemData.error?.message || `Failed to create Instagram carousel slide #${sIdx + 1}.`,
+              details: itemData.error,
+            },
+            { status: 400 }
+          );
+        }
+
+        itemContainerIds.push(itemData.id);
+
+        // If slide is video, poll readiness
+        if (isSlideVideo) {
+          let isReady = false;
+          let attempts = 0;
+          while (!isReady && attempts < 10) {
+            await new Promise((r) => setTimeout(r, 1500));
+            attempts++;
+            const sRes = await fetch(
+              `${apiHost}/${encodeURIComponent(itemData.id)}?fields=status_code&access_token=${encodeURIComponent(cleanToken)}`
+            );
+            const sData = await sRes.json();
+            if (sData.status_code === 'FINISHED') isReady = true;
+            else if (sData.status_code === 'ERROR') break;
+          }
+        }
+      }
+
+      // Create Parent Carousel Container
+      const carouselParams = new URLSearchParams();
+      carouselParams.append('access_token', cleanToken);
+      carouselParams.append('media_type', 'CAROUSEL');
+      carouselParams.append('children', itemContainerIds.join(','));
+      if (caption) carouselParams.append('caption', caption);
+      if (isAiGenerated) carouselParams.append('is_ai_generated', 'true');
+      if (collaborators) {
+        const list = Array.isArray(collaborators)
+          ? collaborators.map((c) => String(c).trim().replace(/^@/, '')).filter(Boolean)
+          : String(collaborators).split(',').map((c) => c.trim().replace(/^@/, '')).filter(Boolean);
+        if (list.length > 0) {
+          carouselParams.append('collaborators', JSON.stringify(list.slice(0, 5)));
+        }
+      }
+
+      const carouselRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
+        method: 'POST',
+        body: carouselParams,
+      });
+      const carouselData = await carouselRes.json();
+
+      if (carouselData.error || !carouselData.id) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: carouselData.error?.message || 'Failed to create Instagram carousel container.',
+            details: carouselData.error,
+          },
+          { status: 400 }
+        );
+      }
+
+      creationId = carouselData.id;
+    } else
 
     // =========================================================================
     // STRATEGY A: LOCAL VIDEO FILE -> RESUMABLE UPLOAD TO META SERVERS

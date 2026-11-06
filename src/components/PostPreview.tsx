@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Post, SocialAccount, SocialPlatform, PostType } from '@/types/social';
+import { Post, SocialAccount, SocialPlatform, PostType, PostMedia } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import {
   Heart,
@@ -24,6 +24,8 @@ import {
   Info,
   Download,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 
@@ -45,6 +47,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
   mediaFitMode = 'contain',
 }) => {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [previewSlide, setPreviewSlide] = useState(0);
 
   const override =
     (activeAccount && post.accountOverrides?.[activeAccount.id]) ||
@@ -53,7 +56,9 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
   const caption = override?.caption || post.content || '';
   const isAiGenerated = Boolean(override?.isAiGenerated ?? post.isAiGenerated);
   const collaborator = override?.collaborator || post.collaborators;
-  const media = (override?.media && override.media.length > 0) ? override.media[0] : (post.media && post.media.length > 0 ? post.media[0] : null);
+  const mediaList: PostMedia[] = (override?.media && override.media.length > 0) ? override.media : (post.media && post.media.length > 0 ? post.media : []);
+  const safeSlide = Math.min(previewSlide, Math.max(0, mediaList.length - 1));
+  const media = mediaList[safeSlide] || null;
 
   const username = activeAccount?.username || 'your_channel';
   const displayName = activeAccount?.displayName || 'Your Channel';
@@ -289,6 +294,35 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 </div>
               )}
 
+              {/* Carousel Navigation Overlays for Instagram */}
+              {mediaList.length > 1 && (
+                <>
+                  <div className="absolute top-2.5 right-2.5 bg-black/65 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-md z-20 pointer-events-none">
+                    {safeSlide + 1}/{mediaList.length}
+                  </div>
+                  {safeSlide > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPreviewSlide((s) => Math.max(0, s - 1)); }}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer z-20"
+                      title="Previous slide"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  )}
+                  {safeSlide < mediaList.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPreviewSlide((s) => Math.min(mediaList.length - 1, s + 1)); }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer z-20"
+                      title="Next slide"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </>
+              )}
+
               {/* Feed Post Text Overlay (from Instagram Text AI Feature) */}
               {override?.textOverlay?.text && (
                 <div
@@ -315,6 +349,21 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                   <MessageCircle className="w-5 h-5 cursor-pointer" />
                   <Send className="w-5 h-5 cursor-pointer" />
                 </div>
+                {mediaList.length > 1 && (
+                  <div className="flex items-center space-x-1.5">
+                    {mediaList.map((_, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPreviewSlide(idx); }}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          idx === safeSlide ? 'w-3.5 bg-sky-500' : 'w-1.5 bg-gray-300 hover:bg-gray-400'
+                        }`}
+                        title={`Slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
                 <Bookmark className="w-5 h-5 text-gray-700 cursor-pointer" />
               </div>
 
@@ -450,11 +499,51 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 
             {/* Media Asset */}
             {media && (
-              <div className={`bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center overflow-hidden border-y border-gray-100`}>
+              <div className={`relative bg-neutral-950 ${getMediaAspectClass()} flex items-center justify-center overflow-hidden border-y border-gray-100 group`}>
                 {media.type === 'video' ? (
                   <video src={media.url} className={`w-full h-full ${fitClass}`} controls playsInline />
                 ) : (
                   <img src={media.thumbnailUrl || media.url} alt="Facebook Post Media" className={`w-full h-full ${fitClass}`} />
+                )}
+                {mediaList.length > 1 && (
+                  <>
+                    <div className="absolute top-2.5 right-2.5 bg-black/65 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-md z-10 pointer-events-none">
+                      {safeSlide + 1}/{mediaList.length}
+                    </div>
+                    {safeSlide > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPreviewSlide((s) => Math.max(0, s - 1)); }}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer z-10"
+                        title="Previous photo"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    )}
+                    {safeSlide < mediaList.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPreviewSlide((s) => Math.min(mediaList.length - 1, s + 1)); }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer z-10"
+                        title="Next photo"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                    <div className="absolute bottom-2.5 inset-x-0 flex justify-center items-center gap-1.5 z-10">
+                      {mediaList.map((_, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setPreviewSlide(idx); }}
+                          className={`rounded-full transition-all cursor-pointer ${
+                            idx === safeSlide ? 'w-2 h-2 bg-blue-500 ring-2 ring-white/50' : 'w-1.5 h-1.5 bg-white/60 hover:bg-white'
+                          }`}
+                          title={`Photo ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}

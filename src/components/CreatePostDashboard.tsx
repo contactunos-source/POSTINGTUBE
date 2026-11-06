@@ -67,6 +67,7 @@ import {
   UploadCloud,
   Music2,
   ShoppingBag,
+  Layers,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
@@ -465,6 +466,187 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     } else {
       setMediaList([]);
     }
+  };
+
+  // Carousel Slide State & Navigation
+  const [activeSlideIndices, setActiveSlideIndices] = useState<Record<string, number>>({});
+  const carouselFileInputRef = useRef<HTMLInputElement>(null);
+  const carouselActionRef = useRef<{ mode: 'add' | 'replace'; accId?: string; index?: number }>({ mode: 'add' });
+
+  const triggerCreateCarousel = (accId?: string) => {
+    carouselActionRef.current = { mode: 'add', accId };
+    if (carouselFileInputRef.current) {
+      carouselFileInputRef.current.value = '';
+      carouselFileInputRef.current.click();
+    }
+  };
+
+  const triggerReplaceSlide = (accId: string, slideIndex: number) => {
+    carouselActionRef.current = { mode: 'replace', accId, index: slideIndex };
+    if (carouselFileInputRef.current) {
+      carouselFileInputRef.current.value = '';
+      carouselFileInputRef.current.click();
+    }
+  };
+
+  const handleCarouselMoveLeft = (accId: string) => {
+    const list = customizeMediaPerPlatform ? (platformMediaMap[accId] || mediaList) : mediaList;
+    const currentIdx = Math.min(activeSlideIndices[accId] || 0, Math.max(0, list.length - 1));
+    if (currentIdx <= 0) return;
+    const nextList = [...list];
+    const temp = nextList[currentIdx];
+    nextList[currentIdx] = nextList[currentIdx - 1];
+    nextList[currentIdx - 1] = temp;
+
+    if (customizeMediaPerPlatform) {
+      setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
+    } else {
+      setMediaList(nextList);
+    }
+    setActiveSlideIndices((prev) => ({ ...prev, [accId]: currentIdx - 1, global: currentIdx - 1 }));
+  };
+
+  const handleCarouselMoveRight = (accId: string) => {
+    const list = customizeMediaPerPlatform ? (platformMediaMap[accId] || mediaList) : mediaList;
+    const currentIdx = Math.min(activeSlideIndices[accId] || 0, Math.max(0, list.length - 1));
+    if (currentIdx >= list.length - 1) return;
+    const nextList = [...list];
+    const temp = nextList[currentIdx];
+    nextList[currentIdx] = nextList[currentIdx + 1];
+    nextList[currentIdx + 1] = temp;
+
+    if (customizeMediaPerPlatform) {
+      setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
+    } else {
+      setMediaList(nextList);
+    }
+    setActiveSlideIndices((prev) => ({ ...prev, [accId]: currentIdx + 1, global: currentIdx + 1 }));
+  };
+
+  const handleCarouselRemoveSlide = (accId: string, slideIndex: number) => {
+    const list = customizeMediaPerPlatform ? (platformMediaMap[accId] || mediaList) : mediaList;
+    const nextList = list.filter((_, idx) => idx !== slideIndex);
+
+    if (customizeMediaPerPlatform) {
+      setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
+    } else {
+      setMediaList(nextList);
+    }
+    const newIdx = Math.max(0, Math.min(slideIndex, nextList.length - 1));
+    setActiveSlideIndices((prev) => ({ ...prev, [accId]: newIdx, global: newIdx }));
+  };
+
+  const handleCarouselFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const { mode, accId, index } = carouselActionRef.current;
+    const fileArray = Array.from(files).filter((f) => !f.type.startsWith('video/'));
+    if (fileArray.length === 0) {
+      showToast('Please select image files for carousel posts.');
+      return;
+    }
+
+    const targetAccId = accId || selectedAccountIds[0] || 'default';
+    const isPerPlatform = customizeMediaPerPlatform && accId;
+    const currentList = isPerPlatform ? (platformMediaMap[accId] || mediaList) : mediaList;
+
+    if (mode === 'replace' && index !== undefined && index >= 0) {
+      const file = fileArray[0];
+      const blobUrl = URL.createObjectURL(file);
+      const tempMedia: PostMedia = {
+        id: `slide_${Date.now()}`,
+        name: file.name,
+        url: blobUrl,
+        thumbnailUrl: blobUrl,
+        type: 'image',
+        size: file.size,
+        aspectRatio: '1:1',
+      };
+      const updatedList = [...currentList];
+      updatedList[index] = tempMedia;
+      if (isPerPlatform) {
+        setPlatformMediaMap((prev) => ({ ...prev, [accId]: updatedList }));
+      } else {
+        setMediaList(updatedList);
+      }
+
+      showToast('Uploading replaced slide...');
+      try {
+        const uploadRes = await uploadFileWithProgress(file, () => {});
+        if (uploadRes.success && uploadRes.url) {
+          const finalMedia = {
+            ...tempMedia,
+            url: uploadRes.url,
+            thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
+          };
+          const finalList = [...currentList];
+          finalList[index] = finalMedia;
+          if (isPerPlatform) {
+            setPlatformMediaMap((prev) => ({ ...prev, [accId]: finalList }));
+          } else {
+            setMediaList(finalList);
+          }
+          showToast(`Slide ${index + 1} updated.`);
+        }
+      } catch (e) {
+        console.warn('Replace slide error:', e);
+      }
+      return;
+    }
+
+    // Adding slides (up to 10 max official limit)
+    const availableSlots = Math.max(0, 10 - currentList.length);
+    if (availableSlots <= 0) {
+      showToast('Maximum 10 slides limit reached for Carousel.');
+      return;
+    }
+
+    const filesToAdd = fileArray.slice(0, availableSlots);
+    const newItems: PostMedia[] = filesToAdd.map((file, i) => {
+      const blobUrl = URL.createObjectURL(file);
+      return {
+        id: `slide_${Date.now()}_${i}`,
+        name: file.name,
+        url: blobUrl,
+        thumbnailUrl: blobUrl,
+        type: 'image',
+        size: file.size,
+        aspectRatio: '1:1',
+      };
+    });
+
+    const combinedList = [...currentList, ...newItems];
+    if (isPerPlatform) {
+      setPlatformMediaMap((prev) => ({ ...prev, [accId]: combinedList }));
+    } else {
+      setMediaList(combinedList);
+    }
+    const targetIdx = currentList.length;
+    setActiveSlideIndices((prev) => ({ ...prev, [targetAccId]: targetIdx, global: targetIdx }));
+
+    showToast(`Uploading ${filesToAdd.length} carousel slide${filesToAdd.length > 1 ? 's' : ''}...`);
+
+    for (let i = 0; i < filesToAdd.length; i++) {
+      const file = filesToAdd[i];
+      try {
+        const uploadRes = await uploadFileWithProgress(file, () => {});
+        if (uploadRes.success && uploadRes.url) {
+          newItems[i] = {
+            ...newItems[i],
+            url: uploadRes.url,
+            thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
+          };
+          const liveList = [...currentList, ...newItems];
+          if (isPerPlatform) {
+            setPlatformMediaMap((prev) => ({ ...prev, [accId]: liveList }));
+          } else {
+            setMediaList(liveList);
+          }
+        }
+      } catch (err) {
+        console.warn('Upload slide error:', err);
+      }
+    }
+    showToast(`Carousel updated (${combinedList.length} slides total).`);
   };
 
   // Real Numerical Media Upload Progress state (1% - 100%)
@@ -930,7 +1112,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           ? instagramCollaborators.trim() || undefined
           : undefined,
       isAiGenerated: isAnyAi,
-      postType: mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post',
+      postType: mediaList.length > 1 ? 'carousel' : (mediaList.length > 0 && mediaList[0].type === 'video' ? 'reel' : 'post'),
     };
   }, [
     mainCaption,
@@ -1146,8 +1328,84 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // File Upload Handler with Real Numerical Byte Progress (1% to 100%)
   const handleFiles = async (files: FileList | null, fileOverride?: File) => {
-    const chosenFile = fileOverride || (files && files.length > 0 ? files[0] : null);
-    if (!chosenFile) return;
+    if (!files && !fileOverride) return;
+    const fileArray = fileOverride ? [fileOverride] : files ? Array.from(files) : [];
+    if (fileArray.length === 0) return;
+
+    // Multi-image selection (2 or more images) -> automatically setup carousel
+    if (fileArray.length > 1 && !fileArray.some(f => f.type.startsWith('video/'))) {
+      const imageFiles = fileArray.slice(0, 10);
+      const initialTempItems: PostMedia[] = imageFiles.map((file, idx) => {
+        const blobUrl = URL.createObjectURL(file);
+        return {
+          id: `carousel_${Date.now()}_${idx}`,
+          name: file.name,
+          url: blobUrl,
+          thumbnailUrl: blobUrl,
+          type: 'image',
+          size: file.size,
+          aspectRatio: '1:1',
+        };
+      });
+
+      setMediaList(initialTempItems);
+      setCurrentPostType('image');
+      setActiveSlideIndices({ global: 0 });
+
+      setUploadState({
+        isUploading: true,
+        progress: 1,
+        loadedBytes: 0,
+        totalBytes: imageFiles.reduce((acc, f) => acc + f.size, 0),
+        stage: 'preparing',
+        statusMessage: `Uploading carousel (1 of ${imageFiles.length} slides)...`,
+        error: null,
+      });
+      setDisplayProgress(1);
+
+      const finalUploadedItems: PostMedia[] = [...initialTempItems];
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        const pct = Math.max(1, Math.round(((i + 1) / imageFiles.length) * 100));
+        setUploadState((prev) => ({
+          ...prev,
+          progress: pct,
+          statusMessage: `Uploading slide ${i + 1} of ${imageFiles.length}...`,
+        }));
+        setDisplayProgress(pct);
+
+        try {
+          const uploadRes = await uploadFileWithProgress(file, () => {});
+          if (uploadRes.success && uploadRes.url) {
+            finalUploadedItems[i] = {
+              ...finalUploadedItems[i],
+              url: uploadRes.url,
+              thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
+            };
+            setMediaList([...finalUploadedItems]);
+          }
+        } catch (err) {
+          console.warn('Carousel upload slide error:', err);
+        }
+      }
+
+      setUploadState((prev) => ({
+        ...prev,
+        isUploading: false,
+        progress: 100,
+        stage: 'complete',
+        statusMessage: 'Carousel uploaded successfully!',
+      }));
+      setDisplayProgress(100);
+      showToast(`${imageFiles.length} carousel slides ready.`);
+      if (uploadPromiseResolveRef.current) {
+        uploadPromiseResolveRef.current(true);
+        uploadPromiseResolveRef.current = null;
+      }
+      return;
+    }
+
+    const chosenFile = fileArray[0];
 
     const isReplacing = isReplacingRef.current;
     isReplacingRef.current = false;
@@ -1518,7 +1776,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         const fmt = accountFormats[accId] || (acc.platform === 'youtube' ? 'short' : (currentPostType === 'video' ? 'reel' : 'post'));
         formatCounts[fmt] = (formatCounts[fmt] || 0) + 1;
       });
-      const dominantFormat = Object.entries(formatCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || (currentPostType === 'video' ? 'reel' : 'post');
+      const isCarousel = finalMediaList.length > 1;
+      const dominantFormat = isCarousel ? 'carousel' : (Object.entries(formatCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || (currentPostType === 'video' ? 'reel' : 'post'));
 
       const payload: Partial<Post> = {
         content: mainCaption,
@@ -1790,6 +2049,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           multiple
           onChange={(e) => {
             handleFiles(e.target.files);
+            e.target.value = '';
+          }}
+          className="hidden"
+        />
+
+        {/* Hidden File Input for Carousel Creation & Slide Addition / Replacement */}
+        <input
+          type="file"
+          ref={carouselFileInputRef}
+          accept="image/*"
+          multiple
+          onChange={(e) => {
+            handleCarouselFilesSelected(e.target.files);
             e.target.value = '';
           }}
           className="hidden"
@@ -2200,6 +2472,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       {(() => {
                         const effectiveMedia = getEffectiveMediaForAccount(accId);
                         const isUploading = uploadState.isUploading && !customizeMediaPerPlatform;
+                        const isYouTube = acc.platform === 'youtube';
+                        const isCarousel = effectiveMedia.length > 1;
+                        const activeSlide = Math.min(activeSlideIndices[accId] ?? activeSlideIndices['global'] ?? 0, Math.max(0, effectiveMedia.length - 1));
+                        const currentMedia = effectiveMedia[activeSlide] || effectiveMedia[0];
+
                         return (
                           <div className="space-y-3">
                             {effectiveMedia.length === 0 ? (
@@ -2215,7 +2492,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   Drop your files here or browse
                                 </h4>
                                 <p className="text-[11px] text-gray-400 mt-1">
-                                  {customizeMediaPerPlatform ? 'Upload unique media for this platform' : 'Max file size up to 500 MB'}
+                                  {isYouTube
+                                    ? 'Upload vertical video for YouTube Shorts (up to 500 MB)'
+                                    : 'Upload images, video, or select multiple for carousel'}
                                 </p>
                               </div>
                             ) : (
@@ -2244,20 +2523,82 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       <div
                                         className={`${cardAspectClass} overflow-hidden flex items-center justify-center relative bg-gray-100 rounded-2xl max-h-[240px] w-full`}
                                       >
-                                        {effectiveMedia[0].type === 'video' ? (
+                                        {currentMedia?.type === 'video' ? (
                                           <video
-                                            src={effectiveMedia[0].url}
+                                            src={currentMedia.url}
                                             controls={!isUploading}
                                             playsInline
                                             preload="metadata"
                                             className={`w-full h-full relative z-10 ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
                                           />
-                                        ) : (
+                                        ) : currentMedia ? (
                                           <img
-                                            src={effectiveMedia[0].thumbnailUrl || effectiveMedia[0].url}
-                                            alt="Media Preview"
+                                            src={currentMedia.thumbnailUrl || currentMedia.url}
+                                            alt={`Media Slide ${activeSlide + 1}`}
                                             className={`w-full h-full ${mediaFitMode === 'cover' ? 'object-cover' : 'object-contain'} ${isUploading ? 'opacity-75 blur-xs' : ''} transition-all duration-300`}
                                           />
+                                        ) : null}
+
+                                        {/* Carousel Overlay Badges & Controls */}
+                                        {isCarousel && (
+                                          <>
+                                            <div className="absolute top-2.5 left-2.5 z-20 bg-black/65 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs shadow-xs pointer-events-none">
+                                              Slide {activeSlide + 1} of {effectiveMedia.length}
+                                            </div>
+                                            <div className="absolute top-2.5 right-2.5 z-20 bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs pointer-events-none">
+                                              Carousel ({effectiveMedia.length}/10)
+                                            </div>
+
+                                            {/* Left Navigation Arrow */}
+                                            {activeSlide > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveSlideIndices((prev) => ({ ...prev, [accId]: activeSlide - 1, global: activeSlide - 1 }));
+                                                }}
+                                                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer"
+                                                title="Previous slide"
+                                              >
+                                                <ChevronLeft className="w-4 h-4" />
+                                              </button>
+                                            )}
+
+                                            {/* Right Navigation Arrow */}
+                                            {activeSlide < effectiveMedia.length - 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveSlideIndices((prev) => ({ ...prev, [accId]: activeSlide + 1, global: activeSlide + 1 }));
+                                                }}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer"
+                                                title="Next slide"
+                                              >
+                                                <ChevronRight className="w-4 h-4" />
+                                              </button>
+                                            )}
+
+                                            {/* Slide Pagination Dots */}
+                                            <div className="absolute bottom-2.5 inset-x-0 z-20 flex justify-center items-center gap-1.5 pointer-events-auto">
+                                              {effectiveMedia.map((_, dotIdx) => (
+                                                <button
+                                                  key={dotIdx}
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveSlideIndices((prev) => ({ ...prev, [accId]: dotIdx, global: dotIdx }));
+                                                  }}
+                                                  className={`rounded-full transition-all cursor-pointer ${
+                                                    dotIdx === activeSlide
+                                                      ? 'w-2.5 h-1.5 bg-emerald-500 ring-2 ring-white/50'
+                                                      : 'w-1.5 h-1.5 bg-white/70 hover:bg-white'
+                                                  }`}
+                                                  title={`Slide ${dotIdx + 1}`}
+                                                />
+                                              ))}
+                                            </div>
+                                          </>
                                         )}
 
                                         {/* Visual Text Overlay if configured for Instagram */}
@@ -2306,40 +2647,128 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   })()}
                                 </div>
 
-                                {/* Compact file info row (no filename, just type badge + size + actions) */}
-                                <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex items-center justify-between shadow-2xs">
-                                  <div className="flex items-center space-x-2 min-w-0">
-                                    <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-[9px] font-bold text-gray-600 shrink-0 uppercase">
-                                      {effectiveMedia[0].type === 'video' ? 'VID' : 'IMG'}
+                                {/* Carousel or Single Media Actions Row */}
+                                {isCarousel ? (
+                                  <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                                    <div className="flex items-center space-x-2 min-w-0">
+                                      <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700 shrink-0">
+                                        {activeSlide + 1}/{effectiveMedia.length}
+                                      </div>
+                                      <span className="text-[11px] text-gray-500 font-medium truncate">
+                                        {currentMedia?.size ? `${(currentMedia.size / (1024 * 1024)).toFixed(1)} MB` : 'Slide'} • Slide {activeSlide + 1}
+                                      </span>
+                                      {customizeMediaPerPlatform && (
+                                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Custom</span>
+                                      )}
                                     </div>
-                                    <span className="text-[11px] text-gray-500 font-medium">
-                                      {effectiveMedia[0].size ? `${(effectiveMedia[0].size / (1024 * 1024)).toFixed(1)} MB` : 'Uploaded'}
-                                    </span>
-                                    {customizeMediaPerPlatform && (
-                                      <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full">Custom</span>
-                                    )}
+
+                                    <div className="flex items-center flex-wrap gap-1.5 shrink-0">
+                                      {/* Reorder Left */}
+                                      <button
+                                        type="button"
+                                        disabled={activeSlide === 0}
+                                        onClick={() => handleCarouselMoveLeft(accId)}
+                                        className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 text-xs font-semibold transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
+                                        title="Move slide left"
+                                      >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Reorder Right */}
+                                      <button
+                                        type="button"
+                                        disabled={activeSlide === effectiveMedia.length - 1}
+                                        onClick={() => handleCarouselMoveRight(accId)}
+                                        className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 text-xs font-semibold transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
+                                        title="Move slide right"
+                                      >
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Replace Slide */}
+                                      <button
+                                        type="button"
+                                        onClick={() => triggerReplaceSlide(accId, activeSlide)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-gray-200/80 shadow-2xs"
+                                        title="Replace this slide"
+                                      >
+                                        <RotateCcw className="w-3 h-3 text-gray-500" />
+                                        <span>Replace</span>
+                                      </button>
+
+                                      {/* Remove Slide */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCarouselRemoveSlide(accId, activeSlide)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-rose-200/80 shadow-2xs"
+                                        title="Remove this slide"
+                                      >
+                                        <Trash2 className="w-3 h-3 text-rose-500" />
+                                        <span>Remove</span>
+                                      </button>
+
+                                      {/* Add Slide (up to 10 max) */}
+                                      {effectiveMedia.length < 10 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => triggerCreateCarousel(accId)}
+                                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                          title="Add another slide (up to 10 max)"
+                                        >
+                                          <Plus className="w-3 h-3 text-emerald-600" />
+                                          <span>Add Slide</span>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center space-x-1.5 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
-                                      className="px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-gray-200/80 shadow-2xs"
-                                      title="Replace media with a different file"
-                                    >
-                                      <RotateCcw className="w-3 h-3 text-gray-500" />
-                                      <span>Replace</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handlePlatformRemoveMedia(accId)}
-                                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-rose-200/80 shadow-2xs"
-                                      title="Remove media from post"
-                                    >
-                                      <Trash2 className="w-3 h-3 text-rose-500" />
-                                      <span>Remove</span>
-                                    </button>
+                                ) : (
+                                  /* Single Media row */
+                                  <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex items-center justify-between shadow-2xs">
+                                    <div className="flex items-center space-x-2 min-w-0">
+                                      <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-[9px] font-bold text-gray-600 shrink-0 uppercase">
+                                        {effectiveMedia[0]?.type === 'video' ? 'VID' : 'IMG'}
+                                      </div>
+                                      <span className="text-[11px] text-gray-500 font-medium truncate">
+                                        {effectiveMedia[0]?.size ? `${(effectiveMedia[0].size / (1024 * 1024)).toFixed(1)} MB` : 'Uploaded'}
+                                      </span>
+                                      {customizeMediaPerPlatform && (
+                                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Custom</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center space-x-1.5 shrink-0">
+                                      {/* Create Carousel button (Only for images on non-YouTube accounts) */}
+                                      {currentMedia?.type !== 'video' && !isYouTube && (
+                                        <button
+                                          type="button"
+                                          onClick={() => triggerCreateCarousel(accId)}
+                                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                          title="Add images to create a multi-image carousel"
+                                        >
+                                          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Create Carousel</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerReplaceMedia}
+                                        className="px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-gray-200/80 shadow-2xs"
+                                        title="Replace media with a different file"
+                                      >
+                                        <RotateCcw className="w-3 h-3 text-gray-500" />
+                                        <span>Replace</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePlatformRemoveMedia(accId)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-rose-200/80 shadow-2xs"
+                                        title="Remove media from post"
+                                      >
+                                        <Trash2 className="w-3 h-3 text-rose-500" />
+                                        <span>Remove</span>
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
+                                )}
                               </div>
                             )}
                           </div>

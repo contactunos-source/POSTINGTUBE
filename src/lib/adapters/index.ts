@@ -34,7 +34,13 @@ export const facebookAdapter: PlatformAdapter = {
   },
   async publish(account, post, override) {
     const text = override?.caption || post.content;
-    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+    const mediaUrls = (override?.media && override.media.length > 0)
+      ? override.media.map(m => m.url).filter(Boolean)
+      : (post.media && post.media.length > 0)
+        ? post.media.map(m => m.url).filter(Boolean)
+        : [];
+    const mediaUrl = mediaUrls[0];
+    const isCarousel = post.postType === 'carousel' || mediaUrls.length > 1;
     
     // If a real Page Access Token is configured, make real call to Meta Graph API
     if (account.accessToken) {
@@ -47,7 +53,8 @@ export const facebookAdapter: PlatformAdapter = {
             accessToken: account.accessToken,
             message: text,
             mediaUrl,
-            postType: post.postType,
+            mediaUrls,
+            postType: isCarousel ? 'carousel' : post.postType,
             scheduledTimestamp: post.scheduledFor,
             isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
           }),
@@ -102,10 +109,16 @@ export const instagramAdapter: PlatformAdapter = {
   async publish(account, post, override) {
     const text = override?.caption || post.content;
     const isReel = post.postType === 'reel';
-    const mediaUrl = post.media && post.media.length > 0 ? post.media[0].url : undefined;
+    const mediaUrls = (override?.media && override.media.length > 0)
+      ? override.media.map(m => m.url).filter(Boolean)
+      : (post.media && post.media.length > 0)
+        ? post.media.map(m => m.url).filter(Boolean)
+        : [];
+    const mediaUrl = mediaUrls[0];
+    const isCarousel = post.postType === 'carousel' || mediaUrls.length > 1;
 
     // Real API call via Meta Graph API if access token is configured
-    if (account.accessToken && mediaUrl) {
+    if (account.accessToken && (mediaUrl || mediaUrls.length > 0)) {
       try {
         const response = await fetch('/api/instagram/publish', {
           method: 'POST',
@@ -115,7 +128,8 @@ export const instagramAdapter: PlatformAdapter = {
             accessToken: account.accessToken,
             caption: text,
             mediaUrl,
-            postType: post.postType,
+            mediaUrls,
+            postType: isCarousel ? 'carousel' : post.postType,
             isAiGenerated: Boolean(override?.isAiGenerated ?? post.isAiGenerated),
             collaborators: override?.collaborator ?? post.collaborators,
           }),
@@ -139,6 +153,13 @@ export const instagramAdapter: PlatformAdapter = {
         const err = e instanceof Error ? e.message : 'Network error communicating with Instagram API';
         return { success: false, errorMessage: err };
       }
+    }
+
+    if (isCarousel) {
+      return {
+        success: false,
+        errorMessage: 'Cannot publish Carousel without a connected Instagram Professional account. Please reconnect your account.',
+      };
     }
 
     // Default simulation fallback
