@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Check,
@@ -15,8 +15,6 @@ import {
   PlanId,
   SubscriptionPlan,
   BillingInterval,
-  BillingCurrency,
-  getPlanDisplayPrice,
 } from '@/lib/pricing-config';
 import { supabase } from '@/lib/supabase';
 
@@ -36,10 +34,17 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 }) => {
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>('pro');
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
-  const [currency, setCurrency] = useState<BillingCurrency>('INR');
   const [showYearlyToast, setShowYearlyToast] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -53,6 +58,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
   const handleToggleInterval = (interval: BillingInterval) => {
     if (interval === billingInterval) return;
+    setIsLoading(false);
     setBillingInterval(interval);
     if (interval === 'yearly') {
       setShowYearlyToast(true);
@@ -62,9 +68,23 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     }
   };
 
+  const handleSelectPlan = (planId: PlanId) => {
+    if (currentNormalized === planId) return;
+    setSelectedPlanId(planId);
+    setIsLoading(false); // ALWAYS reset loading on plan switch
+    setErrorMsg(null);
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+  };
+
   const handleCheckout = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+
+    // Set a safety timeout to automatically release spinner if checkout is cancelled or times out
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    safetyTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+    }, 15000);
 
     let userId = 'usr_customer';
     let userEmail = 'customer@postingtube.com';
@@ -79,35 +99,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           userName = session.user.user_metadata?.full_name || userEmail.split('@')[0] || 'Creator';
         }
       } catch {}
-    }
-
-    // USD Checkout with Stripe
-    if (currency === 'USD') {
-      try {
-        const stripeRes = await fetch('/api/billing/stripe/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            planId: selectedPlanId,
-            billingInterval,
-            currency: 'USD',
-            userId,
-            userEmail,
-          }),
-        });
-
-        const stripeData = await stripeRes.json();
-        if (stripeRes.ok && stripeData.success && stripeData.url) {
-          window.location.href = stripeData.url;
-          return;
-        } else {
-          throw new Error(stripeData.error || 'Failed to initialize Stripe checkout.');
-        }
-      } catch (err: any) {
-        setErrorMsg(err?.message || 'Stripe checkout unavailable.');
-        setIsLoading(false);
-        return;
-      }
     }
 
     // INR Checkout with Razorpay
@@ -153,7 +144,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         currency: 'INR',
         name: 'PostingTube',
         description: `${planConfig.name} Plan • ${planConfig.channelsLimit} Channels • ${intervalLabel}`,
-        order_id: order.id.startsWith('order_') ? order.id : undefined,
+        order_id: order.id && order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
           name: userName,
           email: userEmail,
@@ -162,6 +153,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           color: selectedPlanId === 'growth' ? '#2563eb' : '#059669',
         },
         handler: async function (response: any) {
+          if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
           try {
             // 4. Verify signature server-side
             const verifyRes = await fetch('/api/billing/razorpay/verify', {
@@ -196,18 +188,25 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         },
         modal: {
           ondismiss: function () {
+            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
             setIsLoading(false);
           },
+          escape: true,
+          backdropclose: true,
+          handleback: true,
         },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', function (resp: any) {
-        setErrorMsg(`Payment failed: ${resp.error?.description || 'Transaction declined'}`);
+        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+        setErrorMsg(`Payment cancelled: ${resp.error?.description || 'Transaction was not completed'}`);
         setIsLoading(false);
       });
+
       rzp.open();
     } catch (err: any) {
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
       console.error('Modal checkout error:', err);
       setErrorMsg(err?.message || 'Payment initiation failed.');
       setIsLoading(false);
@@ -215,7 +214,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   };
 
   const activePlanConfig = OFFICIAL_PLANS[selectedPlanId];
-  const activePricing = getPlanDisplayPrice(activePlanConfig, billingInterval, currency);
+  const isYearly = billingInterval === 'yearly';
+  const activePriceFormatted = isYearly
+    ? `₹${activePlanConfig.yearlyPriceInr.toLocaleString('en-IN')}`
+    : `₹${activePlanConfig.priceInr.toLocaleString('en-IN')}`;
+  const activePeriodLabel = isYearly ? '/year' : '/month';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -250,13 +253,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </div>
           )}
 
-          {/* Interactive Controls Bar: Monthly/Yearly Toggle + Currency Switcher */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100 relative">
-            <div className="relative inline-flex items-center bg-white p-1 rounded-xl border border-gray-200 shadow-2xs">
+          {/* Monthly / Yearly Billing Toggle */}
+          <div className="flex items-center justify-center relative">
+            <div className="relative inline-flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-2xs">
               <button
                 type="button"
                 onClick={() => handleToggleInterval('monthly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   billingInterval === 'monthly'
                     ? 'bg-gray-900 text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-950'
@@ -267,52 +270,22 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleToggleInterval('yearly')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   billingInterval === 'yearly'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-950'
                 }`}
               >
-                <span>Yearly</span>
-                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                  billingInterval === 'yearly' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
-                }`}>
-                  Save up to ₹7,989
-                </span>
+                Yearly
               </button>
 
               {/* Toast when yearly selected */}
               {showYearlyToast && (
-                <div className="absolute -top-10 left-0 z-50 bg-gray-900 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-xl flex items-center space-x-1.5 animate-in fade-in duration-150 whitespace-nowrap">
+                <div className="absolute -top-11 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xl flex items-center space-x-1.5 animate-in fade-in duration-150 whitespace-nowrap">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>Your yearly discount has been applied!</span>
                 </div>
               )}
-            </div>
-
-            <div className="inline-flex items-center bg-white p-1 rounded-xl border border-gray-200 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setCurrency('INR')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  currency === 'INR'
-                    ? 'bg-gray-900 text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-950'
-                }`}
-              >
-                INR (₹)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrency('USD')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  currency === 'USD'
-                    ? 'bg-gray-900 text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-950'
-                }`}
-              >
-                USD ($)
-              </button>
             </div>
           </div>
 
@@ -321,13 +294,15 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             {paidPlans.map((plan) => {
               const isSelected = selectedPlanId === plan.id;
               const isCurrent = currentNormalized === plan.id;
-              const pricing = getPlanDisplayPrice(plan, billingInterval, currency);
-              const isYearly = billingInterval === 'yearly';
+              const priceFormatted = isYearly
+                ? `₹${plan.yearlyPriceInr.toLocaleString('en-IN')}`
+                : `₹${plan.priceInr.toLocaleString('en-IN')}`;
+              const periodLabel = isYearly ? '/year' : '/month';
 
               return (
                 <div
                   key={plan.id}
-                  onClick={() => !isCurrent && setSelectedPlanId(plan.id)}
+                  onClick={() => handleSelectPlan(plan.id)}
                   className={`relative p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                     isCurrent
                       ? 'bg-gray-50 border-gray-200 opacity-60 cursor-default'
@@ -353,19 +328,19 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </div>
 
                     <div className="pt-1">
-                      {isYearly && pricing.normalAnnualFormatted && (
+                      {isYearly && (
                         <div className="text-[11px] text-gray-400 line-through font-medium">
-                          {pricing.normalAnnualFormatted}/year
+                          ₹{plan.normalAnnualPriceInr.toLocaleString('en-IN')}/year
                         </div>
                       )}
                       <div className="text-2xl font-black text-gray-950">
-                        {pricing.priceFormatted}
-                        <span className="text-xs font-semibold text-gray-500">{pricing.periodLabel}</span>
+                        {priceFormatted}
+                        <span className="text-xs font-semibold text-gray-500">{periodLabel}</span>
                       </div>
-                      {isYearly && pricing.savingsFormatted && (
+                      {isYearly && (
                         <div className="mt-1">
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Save {pricing.savingsFormatted} yearly
+                            Save ₹{plan.yearlySavingsInr.toLocaleString('en-IN')} yearly
                           </span>
                         </div>
                       )}
@@ -396,7 +371,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       isCurrent
                         ? 'text-gray-400'
                         : isSelected
-                        ? 'text-emerald-700'
+                        ? 'text-emerald-700 font-extrabold'
                         : 'text-gray-500'
                     }`}>
                       {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
@@ -413,11 +388,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-black text-gray-950">{activePlanConfig.name} Plan</span>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  {activePricing.priceFormatted} {activePricing.periodLabel}
+                  {activePriceFormatted} {activePeriodLabel}
                 </span>
-                {billingInterval === 'yearly' && activePricing.savingsFormatted && (
+                {isYearly && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
-                    Save {activePricing.savingsFormatted}
+                    Save ₹{activePlanConfig.yearlySavingsInr.toLocaleString('en-IN')}
                   </span>
                 )}
               </div>
@@ -426,26 +401,43 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled={isLoading || currentNormalized === selectedPlanId}
-              onClick={handleCheckout}
-              className="py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Processing Checkout...</span>
-                </>
-              ) : currentNormalized === selectedPlanId ? (
-                <span>Already Subscribed</span>
-              ) : (
-                <>
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Pay {activePricing.priceFormatted} &amp; Upgrade</span>
-                </>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                disabled={isLoading || currentNormalized === selectedPlanId}
+                onClick={handleCheckout}
+                className="py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing Checkout...</span>
+                  </>
+                ) : currentNormalized === selectedPlanId ? (
+                  <span>Already Subscribed</span>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Pay {activePriceFormatted} &amp; Upgrade</span>
+                  </>
+                )}
+              </button>
+
+              {/* Reset button if checkout was cancelled or pending */}
+              {isLoading && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+                    setIsLoading(false);
+                  }}
+                  className="py-2.5 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 text-xs font-semibold text-gray-700 cursor-pointer shadow-2xs"
+                  title="Cancel checkout and reset selection"
+                >
+                  Reset
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
 

@@ -20,12 +20,12 @@ export const isPlatformSupportedForPostType = (platform: string, type: 'image' |
 
 export const getPlatformUnsupportedReason = (platform: string, type: 'image' | 'video' | 'text' = 'image'): string => {
   if (platform === 'youtube') {
-    if (type === 'image') return 'Image posts are not supported on YouTube (Shorts only)';
-    if (type === 'text') return 'Text posts are not supported on YouTube (Shorts only)';
-    return 'YouTube supports Shorts only';
+    if (type === 'image') return 'Image posts are not supported on YouTube. YouTube supports Shorts only.';
+    if (type === 'text') return 'Text posts are not supported on YouTube. YouTube supports Shorts only.';
+    return 'YouTube supports Shorts only.';
   }
   if (platform === 'instagram' && type === 'text') {
-    return 'Text posts are not supported on Instagram';
+    return 'Text posts are not supported on Instagram. Supports Image & Video only.';
   }
   return 'Not supported for this format';
 };

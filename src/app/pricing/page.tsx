@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Check,
@@ -20,8 +20,6 @@ import {
   PlanId,
   SubscriptionPlan,
   BillingInterval,
-  BillingCurrency,
-  getPlanDisplayPrice,
 } from '@/lib/pricing-config';
 import { supabase } from '@/lib/supabase';
 
@@ -33,12 +31,19 @@ declare global {
 
 export default function PricingPage() {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
-  const [currency, setCurrency] = useState<BillingCurrency>('INR');
   const [showYearlyToast, setShowYearlyToast] = useState(false);
   const [loadingPlanId, setLoadingPlanId] = useState<PlanId | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<any>(null);
   const [currentPlan, setCurrentPlan] = useState<PlanId>('free');
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    };
+  }, []);
 
   // Load current session & subscription status
   useEffect(() => {
@@ -62,10 +67,10 @@ export default function PricingPage() {
   // Handle switching to yearly
   const handleToggleInterval = (interval: BillingInterval) => {
     if (interval === billingInterval) return;
+    setLoadingPlanId(null);
     setBillingInterval(interval);
     if (interval === 'yearly') {
       setShowYearlyToast(true);
-      // Auto-hide toast after 4.5 seconds
       setTimeout(() => setShowYearlyToast(false), 4500);
     } else {
       setShowYearlyToast(false);
@@ -96,40 +101,16 @@ export default function PricingPage() {
     setLoadingPlanId(plan.id);
     setCheckoutError(null);
 
+    // Safety timeout in case modal is dismissed without event
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    safetyTimeoutRef.current = setTimeout(() => {
+      setLoadingPlanId(null);
+    }, 15000);
+
     const effectiveUserId = authUser?.id || 'usr_customer';
     const effectiveEmail = authUser?.email || 'customer@postingtube.com';
     const effectiveName = authUser?.user_metadata?.full_name || 'PostingTube Creator';
 
-    // USD Checkout -> Redirect to Stripe Checkout Session
-    if (currency === 'USD') {
-      try {
-        const stripeRes = await fetch('/api/billing/stripe/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            planId: plan.id,
-            billingInterval,
-            currency: 'USD',
-            userId: effectiveUserId,
-            userEmail: effectiveEmail,
-          }),
-        });
-
-        const stripeData = await stripeRes.json();
-        if (stripeRes.ok && stripeData.success && stripeData.url) {
-          window.location.href = stripeData.url;
-          return;
-        } else {
-          throw new Error(stripeData.error || 'Failed to initialize Stripe checkout.');
-        }
-      } catch (err: any) {
-        setCheckoutError(err?.message || 'Stripe payments unavailable.');
-        setLoadingPlanId(null);
-        return;
-      }
-    }
-
-    // INR Checkout -> Open Razorpay Checkout Modal
     try {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
@@ -164,7 +145,7 @@ export default function PricingPage() {
         currency: 'INR',
         name: 'PostingTube',
         description: `${plan.name} Plan • ${plan.channelsLimit} Channels • ${intervalLabel}`,
-        order_id: order.id.startsWith('order_') ? order.id : undefined,
+        order_id: order.id && order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
           name: effectiveName,
           email: effectiveEmail,
@@ -173,6 +154,7 @@ export default function PricingPage() {
           color: plan.id === 'growth' ? '#2563eb' : '#059669',
         },
         handler: async function (response: any) {
+          if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
           try {
             // 3. Verify signature server-side
             const verifyRes = await fetch('/api/billing/razorpay/verify', {
@@ -205,19 +187,25 @@ export default function PricingPage() {
         },
         modal: {
           ondismiss: function () {
+            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
             setLoadingPlanId(null);
           },
+          escape: true,
+          backdropclose: true,
+          handleback: true,
         },
       };
 
       const razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on('payment.failed', function (resp: any) {
-        console.error('Payment failed:', resp.error);
-        setCheckoutError(`Payment failed: ${resp.error?.description || 'Transaction declined'}`);
+        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+        setCheckoutError(`Payment cancelled: ${resp.error?.description || 'Transaction declined'}`);
         setLoadingPlanId(null);
       });
+
       razorpayInstance.open();
     } catch (err: any) {
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
       console.error('Checkout error:', err);
       setCheckoutError(err?.message || 'Failed to initialize payment.');
       setLoadingPlanId(null);
@@ -231,6 +219,8 @@ export default function PricingPage() {
     OFFICIAL_PLANS.growth,
     OFFICIAL_PLANS.agency,
   ];
+
+  const isYearly = billingInterval === 'yearly';
 
   return (
     <div className="min-h-screen bg-[#fafbfc] text-gray-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
@@ -293,9 +283,8 @@ export default function PricingPage() {
           </div>
         )}
 
-        {/* Interactive Controls Bar: Monthly/Yearly Toggle + Currency Switcher */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative">
-          {/* Monthly / Yearly Billing Toggle */}
+        {/* Interactive Controls Bar: Monthly / Yearly Toggle Only */}
+        <div className="flex items-center justify-center relative">
           <div className="relative inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
             <button
               type="button"
@@ -311,18 +300,13 @@ export default function PricingPage() {
             <button
               type="button"
               onClick={() => handleToggleInterval('yearly')}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 billingInterval === 'yearly'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-gray-600 hover:text-gray-950'
               }`}
             >
-              <span>Yearly</span>
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                billingInterval === 'yearly' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
-              }`}>
-                Save up to ₹7,989
-              </span>
+              Yearly
             </button>
 
             {/* Confirmation Toast near Billing Toggle when Yearly Selected */}
@@ -340,32 +324,6 @@ export default function PricingPage() {
               </div>
             )}
           </div>
-
-          {/* INR / USD Currency Switcher */}
-          <div className="inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setCurrency('INR')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                currency === 'INR'
-                  ? 'bg-white text-gray-950 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-950'
-              }`}
-            >
-              INR (₹)
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                currency === 'USD'
-                  ? 'bg-white text-gray-950 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-950'
-              }`}
-            >
-              USD ($)
-            </button>
-          </div>
         </div>
 
         {/* 5-Plan Responsive Pricing Grid */}
@@ -375,12 +333,19 @@ export default function PricingPage() {
             const isLoading = loadingPlanId === plan.id;
             const isPro = plan.isPopular;
             const isGrowth = plan.isBestValue;
-            const pricing = getPlanDisplayPrice(plan, billingInterval, currency);
-            const isYearly = billingInterval === 'yearly';
+            const priceFormatted = plan.id === 'free'
+              ? '₹0'
+              : isYearly
+              ? `₹${plan.yearlyPriceInr.toLocaleString('en-IN')}`
+              : `₹${plan.priceInr.toLocaleString('en-IN')}`;
+            const periodLabel = plan.id === 'free' ? (isYearly ? '/year' : '/month') : (isYearly ? '/year' : '/month');
 
             return (
               <div
                 key={plan.id}
+                onClick={() => {
+                  if (isLoading) setLoadingPlanId(null);
+                }}
                 className={`relative flex flex-col justify-between bg-white rounded-3xl transition-all duration-200 ${
                   isPro
                     ? 'border-2 border-emerald-500 shadow-xl ring-4 ring-emerald-500/10 scale-[1.02] z-10'
@@ -413,24 +378,24 @@ export default function PricingPage() {
                   {/* Price Display */}
                   <div className="pt-2 pb-2 border-b border-gray-100">
                     {/* Normal annual price strikethrough in yearly mode */}
-                    {isYearly && plan.id !== 'free' && pricing.normalAnnualFormatted && (
+                    {isYearly && plan.id !== 'free' && (
                       <div className="text-xs text-gray-400 font-medium line-through">
-                        {pricing.normalAnnualFormatted}/year
+                        ₹{plan.normalAnnualPriceInr.toLocaleString('en-IN')}/year
                       </div>
                     )}
 
                     <div className="flex items-baseline space-x-1">
                       <span className="text-3xl sm:text-4xl font-black text-gray-950">
-                        {pricing.priceFormatted}
+                        {priceFormatted}
                       </span>
-                      <span className="text-xs font-semibold text-gray-500">{pricing.periodLabel}</span>
+                      <span className="text-xs font-semibold text-gray-500">{periodLabel}</span>
                     </div>
 
                     {/* Actual Yearly Savings Badge */}
-                    {isYearly && plan.id !== 'free' && pricing.savingsFormatted && (
+                    {isYearly && plan.id !== 'free' && (
                       <div className="mt-1.5">
                         <span className="inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Save {pricing.savingsFormatted} yearly
+                          Save ₹{plan.yearlySavingsInr.toLocaleString('en-IN')} yearly
                         </span>
                       </div>
                     )}
@@ -439,8 +404,8 @@ export default function PricingPage() {
                       {plan.id === 'free'
                         ? 'Free forever'
                         : isYearly
-                        ? `Billed yearly in ${currency}`
-                        : `Billed monthly in ${currency}`}
+                        ? 'Billed yearly in INR'
+                        : 'Billed monthly in INR'}
                     </p>
                   </div>
 
@@ -475,12 +440,12 @@ export default function PricingPage() {
                 </div>
 
                 {/* Bottom CTA Button */}
-                <div className="pt-6 mt-6 border-t border-gray-100">
+                <div className="pt-6 mt-6 border-t border-gray-100 flex items-center space-x-2">
                   <button
                     type="button"
                     disabled={isCurrent || isLoading}
                     onClick={() => handleSelectPlan(plan)}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-default ${
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-default ${
                       isCurrent
                         ? 'bg-gray-100 text-gray-500 border border-gray-200'
                         : isPro
@@ -495,7 +460,7 @@ export default function PricingPage() {
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Processing...</span>
+                        <span>Processing Checkout...</span>
                       </>
                     ) : isCurrent ? (
                       <span>Current Plan</span>
@@ -508,6 +473,22 @@ export default function PricingPage() {
                       </>
                     )}
                   </button>
+
+                  {/* Reset option if loading */}
+                  {isLoading && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+                        setLoadingPlanId(null);
+                      }}
+                      className="py-2.5 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 text-xs font-semibold text-gray-700 cursor-pointer shadow-2xs shrink-0"
+                      title="Cancel checkout and reset"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
               </div>
             );
