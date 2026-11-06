@@ -20,14 +20,14 @@ export const isPlatformSupportedForPostType = (platform: string, type: 'image' |
 
 export const getPlatformUnsupportedReason = (platform: string, type: 'image' | 'video' | 'text' = 'image'): string => {
   if (platform === 'youtube') {
-    if (type === 'image') return 'Image posts are not supported on YouTube. YouTube supports Shorts only.';
-    if (type === 'text') return 'Text posts are not supported on YouTube. YouTube supports Shorts only.';
-    return 'YouTube supports Shorts only.';
+    if (type === 'image') return 'Image posts are not supported on YouTube (Shorts only)';
+    if (type === 'text') return 'Text posts are not supported on YouTube (Shorts only)';
+    return 'YouTube supports Shorts only';
   }
   if (platform === 'instagram' && type === 'text') {
-    return 'Text posts are not supported on Instagram. Please choose Video or Image.';
+    return 'Text posts are not supported on Instagram';
   }
-  return 'This post format is not supported on this platform.';
+  return 'Not supported for this format';
 };
 
 interface ConnectedAccountSelectorProps {
@@ -162,25 +162,26 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   {/* Caret arrow pointing up */}
                   <div className="w-2 h-2 bg-[#222b35] rotate-45 mx-auto -mb-1 shadow-xs" />
                   {/* Tooltip Content */}
-                  <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center space-y-0.5">
-                    <div>{account.displayName || `@${account.username}`}</div>
-                    {!isSupported && (
-                      <div className="text-[10px] text-amber-300 font-bold max-w-[200px] text-center leading-tight">
+                  <div className="bg-[#222b35] text-white text-[11px] font-semibold px-3 py-2 rounded-xl shadow-xl text-center space-y-1 w-max max-w-[220px] whitespace-normal leading-snug">
+                    <div className="font-bold">{account.displayName || `@${account.username}`}</div>
+                    {!isSupported ? (
+                      <div className="text-[10px] text-amber-300 font-medium">
                         {unsupportedReason}
                       </div>
+                    ) : (
+                      (() => {
+                        const usage = monthlyUsageByAccount?.[account.id];
+                        if (!usage || usage.limit <= 0) return null;
+                        const isReached = usage.usedCount >= usage.limit;
+                        return (
+                          <div className={`text-[10px] font-normal ${isReached ? 'text-amber-300 font-bold' : 'text-gray-300'}`}>
+                            {isReached
+                              ? `Monthly limit reached (${usage.usedCount}/${usage.limit})`
+                              : `${usage.usedCount}/${usage.limit} posts used this month (${usage.remaining} left)`}
+                          </div>
+                        );
+                      })()
                     )}
-                    {(() => {
-                      const usage = monthlyUsageByAccount?.[account.id];
-                      if (!usage || usage.limit <= 0) return null;
-                      const isReached = usage.usedCount >= usage.limit;
-                      return (
-                        <div className={`text-[10px] font-normal ${isReached ? 'text-amber-300 font-bold' : 'text-gray-300'}`}>
-                          {isReached
-                            ? `Monthly limit reached (${usage.usedCount}/${usage.limit})`
-                            : `${usage.usedCount}/${usage.limit} posts used this month (${usage.remaining} left)`}
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
               )}

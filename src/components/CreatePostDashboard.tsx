@@ -784,12 +784,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     if (type === 'image') {
       const hasYoutube = accounts.some((a) => a.platform === 'youtube');
       if (hasYoutube) {
-        showToast('Image posts are not supported on YouTube. YouTube supports Shorts only.');
+        showToast('Image posts are not supported on YouTube (Shorts only).');
       }
     } else if (type === 'text') {
       const hasYoutube = accounts.some((a) => a.platform === 'youtube');
       if (hasYoutube) {
-        showToast('Text posts are not supported on YouTube. YouTube supports Shorts only.');
+        showToast('Text posts are not supported on YouTube (Shorts only).');
       }
     }
   };
