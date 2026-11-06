@@ -284,8 +284,8 @@ export default function PricingPage() {
         )}
 
         {/* Interactive Controls Bar: Monthly / Yearly Toggle Only */}
-        <div className="flex items-center justify-center relative">
-          <div className="relative inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+        <div className="flex flex-col items-center justify-center space-y-3">
+          <div className="inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
             <button
               type="button"
               onClick={() => handleToggleInterval('monthly')}
@@ -308,22 +308,22 @@ export default function PricingPage() {
             >
               Yearly
             </button>
-
-            {/* Confirmation Toast near Billing Toggle when Yearly Selected */}
-            {showYearlyToast && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-2 duration-200 whitespace-nowrap">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Your yearly discount has been applied!</span>
-                <button
-                  type="button"
-                  onClick={() => setShowYearlyToast(false)}
-                  className="text-gray-400 hover:text-white ml-1 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
           </div>
+
+          {/* Confirmation Toast near Billing Toggle when Yearly Selected */}
+          {showYearlyToast && (
+            <div className="bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xl flex items-center space-x-2 animate-in fade-in slide-in-from-top-1 duration-200 whitespace-nowrap">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Your yearly discount has been applied!</span>
+              <button
+                type="button"
+                onClick={() => setShowYearlyToast(false)}
+                className="text-gray-400 hover:text-white ml-1.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 5-Plan Responsive Pricing Grid */}

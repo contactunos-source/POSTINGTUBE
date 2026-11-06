@@ -2104,34 +2104,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           </div>
         )}
 
-        {/* YouTube Unsupported Notice Banner when Image or Text Post is selected */}
-        {accounts.some((a) => a.platform === 'youtube') && currentPostType !== 'video' && (
-          <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 px-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-950 shadow-2xs animate-in fade-in">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 shrink-0 font-bold text-[11px]">
-                <PlatformLogo platform="youtube" className="w-3.5 h-3.5 text-amber-700" />
-              </div>
-              <span className="font-semibold text-gray-800">
-                {currentPostType === 'image'
-                  ? 'Image posts are not supported on YouTube. YouTube supports Shorts only.'
-                  : 'Text posts are not supported on YouTube. YouTube supports Shorts only.'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 shrink-0">
-              <span className="text-[11px] font-bold text-gray-500 bg-white border border-gray-200/90 px-2.5 py-0.5 rounded-full shadow-2xs">
-                YouTube unselected
-              </span>
-              <button
-                type="button"
-                onClick={() => handleSelectPostType('video')}
-                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
-              >
-                Switch to Video
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* WORKSPACE TOOLBAR WITH HORIZONTAL SLIDING CONTROLS */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-gray-200/90 p-3.5 px-5 shadow-xs">
           <div className="flex items-center space-x-3">

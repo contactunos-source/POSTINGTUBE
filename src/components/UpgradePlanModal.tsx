@@ -254,8 +254,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           )}
 
           {/* Monthly / Yearly Billing Toggle */}
-          <div className="flex items-center justify-center relative">
-            <div className="relative inline-flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-2xs">
+          <div className="flex flex-col items-center justify-center space-y-2.5">
+            <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-2xs">
               <button
                 type="button"
                 onClick={() => handleToggleInterval('monthly')}
@@ -278,15 +278,22 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               >
                 Yearly
               </button>
-
-              {/* Toast when yearly selected */}
-              {showYearlyToast && (
-                <div className="absolute -top-11 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xl flex items-center space-x-1.5 animate-in fade-in duration-150 whitespace-nowrap">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Your yearly discount has been applied!</span>
-                </div>
-              )}
             </div>
+
+            {/* Toast when yearly selected (positioned under toggle so it is never clipped) */}
+            {showYearlyToast && (
+              <div className="bg-gray-900 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl shadow-lg flex items-center space-x-1.5 animate-in fade-in slide-in-from-top-1 duration-150 whitespace-nowrap">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Your yearly discount has been applied!</span>
+                <button
+                  type="button"
+                  onClick={() => setShowYearlyToast(false)}
+                  className="text-gray-400 hover:text-white ml-1 text-xs font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Plan Selector Cards */}
