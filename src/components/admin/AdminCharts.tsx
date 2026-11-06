@@ -31,20 +31,22 @@ export const InteractiveAreaChart: React.FC<{
   const minVal = 0;
   const range = maxVal - minVal;
 
-  const width = 600;
-  const paddingX = 30;
-  const paddingY = 25;
-  const chartWidth = width - paddingX * 2;
-  const chartHeight = height - paddingY * 2;
+  const width = 640;
+  const paddingLeft = 45;
+  const paddingRight = 20;
+  const paddingTop = 15;
+  const paddingBottom = 25;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
 
   const points = data.map((d, i) => {
-    const x = paddingX + (i / Math.max(1, data.length - 1)) * chartWidth;
-    const y = height - paddingY - ((d.value - minVal) / range) * chartHeight;
+    const x = paddingLeft + (i / Math.max(1, data.length - 1)) * chartWidth;
+    const y = paddingTop + chartHeight - ((d.value - minVal) / range) * chartHeight;
     return { x, y, label: d.label, value: d.value };
   });
 
   const lineD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-  const areaD = `${lineD} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`;
+  const areaD = `${lineD} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
 
   return (
     <div className="relative w-full overflow-hidden select-none">
@@ -58,14 +60,25 @@ export const InteractiveAreaChart: React.FC<{
 
         {/* Horizontal gridlines */}
         {[0, 0.5, 1].map((pct, idx) => {
-          const y = height - paddingY - pct * chartHeight;
+          const y = paddingTop + chartHeight - pct * chartHeight;
           return (
             <g key={idx}>
-              <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
-              <text x={paddingX - 6} y={y + 3} textAnchor="end" className="text-[9px] fill-gray-400">
-                {valuePrefix}
-                {Math.round(minVal + pct * range)}
-                {valueSuffix}
+              <line
+                x1={paddingLeft}
+                y1={y}
+                x2={width - paddingRight}
+                y2={y}
+                stroke="#f1f5f9"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+              />
+              <text
+                x={paddingLeft - 8}
+                y={y + 3.5}
+                textAnchor="end"
+                className="text-[10px] fill-gray-400 font-mono font-medium"
+              >
+                {valuePrefix}{Math.round(minVal + pct * range).toLocaleString()}
               </text>
             </g>
           );
@@ -95,27 +108,46 @@ export const InteractiveAreaChart: React.FC<{
                 strokeWidth={isHovered ? 3 : 2}
                 className="transition-all duration-200"
               />
-
-              {/* Bottom Label */}
-              <text x={p.x} y={height - 6} textAnchor="middle" className="text-[9px] fill-gray-400 font-medium">
-                {p.label}
-              </text>
             </g>
           );
         })}
+
+        {/* Sample bottom labels so they never collide */}
+        {(() => {
+          const maxLabels = 7;
+          const step = Math.max(1, Math.ceil(data.length / maxLabels));
+          return points.map((p, i) => {
+            const isFirst = i === 0;
+            const isLast = i === points.length - 1;
+            const isSampled = i % step === 0 && (points.length - 1 - i) >= Math.floor(step / 2);
+            if (!isFirst && !isLast && !isSampled) return null;
+
+            return (
+              <text
+                key={`label-${i}`}
+                x={p.x}
+                y={height - 6}
+                textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}
+                className="text-[10px] fill-gray-400 font-medium"
+              >
+                {p.label}
+              </text>
+            );
+          });
+        })()}
       </svg>
 
       {/* Floating Hover Tooltip */}
       {hoverIndex !== null && points[hoverIndex] && (
         <div
-          className="absolute z-10 px-2.5 py-1 bg-gray-900 text-white text-[11px] font-semibold rounded-lg shadow-lg pointer-events-none transform -translate-x-1/2 -translate-y-full transition-all animate-fade-in"
+          className="absolute z-20 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-xl shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full transition-all animate-fade-in"
           style={{
             left: `${(points[hoverIndex].x / width) * 100}%`,
-            top: `${(points[hoverIndex].y / height) * 100 - 8}%`,
+            top: `${(points[hoverIndex].y / height) * 100 - 10}%`,
           }}
         >
-          <div className="text-[9px] text-gray-400 leading-none mb-0.5">{points[hoverIndex].label}</div>
-          <div className="text-xs font-bold leading-none">
+          <div className="text-[10px] text-gray-400 font-normal leading-tight">{points[hoverIndex].label}</div>
+          <div className="text-xs font-bold leading-tight mt-0.5 text-white">
             {valuePrefix}
             {points[hoverIndex].value.toLocaleString()}
             {valueSuffix}

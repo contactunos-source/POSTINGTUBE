@@ -354,7 +354,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    if (activeTab === 'overview') fetchOverview();
+    if (activeTab === 'overview') fetchOverview(overviewTimeframe);
     else if (activeTab === 'users') {
       fetchUsers();
       fetchAccounts();
@@ -497,7 +497,12 @@ export default function AdminPage() {
             <OverviewView
               stats={overviewStats}
               isLoading={isOverviewLoading}
-              onRefresh={fetchOverview}
+              currentTimeframe={overviewTimeframe}
+              onTimeframeChange={(tf) => {
+                setOverviewTimeframe(tf);
+                fetchOverview(tf);
+              }}
+              onRefresh={() => fetchOverview(overviewTimeframe)}
               onNavigateTab={setActiveTab}
             />
           )}
