@@ -12,7 +12,7 @@ import {
 } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import { ScheduleDatePicker } from './ScheduleDatePicker';
-import { ConnectedAccountSelector } from './ConnectedAccountSelector';
+import { ConnectedAccountSelector, isPlatformSupportedForPostType, getPlatformUnsupportedReason } from './ConnectedAccountSelector';
 import { PostPreview } from './PostPreview';
 import {
   Calendar,
@@ -760,28 +760,64 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // Content-Type Platform Compatibility logic
   // All post types (Text, Image, Video) remain selectable and visually normal.
+    // Content-Type Platform Compatibility logic
+  // All post types (Text, Image, Video) remain selectable and visually normal.
   const handleSelectPostType = (type: 'text' | 'image' | 'video') => {
     setCurrentPostType(type);
-    if (type === 'text') {
-      // In text mode, filter out platforms that do not support text (YouTube, Instagram)
-      const supportedIds = selectedAccountIds.filter(id => {
-        const plat = accounts.find(a => a.id === id)?.platform;
-        return plat !== 'youtube' && plat !== 'instagram';
-      });
 
-      // If user had unsupported accounts selected, update selection to only supported ones
-      if (supportedIds.length !== selectedAccountIds.length) {
-        if (supportedIds.length > 0) {
-          setSelectedAccountIds(supportedIds);
-        } else {
-          // Auto-select first available supported channel if any exist
-          const firstSupported = accounts.find(a => a.platform !== 'youtube' && a.platform !== 'instagram');
-          setSelectedAccountIds(firstSupported ? [firstSupported.id] : []);
-        }
-        showToast('Text mode activated. Unsupported channels (such as YouTube) are unselected.');
+    // Filter currently selected accounts to only those compatible with the newly chosen type
+    const supportedIds = selectedAccountIds.filter((id) => {
+      const plat = accounts.find((a) => a.id === id)?.platform;
+      return plat ? isPlatformSupportedForPostType(plat, type) : false;
+    });
+
+    if (supportedIds.length !== selectedAccountIds.length) {
+      if (supportedIds.length > 0) {
+        setSelectedAccountIds(supportedIds);
+      } else {
+        const firstSupported = accounts.find((a) => isPlatformSupportedForPostType(a.platform, type));
+        setSelectedAccountIds(firstSupported ? [firstSupported.id] : []);
+      }
+    }
+
+    // Clear feedback notifications as required
+    if (type === 'image') {
+      const hasYoutube = accounts.some((a) => a.platform === 'youtube');
+      if (hasYoutube) {
+        showToast('Image posts are not supported on YouTube. YouTube supports Shorts only.');
+      }
+    } else if (type === 'text') {
+      const hasYoutube = accounts.some((a) => a.platform === 'youtube');
+      if (hasYoutube) {
+        showToast('Text posts are not supported on YouTube. YouTube supports Shorts only.');
       }
     }
   };
+
+  // Synchronize selection so unsupported accounts are never kept in state for the active post type
+  useEffect(() => {
+    setSelectedAccountIds((prev) => {
+      const valid = prev.filter((id) => {
+        const acc = accounts.find((a) => a.id === id);
+        return acc ? isPlatformSupportedForPostType(acc.platform, currentPostType) : false;
+      });
+      if (valid.length !== prev.length) {
+        if (valid.length > 0) return valid;
+        const firstSupported = accounts.find((a) => isPlatformSupportedForPostType(a.platform, currentPostType));
+        return firstSupported ? [firstSupported.id] : [];
+      }
+      return prev;
+    });
+  }, [currentPostType, accounts]);
+
+  // Active accounts that are fully supported and visible for current post type
+  const visibleAccountIds = useMemo(() => {
+    return selectedAccountIds.filter((accId) => {
+      const acc = accounts.find((a) => a.id === accId);
+      if (!acc) return false;
+      return isPlatformSupportedForPostType(acc.platform, currentPostType);
+    });
+  }, [selectedAccountIds, accounts, currentPostType]);
 
   // Compute selected platforms from selectedAccountIds
   const selectedPlatforms = useMemo(() => {
@@ -1090,6 +1126,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   // Specific account toggler
   const handleToggleAccount = (id: string) => {
+    const acc = accounts.find((a) => a.id === id);
+    if (acc && !isPlatformSupportedForPostType(acc.platform, currentPostType)) {
+      showToast(getPlatformUnsupportedReason(acc.platform, currentPostType));
+      return;
+    }
     let next: string[];
     if (selectedAccountIds.includes(id)) {
       if (selectedAccountIds.length === 1) return; // Keep at least one
@@ -1481,7 +1522,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
       const payload: Partial<Post> = {
         content: mainCaption,
-        targetAccountIds: selectedAccountIds,
+        targetAccountIds: action === 'draft' ? selectedAccountIds : visibleAccountIds,
         media: finalMediaList,
         postType: dominantFormat as PostType,
         platformOverrides: platformOverrides,
@@ -1723,10 +1764,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             onToggleAccount={handleToggleAccount}
             onShowNotice={showToast}
             onSelectAll={() => {
-              const allAccIds = accounts.map((a) => a.id);
-              setSelectedAccountIds(allAccIds);
+              const supportedAccIds = accounts
+                .filter((a) => isPlatformSupportedForPostType(a.platform, currentPostType))
+                .map((a) => a.id);
+              setSelectedAccountIds(supportedAccIds);
               if (rememberAccounts && typeof window !== 'undefined') {
-                localStorage.setItem('pb_remembered_accounts', JSON.stringify(allAccIds));
+                localStorage.setItem('pb_remembered_accounts', JSON.stringify(supportedAccIds));
               }
             }}
             onClearAll={() => {
@@ -1798,11 +1841,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             </div>
             <span className="text-gray-300">•</span>
             <span className="text-xs text-gray-500 font-medium">
-              {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} active
+              {visibleAccountIds.length} {visibleAccountIds.length === 1 ? 'channel' : 'channels'} active
             </span>
 
             {/* Master Caption quick toggle for multi-channel workflows */}
-            {selectedAccountIds.length > 1 && currentPostType !== 'text' && (
+            {visibleAccountIds.length > 1 && currentPostType !== 'text' && (
               <button
                 type="button"
                 onClick={() => setIsMasterCaptionOpen(!isMasterCaptionOpen)}
@@ -1820,7 +1863,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           </div>
 
           {/* Same [Toggle Switch] Media for All */}
-          {currentPostType !== 'text' && selectedAccountIds.length > 1 && (
+          {currentPostType !== 'text' && visibleAccountIds.length > 1 && (
             <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200/90 px-3.5 py-1.5 rounded-xl shadow-2xs">
               <span className="text-xs font-semibold text-gray-800 tracking-tight">Same</span>
               <button
@@ -1868,7 +1911,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         </div>
 
         {/* Master Caption Collapsible Editor */}
-        {isMasterCaptionOpen && selectedAccountIds.length > 1 && currentPostType !== 'text' && (
+        {isMasterCaptionOpen && visibleAccountIds.length > 1 && currentPostType !== 'text' && (
           <div className="bg-white rounded-2xl border border-emerald-200/90 p-5 shadow-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
               <div>
@@ -1941,7 +1984,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             className="w-full overflow-x-auto scroll-smooth pb-4 pt-1 px-1 scrollbar-thin select-none"
           >
             <div className="flex items-start gap-6 w-max min-w-full">
-              {selectedAccountIds.length === 0 ? (
+              {visibleAccountIds.length === 0 ? (
                 /* Empty state when no channel checked */
                 <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-lg mx-auto shadow-xs space-y-4">
                   <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
@@ -3098,7 +3141,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
                 </div>
                 <span className="text-[11px] text-gray-400 font-medium">
-                  {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'channel' : 'channels'} active
+                  {visibleAccountIds.length} {visibleAccountIds.length === 1 ? 'channel' : 'channels'} active
                 </span>
               </div>
 
@@ -3215,12 +3258,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                           <ChevronLeft className="w-3.5 h-3.5" />
                         </button>
                         <span className="text-[11px] text-gray-400 font-mono min-w-[36px] text-center">
-                          {previewCarouselIndex + 1}/{selectedAccountIds.length}
+                          {previewCarouselIndex + 1}/{visibleAccountIds.length}
                         </span>
                         <button
                           type="button"
-                          onClick={() => setPreviewCarouselIndex(prev => Math.min(selectedAccountIds.length - 1, prev + 1))}
-                          disabled={previewCarouselIndex >= selectedAccountIds.length - 1}
+                          onClick={() => setPreviewCarouselIndex(prev => Math.min(visibleAccountIds.length - 1, prev + 1))}
+                          disabled={previewCarouselIndex >= visibleAccountIds.length - 1}
                           className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-30 transition-colors cursor-pointer disabled:cursor-not-allowed"
                           title="Next"
                         >
@@ -3339,7 +3382,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     <div>
                       <strong className="block font-semibold">Immediate Live Dispatch</strong>
                       <span>
-                        Your post will be published immediately to all {selectedAccountIds.length} selected accounts using official APIs.
+                        Your post will be published immediately to all {visibleAccountIds.length} selected accounts using official APIs.
                       </span>
                     </div>
                   </div>
@@ -3374,7 +3417,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <span className="flex items-center space-x-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>
-                    {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'account' : 'accounts'} targeted
+                    {visibleAccountIds.length} {visibleAccountIds.length === 1 ? 'account' : 'accounts'} targeted
                   </span>
                 </span>
                 <span>Publishing queue active</span>

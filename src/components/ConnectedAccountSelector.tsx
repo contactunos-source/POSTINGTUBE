@@ -5,6 +5,31 @@ import { SocialAccount } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
 import { Plus } from 'lucide-react';
 
+export const isPlatformSupportedForPostType = (platform: string, type: 'image' | 'video' | 'text' = 'image'): boolean => {
+  if (platform === 'youtube') {
+    // YouTube supports Shorts only in current publishing workflow
+    return type === 'video';
+  }
+  if (platform === 'instagram') {
+    // Instagram supports image and video (posts, reels, stories), but NOT text
+    return type === 'image' || type === 'video';
+  }
+  // Facebook, LinkedIn, Threads, Pinterest support image, video, and text
+  return true;
+};
+
+export const getPlatformUnsupportedReason = (platform: string, type: 'image' | 'video' | 'text' = 'image'): string => {
+  if (platform === 'youtube') {
+    if (type === 'image') return 'Image posts are not supported on YouTube. YouTube supports Shorts only.';
+    if (type === 'text') return 'Text posts are not supported on YouTube. YouTube supports Shorts only.';
+    return 'YouTube supports Shorts only.';
+  }
+  if (platform === 'instagram' && type === 'text') {
+    return 'Text posts are not supported on Instagram. Please choose Video or Image.';
+  }
+  return 'This post format is not supported on this platform.';
+};
+
 interface ConnectedAccountSelectorProps {
   accounts: SocialAccount[];
   selectedAccountIds: string[];
@@ -30,23 +55,15 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const isPlatformSupportedForPostType = (platform: string, type: string) => {
-    if (type === 'text') {
-      return platform !== 'youtube' && platform !== 'instagram';
-    }
-    if (type === 'image') {
-      return platform !== 'youtube';
-    }
-    return true;
-  };
+  const activeSelectedCount = accounts.filter(
+    (a) => isPlatformSupportedForPostType(a.platform, postType) && selectedAccountIds.includes(a.id)
+  ).length;
 
   const handleAccountClick = (account: SocialAccount) => {
     const isSupported = isPlatformSupportedForPostType(account.platform, postType);
     if (!isSupported) {
       if (onShowNotice) {
-        onShowNotice(
-          `Text posts are not supported on ${account.platform === 'youtube' ? 'YouTube' : 'Instagram'}. Please choose Video or Image.`
-        );
+        onShowNotice(getPlatformUnsupportedReason(account.platform, postType));
       }
       return;
     }
@@ -62,7 +79,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
             Publishing to Accounts
           </span>
           <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
-            {selectedAccountIds.length} of {accounts.length} selected
+            {activeSelectedCount} of {accounts.length} selected
           </span>
         </div>
 
@@ -91,6 +108,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
           const isSupported = isPlatformSupportedForPostType(account.platform, postType);
           const isSelected = isSupported && selectedAccountIds.includes(account.id);
           const isHovered = hoveredId === account.id;
+          const unsupportedReason = getPlatformUnsupportedReason(account.platform, postType);
 
           return (
             <div
@@ -110,7 +128,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                     ? 'ring-[2.5px] ring-emerald-400 ring-offset-2 ring-offset-white shadow-sm scale-105 cursor-pointer'
                     : 'grayscale opacity-40 hover:opacity-85 hover:grayscale-0 hover:scale-102 cursor-pointer'
                 }`}
-                title={!isSupported ? 'Text posts are not supported on this platform' : (account.displayName || account.username)}
+                title={!isSupported ? unsupportedReason : (account.displayName || account.username)}
               >
                 {/* Platform Badge Overlay (Top-Left) */}
                 <div className="absolute -top-1 -left-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm border border-gray-200/90 flex items-center justify-center z-10">
@@ -147,8 +165,8 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   <div className="bg-[#222b35] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap text-center space-y-0.5">
                     <div>{account.displayName || `@${account.username}`}</div>
                     {!isSupported && (
-                      <div className="text-[10px] text-amber-300 font-bold">
-                        Text posts are not supported on this platform
+                      <div className="text-[10px] text-amber-300 font-bold max-w-[200px] text-center leading-tight">
+                        {unsupportedReason}
                       </div>
                     )}
                     {(() => {
