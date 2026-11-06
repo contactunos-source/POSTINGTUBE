@@ -129,9 +129,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
             className="px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white text-gray-700 focus:outline-hidden cursor-pointer"
           >
             <option value="all">All Plans</option>
-            <option value="free">Free Starter</option>
-            <option value="creator_pro">Creator Pro</option>
-            <option value="agency_scale">Agency Scale</option>
+            <option value="free">Free (3 channels)</option>
+            <option value="starter">Starter (5 channels)</option>
+            <option value="pro">Pro (10 channels)</option>
+            <option value="growth">Growth (15 channels)</option>
+            <option value="agency">Agency (50 channels)</option>
           </select>
         </div>
       </div>

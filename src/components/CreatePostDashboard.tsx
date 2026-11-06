@@ -377,7 +377,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const monthlyUsage: MonthlyUsageSummary = SubscriptionService.calculateMonthlyUsage(
     allPosts || [],
     accounts,
-    isFreePlan ? 'free' : 'pro',
+    isFreePlan ? 'free' : ((subscriptionData?.planId as any) || 'pro'),
     {
       excludePostId: initialPost?.id,
     }
@@ -1617,30 +1617,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
-    // Monthly post limit enforcement for Free plan (5 posts per account per month)
+    // Monthly post limit enforcement for Free plan (15 posts total per month across all connected accounts)
     // Enforced on both scheduling and publishing. Drafts are exempt.
     if (action === 'schedule' || action === 'publish-now') {
       if (isFreePlan) {
-        const blocked: { id: string; name: string; count: number }[] = [];
-
-        for (const chId of selectedAccountIds) {
-          const acc = accounts.find((a) => a.id === chId);
-          const usage = monthlyUsage.accounts[chId];
-          const count = usage ? usage.usedCount : 0;
-          if (count >= 5) {
-            blocked.push({
+        if (monthlyUsage.totalPostsUsed >= 15) {
+          const blocked = selectedAccountIds.map((chId) => {
+            const acc = accounts.find((a) => a.id === chId);
+            return {
               id: chId,
-              name: acc?.displayName || acc?.username || usage?.accountName || 'Channel',
-              count,
-            });
-          }
-        }
+              name: acc?.displayName || acc?.username || 'Channel',
+              count: monthlyUsage.totalPostsUsed,
+            };
+          });
 
-        if (blocked.length > 0) {
           setScheduleLimitModal({
             isOpen: true,
             blockedChannels: blocked,
-            canScheduleRemaining: selectedAccountIds.length > blocked.length,
+            canScheduleRemaining: false,
             actionType: action,
             resetsAt: monthlyUsage.resetsAt,
           });
@@ -3901,13 +3895,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 Monthly Post Limit Reached (Free Plan)
               </h3>
               <p className="text-xs text-gray-400 leading-relaxed">
-                The Free plan allows up to <span className="font-semibold text-white">5 scheduled or published posts per connected account per month</span> (max 15 posts total across 3 accounts). The following channel(s) have reached capacity for this month:
+                The Free plan allows up to <span className="font-semibold text-white">15 scheduled or published posts total per month across all connected accounts</span>. You have reached 15 / 15 posts used for this month:
               </p>
               <div className="space-y-1.5 pt-1">
                 {scheduleLimitModal.blockedChannels.map((c) => (
                   <div key={c.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 border border-white/5 text-xs">
                     <span className="font-medium text-gray-200">{c.name}</span>
-                    <span className="text-amber-400 font-bold font-mono">5 / 5 used this month</span>
+                    <span className="text-amber-400 font-bold font-mono">15 / 15 used this month</span>
                   </div>
                 ))}
               </div>
@@ -3946,7 +3940,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
               >
                 <Zap className="w-3.5 h-3.5 fill-white" />
-                <span>Upgrade to Pro</span>
+                <span>Upgrade Plan</span>
               </button>
             </div>
           </div>

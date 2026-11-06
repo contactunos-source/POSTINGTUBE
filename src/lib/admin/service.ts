@@ -29,6 +29,10 @@ export interface AdminOverviewStats {
   platformDistribution: Record<string, number>;
   subscriptionDistribution: {
     free: number;
+    starter?: number;
+    pro?: number;
+    growth?: number;
+    agency?: number;
     creator_pro: number;
     agency_scale: number;
   };
@@ -79,7 +83,7 @@ export interface AdminCustomerProfile {
   registeredAt: string;
   lastActiveAt: string;
   status: 'active' | 'suspended' | 'inactive';
-  plan: 'free' | 'creator_pro' | 'agency_scale';
+  plan: 'free' | 'starter' | 'pro' | 'growth' | 'agency' | 'creator_pro' | 'agency_scale' | string;
   billingCycle: 'monthly' | 'annual';
   paymentStatus: 'free' | 'paid' | 'past_due' | 'cancelled';
   country?: string;
@@ -405,6 +409,10 @@ export const AdminDataService = {
 
     const subscriptionDist = {
       free: 0,
+      starter: 0,
+      pro: 0,
+      growth: 0,
+      agency: 0,
       creator_pro: 0,
       agency_scale: 0,
     };
@@ -417,9 +425,18 @@ export const AdminDataService = {
             sub.billing_interval === 'annual' ? Number(sub.amount) / 12 : Number(sub.amount);
           mrr += monthlyValue;
 
-          if (sub.plan_id === 'creator_pro') subscriptionDist.creator_pro++;
-          else if (sub.plan_id === 'agency_scale') subscriptionDist.agency_scale++;
-          else subscriptionDist.free++;
+          const pid = (sub.plan_id || 'free').toLowerCase();
+          if (pid === 'starter') subscriptionDist.starter++;
+          else if (pid === 'pro' || pid === 'creator_pro') {
+            subscriptionDist.pro++;
+            subscriptionDist.creator_pro++;
+          } else if (pid === 'growth') subscriptionDist.growth++;
+          else if (pid === 'agency' || pid === 'agency_scale') {
+            subscriptionDist.agency++;
+            subscriptionDist.agency_scale++;
+          } else {
+            subscriptionDist.free++;
+          }
         } else if (sub.status === 'cancelled') {
           cancellations++;
         }
@@ -429,10 +446,19 @@ export const AdminDataService = {
     } else {
       // Calculate plan distribution strictly from real user profiles without synthetic revenue
       for (const p of rawProfiles) {
-        if (p.plan === 'creator_pro' || p.plan === 'pro') {
+        const plan = (p.plan || 'free').toLowerCase();
+        if (plan === 'starter') {
+          subscriptionDist.starter++;
+          paidSubscribersCount++;
+        } else if (plan === 'pro' || plan === 'creator_pro') {
+          subscriptionDist.pro++;
           subscriptionDist.creator_pro++;
           paidSubscribersCount++;
-        } else if (p.plan === 'agency_scale') {
+        } else if (plan === 'growth') {
+          subscriptionDist.growth++;
+          paidSubscribersCount++;
+        } else if (plan === 'agency' || plan === 'agency_scale') {
+          subscriptionDist.agency++;
           subscriptionDist.agency_scale++;
           paidSubscribersCount++;
         } else {
@@ -1285,7 +1311,7 @@ export const AdminDataService = {
         if (fs.existsSync(subFile)) {
           subscriptions = JSON.parse(fs.readFileSync(subFile, 'utf-8'));
           for (const s of subscriptions) {
-            if (s.status === 'active' && s.planId === 'pro') {
+            if (s.status === 'active' && s.planId !== 'free') {
               activeCount++;
               mrr += Number(s.amount || 0);
               totalPurchasedCapacity += Number(s.channelsCount || 1);

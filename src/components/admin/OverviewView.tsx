@@ -79,11 +79,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     value: signupChartMetric === 'signups' ? pt.signups : pt.cumulative,
   }));
 
-  // Format subscription segments
+  // Format subscription segments with 5 official plans
+  const dist = (stats.subscriptionDistribution as any) || {};
   const subscriptionSegments = [
-    { label: 'Free Plan', count: stats.freePlanUsers || 0, color: '#94a3b8' },
-    { label: 'Creator Pro', count: stats.subscriptionDistribution?.creator_pro || 0, color: '#10b981' },
-    { label: 'Agency Scale', count: stats.subscriptionDistribution?.agency_scale || 0, color: '#6366f1' },
+    { label: 'Free (₹0)', count: stats.freePlanUsers || 0, color: '#94a3b8' },
+    { label: 'Starter (₹999)', count: dist.starter || 0, color: '#0ea5e9' },
+    { label: 'Pro (₹1,999)', count: dist.pro || dist.creator_pro || 0, color: '#10b981' },
+    { label: 'Growth (₹2,999)', count: dist.growth || 0, color: '#8b5cf6' },
+    { label: 'Agency (₹9,999)', count: dist.agency || dist.agency_scale || 0, color: '#f59e0b' },
   ].filter((s) => s.count > 0);
 
   // Platform segments
@@ -380,10 +383,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
             <div className="mt-3">
               <span className="text-xs font-semibold text-gray-500 block">Monthly Recurring Revenue</span>
-              <div className="text-2xl font-black text-gray-900 mt-0.5">${stats.monthlyRecurringRevenue.toLocaleString()}</div>
+              <div className="text-2xl font-black text-gray-900 mt-0.5">₹{stats.monthlyRecurringRevenue.toLocaleString()}</div>
             </div>
             <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
-              <span className="text-gray-400">${stats.totalRevenue.toLocaleString()} lifetime</span>
+              <span className="text-gray-400">₹{stats.totalRevenue.toLocaleString()} lifetime</span>
               <span className="font-bold text-emerald-600">MRR Run-rate</span>
             </div>
           </div>
@@ -413,7 +416,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.freePlanUsers.toLocaleString()}</div>
             </div>
             <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
-              <span className="text-gray-400">5 posts / account / mo</span>
+              <span className="text-gray-400">15 posts total / mo</span>
               <span className="font-semibold text-gray-600">Free Tier</span>
             </div>
           </div>

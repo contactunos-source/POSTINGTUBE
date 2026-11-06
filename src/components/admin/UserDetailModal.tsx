@@ -29,7 +29,7 @@ interface UserDetailModalProps {
   user: AdminCustomerProfile | null;
   onClose: () => void;
   onUpdateStatus: (userId: string, newStatus: 'active' | 'suspended') => Promise<void>;
-  onUpdatePlan?: (userId: string, newPlan: 'free' | 'creator_pro' | 'agency_scale') => Promise<void>;
+  onUpdatePlan?: (userId: string, newPlan: string) => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -42,7 +42,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'accounts' | 'posts' | 'billing'>('info');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'creator_pro' | 'agency_scale'>(user?.plan || 'free');
+  const [selectedPlan, setSelectedPlan] = useState<string>(user?.plan || 'free');
   const [isPlanUpdating, setIsPlanUpdating] = useState(false);
   const [planSuccessMsg, setPlanSuccessMsg] = useState('');
 
@@ -334,7 +334,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-black text-gray-900">
-                      {user.subscription ? `$${user.subscription.amount}` : (user.plan === 'agency_scale' ? '$79' : user.plan === 'creator_pro' ? '$29' : '$0')}
+                      {user.subscription ? `₹${user.subscription.amount}` : (user.plan === 'agency' || user.plan === 'agency_scale' ? '₹9,999' : user.plan === 'growth' ? '₹2,999' : user.plan === 'pro' || user.plan === 'creator_pro' ? '₹1,999' : user.plan === 'starter' ? '₹999' : '₹0')}
                       <span className="text-xs font-normal text-gray-500">/{user.billingCycle}</span>
                     </div>
                     <span className="text-[10px] font-semibold text-emerald-600 capitalize">{user.paymentStatus}</span>
@@ -362,11 +362,13 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                     {[
-                      { id: 'free', name: 'Free', price: '$0/mo', desc: '1 social account' },
-                      { id: 'creator_pro', name: 'Creator Pro', price: '$29/mo', desc: '5 social accounts' },
-                      { id: 'agency_scale', name: 'Agency Scale', price: '$79/mo', desc: 'Unlimited accounts' },
+                      { id: 'free', name: 'Free', price: '₹0/mo', desc: '3 channels' },
+                      { id: 'starter', name: 'Starter', price: '₹999/mo', desc: '5 channels' },
+                      { id: 'pro', name: 'Pro', price: '₹1,999/mo', desc: '10 channels' },
+                      { id: 'growth', name: 'Growth', price: '₹2,999/mo', desc: '15 channels' },
+                      { id: 'agency', name: 'Agency', price: '₹9,999/mo', desc: '50 channels' },
                     ].map((planOption) => (
                       <button
                         key={planOption.id}

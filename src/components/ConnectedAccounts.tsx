@@ -310,7 +310,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
   const handleStartConnect = (platform: SocialPlatform) => {
     // Enforce channel limits based on plan (Free: 3 channels, Pro: purchased channelsCount)
-    const maxChannels = subscriptionData?.planId === 'pro' ? (subscriptionData.channelsCount || 1) : 3;
+    const planId = (subscriptionData?.planId || 'free').toLowerCase(); const maxChannels = (subscriptionData as any)?.channelsLimit || subscriptionData?.channelsCount || (planId === 'agency' ? 50 : planId === 'growth' ? 15 : planId === 'pro' ? 10 : planId === 'starter' ? 5 : 3);
     if (accounts.length >= maxChannels) {
       setChannelLimitModal({
         isOpen: true,
@@ -923,7 +923,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
         {/* Quotas & Capacity Ribbon */}
         {(() => {
-          const isFreePlan = subscriptionData?.planId !== 'pro';
+          const isFreePlan = subscriptionData?.planId === 'free' || !subscriptionData?.planId;
           const maxChannels = isFreePlan ? 3 : (subscriptionData?.channelsCount || 5);
           const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
           const channelUsagePercent = Math.min(100, Math.round((accounts.length / maxChannels) * 100));
@@ -2693,8 +2693,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               </h3>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {channelLimitModal.planId === 'free'
-                  ? 'You have reached the Free plan limit of 3 connected social channels. Upgrade to the Pro plan for ₹199/month per channel to connect additional channels and unlock unlimited scheduling.'
-                  : `You have connected all ${channelLimitModal.limit} channels in your current Pro subscription. You can add more channels anytime for ₹199/month per channel.`}
+                  ? 'You have reached the Free plan limit of 3 connected social channels. Upgrade to Starter (5 channels), Pro (10 channels), Growth (15 channels), or Agency (50 channels) for more channels and unlimited scheduled posts.'
+                  : `You have connected all ${channelLimitModal.limit} channels in your current plan. Upgrade to a higher plan to connect more channels.`}
               </p>
             </div>
 
@@ -2720,7 +2720,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center space-x-1.5 shadow-sm cursor-pointer"
               >
                 <Zap className="w-3.5 h-3.5 fill-white" />
-                <span>{channelLimitModal.planId === 'free' ? 'Upgrade to Pro' : 'Add More Channels'}</span>
+                <span>Upgrade Plan</span>
               </button>
             </div>
           </div>

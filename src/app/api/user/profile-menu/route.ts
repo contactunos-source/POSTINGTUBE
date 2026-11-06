@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { SubscriptionService } from '@/lib/subscription';
+import { SubscriptionService, OFFICIAL_PLANS } from '@/lib/subscription';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -114,19 +114,10 @@ export async function GET(req: NextRequest) {
 
     // Determine normalized plan name and actual status
     const rawPlan = subscription?.planId || subscription?.plan_id || profile?.plan || 'free';
-    let planDisplayName = 'Free plan';
-    let planTier: 'Free' | 'Pro' | 'Premium' = 'Free';
-
-    if (rawPlan === 'creator_pro' || rawPlan === 'pro') {
-      planDisplayName = 'Pro plan';
-      planTier = 'Pro';
-    } else if (rawPlan === 'agency_scale' || rawPlan === 'premium') {
-      planDisplayName = 'Premium plan';
-      planTier = 'Premium';
-    } else {
-      planDisplayName = 'Free plan';
-      planTier = 'Free';
-    }
+    const planId = SubscriptionService.normalizePlanId(rawPlan);
+    const planConfig = OFFICIAL_PLANS[planId];
+    const planDisplayName = `${planConfig.name} plan`;
+    const planTier = planId === 'free' ? 'Free' : 'Pro';
 
     const planStatus = subscription?.status || (rawPlan !== 'free' ? 'active' : 'free');
 

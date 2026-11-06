@@ -400,7 +400,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdateUserPlan = async (userId: string, newPlan: 'free' | 'creator_pro' | 'agency_scale') => {
+  const handleUpdateUserPlan = async (userId: string, newPlan: string) => {
     const res = await fetch(`/api/admin/users/${userId}/status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

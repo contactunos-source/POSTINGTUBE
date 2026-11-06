@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { SubscriptionService, PRICING_CONFIG } from '@/lib/subscription';
+import { SubscriptionService, OFFICIAL_PLANS, PlanId } from '@/lib/subscription';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,11 +9,10 @@ export async function POST(req: NextRequest) {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      channelsCount = 1,
+      planId: rawPlanId = 'pro',
       userId = '',
       userEmail = '',
       amount = 0,
-      billingInterval = 'monthly',
     } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id) {
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
-    // Verify HMAC SHA256 Signature if secret exists
+    // Verify HMAC SHA256 Signature server-side
     if (keySecret && razorpay_signature) {
       const expectedSignature = crypto
         .createHmac('sha256', keySecret)
@@ -39,41 +38,44 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+    } else if (process.env.NODE_ENV === 'production' && !keySecret) {
+      console.warn('[RazorpayVerify] Key secret missing in production');
     }
 
-    const validatedChannels = Math.max(1, Math.min(100, Math.round(Number(channelsCount) || 1)));
-    const totalAmount = amount || (validatedChannels * PRICING_CONFIG.pro.pricePerChannelInr);
+    const planId: PlanId = SubscriptionService.normalizePlanId(rawPlanId);
+    const planConfig = OFFICIAL_PLANS[planId];
+    const totalAmount = amount || planConfig.priceInr;
 
-    // 1. Activate Pro Subscription in Supabase & local store
-    const subscription = await SubscriptionService.activateProSubscription({
+    // 1. Activate Paid Plan in Supabase & resilient store
+    const subscription = await SubscriptionService.activateSubscription({
       userId: userId || 'customer',
       userEmail: userEmail || undefined,
-      channelsCount: validatedChannels,
+      planId,
       currency: 'INR',
       provider: 'razorpay',
       providerPaymentId: razorpay_payment_id,
       providerOrderId: razorpay_order_id,
       amount: totalAmount,
-      billingInterval: billingInterval === 'yearly' ? 'yearly' : 'monthly',
     });
 
-    // 2. Record Succeeded Payment Transaction
+    // 2. Record Succeeded Payment Transaction in Supabase
     await SubscriptionService.recordTransaction({
       userId: userId || 'customer',
       userEmail: userEmail || undefined,
       subscriptionId: subscription.id,
+      planId,
       amount: totalAmount,
       currency: 'INR',
       provider: 'razorpay',
       providerPaymentId: razorpay_payment_id,
       providerOrderId: razorpay_order_id,
       status: 'succeeded',
-      paymentMethod: 'razorpay_netbanking_or_upi_or_card',
+      paymentMethod: 'razorpay_upi_netbanking_card',
     });
 
     return NextResponse.json({
       success: true,
-      message: `Successfully upgraded to Pro with ${validatedChannels} channels!`,
+      message: `Successfully upgraded to ${planConfig.name} plan with ${planConfig.channelsLimit} connected channels!`,
       subscription,
     });
   } catch (err: any) {

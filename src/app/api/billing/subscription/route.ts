@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SubscriptionService } from '@/lib/subscription';
+import { SubscriptionService, OFFICIAL_PLANS } from '@/lib/subscription';
 import { DatabaseService } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const subscription = await SubscriptionService.getUserSubscription(userId, email);
     const accounts = await DatabaseService.getAccounts(workspaceId, userId);
     const posts = await DatabaseService.getPosts(userId, workspaceId);
+    const transactions = await SubscriptionService.getUserTransactions(userId, email);
 
     const connectedChannelsCount = accounts.filter(
       (a) => a.status === 'connected' || !a.status
@@ -20,14 +21,18 @@ export async function GET(req: NextRequest) {
     const scheduledPosts = posts.filter((p) => p.status === 'scheduled');
     const scheduledPostsCount = scheduledPosts.length;
 
-    // Calculate monthly post usage (scheduled + published, excluding drafts) for each account
+    // Calculate monthly post usage for current calendar month
     const monthlyUsage = SubscriptionService.calculateMonthlyUsage(
       posts,
       accounts,
       subscription.planId
     );
 
-    // Calculate scheduled posts per channel for Free plan breakdown (backwards compatible)
+    const planConfig = OFFICIAL_PLANS[subscription.planId] || OFFICIAL_PLANS.free;
+    const channelLimit = subscription.channelsLimit || subscription.channelsCount || planConfig.channelsLimit;
+    const canConnectMore = connectedChannelsCount < channelLimit;
+
+    // Breakdown per channel for UI
     const channelUsage: Record<string, { name: string; platform: string; scheduledCount: number; limit: number }> = {};
     for (const acc of accounts) {
       const count = scheduledPosts.filter((p) => (p.targetAccountIds || []).includes(acc.id)).length;
@@ -35,16 +40,15 @@ export async function GET(req: NextRequest) {
         name: acc.displayName || acc.username,
         platform: acc.platform,
         scheduledCount: count,
-        limit: subscription.planId === 'pro' ? -1 : 5,
+        limit: planConfig.monthlyPostsLimit,
       };
     }
-
-    const channelLimit = subscription.planId === 'pro' ? subscription.channelsCount : 3;
-    const canConnectMore = connectedChannelsCount < channelLimit;
 
     return NextResponse.json({
       success: true,
       subscription,
+      planConfig,
+      transactions,
       usage: {
         channels: {
           connected: connectedChannelsCount,
@@ -53,15 +57,15 @@ export async function GET(req: NextRequest) {
         },
         monthlyPosts: {
           totalUsed: monthlyUsage.totalPostsUsed,
-          totalLimit: monthlyUsage.totalPostsLimit, // 15 for Free, -1 for Pro
-          perAccountLimit: monthlyUsage.perAccountLimit, // 5 for Free, -1 for Pro
+          totalLimit: monthlyUsage.totalPostsLimit, // 15 for Free, -1 for paid plans
+          perAccountLimit: monthlyUsage.perAccountLimit,
           monthLabel: monthlyUsage.monthLabel,
           resetsAt: monthlyUsage.resetsAt,
           byChannel: monthlyUsage.accounts,
         },
         scheduledPosts: {
           total: scheduledPostsCount,
-          perChannelLimit: subscription.planId === 'pro' ? -1 : 5,
+          limit: planConfig.monthlyPostsLimit,
           byChannel: channelUsage,
         },
       },

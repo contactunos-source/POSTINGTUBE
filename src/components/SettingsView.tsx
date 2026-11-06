@@ -460,7 +460,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const isProPlan = subscriptionData?.planId === 'pro' && subscriptionData?.status === 'active';
+  const isPaidPlan = subscriptionData?.planId && subscriptionData.planId !== 'free' && subscriptionData.status === 'active'; const isProPlan = isPaidPlan;
   const currencySymbol = subscriptionData?.currency === 'USD' ? '$' : '₹';
   const pricePerChannel = subscriptionData?.pricePerChannel || (subscriptionData?.currency === 'USD' ? 3 : 199);
   const totalAmount = subscriptionData?.amount || (subscriptionData?.channelsCount || 3) * pricePerChannel;
@@ -508,7 +508,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {isProPlan ? 'Pro Active' : 'Free Plan'}
+            {isPaidPlan ? (subscriptionData?.planName || 'Paid Active') : 'Free Plan'}
           </span>
         </button>
       </div>
@@ -522,7 +522,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center space-x-2.5">
                   <h2 className="text-xl font-black text-gray-950">
-                    {isProPlan ? 'Pro Plan' : 'Free Plan'}
+                    {subscriptionData?.planName || (isPaidPlan ? 'Paid Plan' : 'Free Plan')}
                   </h2>
                   <span
                     className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
@@ -531,13 +531,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {isProPlan ? 'Active Subscription' : 'Free Active'}
+                    {isPaidPlan ? 'Active Subscription' : 'Free Active'}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {isProPlan
-                    ? `Configured for up to ${subscriptionData?.channelsCount || 3} connected social channels with unlimited scheduling.`
-                    : 'Free starter tier with 3 social accounts and 5 scheduled posts per channel.'}
+                  {isPaidPlan ? `Configured for up to ${subscriptionData?.channelsCount || 5} connected social channels with unlimited scheduling.` : 'Free starter tier with 3 social accounts and 15 scheduled posts total per month.'}
                 </p>
               </div>
 
@@ -549,7 +547,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
                   >
                     <Zap className="w-3.5 h-3.5 fill-white" />
-                    <span>Upgrade to Pro</span>
+                    <span>Upgrade Plan</span>
                   </button>
                 ) : (
                   <button
@@ -588,10 +586,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   Scheduled Posts
                 </span>
                 <div className="text-2xl font-black text-gray-900">
-                  {isProPlan ? 'Unlimited' : `${usageData?.scheduledPosts?.total || 0} active`}
+                  {isPaidPlan ? 'Unlimited' : `${usageData?.monthlyPosts?.totalUsed ?? usageData?.scheduledPosts?.total ?? 0} / 15`}
                 </div>
                 <span className="text-[11px] text-gray-500 block">
-                  {isProPlan ? 'No scheduled post limits' : 'Max 5 per channel'}
+                  {isPaidPlan ? 'Unlimited scheduled posts' : 'Max 15 posts total per month'}
                 </span>
               </div>
 

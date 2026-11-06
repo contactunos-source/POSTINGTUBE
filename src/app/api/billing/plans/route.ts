@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SubscriptionService, PRICING_CONFIG } from '@/lib/subscription';
+import { SubscriptionService, OFFICIAL_PLANS } from '@/lib/subscription';
 
 export async function GET() {
   try {
@@ -7,7 +7,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       plans,
-      config: PRICING_CONFIG,
+      officialPlans: OFFICIAL_PLANS,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '',
     });
   } catch (err: any) {

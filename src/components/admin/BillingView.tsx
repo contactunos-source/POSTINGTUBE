@@ -97,9 +97,9 @@ export const BillingView: React.FC<BillingViewProps> = ({
             <DollarSign className="w-4 h-4" />
           </div>
           <span className="text-[11px] text-gray-500 block">Monthly Recurring Revenue</span>
-          <div className="text-2xl font-black text-gray-900">${stats.mrr.toLocaleString()}</div>
+          <div className="text-2xl font-black text-gray-900">₹{stats.mrr.toLocaleString()}</div>
           <span className="text-[10px] text-emerald-600 font-semibold block">
-            ${Math.round(stats.mrr * 12).toLocaleString()} Annual ARR
+            ₹{Math.round(stats.mrr * 12).toLocaleString()} Annual ARR
           </span>
         </div>
 
@@ -117,7 +117,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
             <TrendingUp className="w-4 h-4" />
           </div>
           <span className="text-[11px] text-gray-500 block">Total Lifetime Revenue</span>
-          <div className="text-2xl font-black text-gray-900">${stats.totalRevenue.toLocaleString()}</div>
+          <div className="text-2xl font-black text-gray-900">₹{stats.totalRevenue.toLocaleString()}</div>
           <span className="text-[10px] text-gray-400 block">Verified merchant webhooks</span>
         </div>
 
@@ -160,7 +160,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
             </div>
             <div className="p-3 bg-gray-50 rounded-xl">
               <span className="text-gray-400 block text-[10px]">Settled Revenue</span>
-              <span className="text-base font-black text-gray-900">${stats.providers.razorpay.revenue.toLocaleString()}</span>
+              <span className="text-base font-black text-gray-900">₹{stats.providers.razorpay.revenue.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -186,9 +186,65 @@ export const BillingView: React.FC<BillingViewProps> = ({
             </div>
             <div className="p-3 bg-gray-50 rounded-xl">
               <span className="text-gray-400 block text-[10px]">Settled Revenue</span>
-              <span className="text-base font-black text-gray-900">${stats.providers.stripe.revenue.toLocaleString()}</span>
+              <span className="text-base font-black text-gray-900">₹{stats.providers.stripe.revenue.toLocaleString()}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Official Plan Management Section */}
+      <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Official PostingTube Plan Management</h2>
+            <p className="text-[11px] text-gray-500">Live capacity limits, monthly pricing in INR, and active subscriber distribution.</p>
+          </div>
+          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+            5 Official Plans
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {[
+            { id: 'free', name: 'Free', price: '₹0', channels: 3, posts: '15 total/mo', badge: 'Get Started' },
+            { id: 'starter', name: 'Starter', price: '₹999', channels: 5, posts: 'Unlimited', badge: 'Start Growing' },
+            { id: 'pro', name: 'Pro', price: '₹1,999', channels: 10, posts: 'Unlimited', badge: 'Most Popular', highlight: true },
+            { id: 'growth', name: 'Growth', price: '₹2,999', channels: 15, posts: 'Unlimited', badge: 'Best Value' },
+            { id: 'agency', name: 'Agency', price: '₹9,999', channels: 50, posts: 'Unlimited', badge: 'Agency Scale' },
+          ].map((plan) => {
+            const activeSubs = subscriptions.filter((s) => {
+              const pid = (s.plan_id || '').toLowerCase();
+              return (pid === plan.id || (plan.id === 'pro' && pid === 'creator_pro') || (plan.id === 'agency' && pid === 'agency_scale')) && s.status === 'active';
+            }).length;
+
+            return (
+              <div
+                key={plan.id}
+                className={`p-4 rounded-xl border transition-all ${
+                  plan.highlight
+                    ? 'border-emerald-500 bg-emerald-50/20 shadow-xs'
+                    : 'border-gray-200 bg-gray-50/50 hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-black text-gray-900">{plan.name}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    plan.highlight ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}>
+                    {plan.badge}
+                  </span>
+                </div>
+                <div className="text-lg font-black text-gray-900">{plan.price}<span className="text-[10px] font-normal text-gray-500">/mo</span></div>
+                <div className="mt-2 space-y-1 text-[11px] text-gray-600">
+                  <div>Channels: <strong className="text-gray-900">{plan.channels}</strong></div>
+                  <div>Posts: <strong className="text-gray-900">{plan.posts}</strong></div>
+                  <div className="pt-1 border-t border-gray-200/60 text-emerald-700 font-bold">
+                    {activeSubs} active {activeSubs === 1 ? 'subscriber' : 'subscribers'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -250,7 +306,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
                       </td>
                       <td className="py-3 px-4 font-mono text-[11px] text-gray-600">{sub.user_id}</td>
                       <td className="py-3 px-4 font-black text-gray-900">
-                        ${sub.amount} {sub.currency}
+                        {sub.currency === 'INR' || !sub.currency ? '₹' : '$'}{sub.amount} {sub.currency || 'INR'}
                       </td>
                       <td className="py-3 px-4 capitalize text-gray-600">{sub.billing_interval}</td>
                       <td className="py-3 px-4">
@@ -298,7 +354,9 @@ export const BillingView: React.FC<BillingViewProps> = ({
                     <tr key={txn.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-gray-900">{txn.provider_payment_id || txn.id}</td>
                       <td className="py-3 px-4 font-mono text-[11px] text-gray-600">{txn.user_id}</td>
-                      <td className="py-3 px-4 font-black text-gray-900">${txn.amount} {txn.currency}</td>
+                      <td className="py-3 px-4 font-black text-gray-900">
+                        {txn.currency === 'INR' || !txn.currency ? '₹' : '$'}{txn.amount} {txn.currency || 'INR'}
+                      </td>
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
                           {txn.status}

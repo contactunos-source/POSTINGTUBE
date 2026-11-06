@@ -1,25 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PRICING_CONFIG } from '@/lib/subscription';
+import { OFFICIAL_PLANS, PlanId, SubscriptionService } from '@/lib/subscription';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { channelsCount, userId, userEmail, currency = 'INR', billingInterval = 'monthly' } = body;
+    const { planId: rawPlanId, userId, userEmail } = body;
 
-    const validatedInterval = billingInterval === 'yearly' ? 'yearly' : 'monthly';
-    const multiplier = validatedInterval === 'yearly' ? 12 : 1;
-    const channels = Math.max(1, Math.min(100, Math.round(Number(channelsCount) || 1)));
-    const pricePerChannel = PRICING_CONFIG.pro.pricePerChannelInr; // 199
-    const totalAmountInr = channels * pricePerChannel * multiplier;
+    const planId = SubscriptionService.normalizePlanId(rawPlanId);
+    if (planId === 'free') {
+      return NextResponse.json(
+        { success: false, error: 'Free plan does not require checkout' },
+        { status: 400 }
+      );
+    }
+
+    const planConfig = OFFICIAL_PLANS[planId];
+    if (!planConfig) {
+      return NextResponse.json(
+        { success: false, error: `Invalid plan specified: ${rawPlanId}` },
+        { status: 400 }
+      );
+    }
+
+    const totalAmountInr = planConfig.priceInr;
     const amountInPaise = totalAmountInr * 100;
 
     const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
     const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
     let orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    let receipt = `rcpt_${Date.now()}_${channels}ch`;
+    const receipt = `rcpt_${planId}_${Date.now()}`.slice(0, 40);
 
-    // Attempt official Razorpay Orders API if configured
+    // Call official Razorpay Orders API if configured
     if (keyId && keySecret && !keyId.includes('placeholder')) {
       try {
         const basicAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
@@ -34,9 +46,10 @@ export async function POST(req: NextRequest) {
             currency: 'INR',
             receipt,
             notes: {
-              plan: 'pro',
-              channelsCount: channels,
-              billingInterval: validatedInterval,
+              planId,
+              planName: planConfig.name,
+              channelsLimit: planConfig.channelsLimit,
+              billingInterval: 'monthly',
               userId: userId || 'customer',
               userEmail: userEmail || '',
             },
@@ -50,10 +63,10 @@ export async function POST(req: NextRequest) {
           }
         } else {
           const errData = await res.json().catch(() => ({}));
-          console.warn('[Razorpay API] Order creation API notice:', res.status, errData);
+          console.warn('[Razorpay API] Order creation notice:', res.status, errData);
         }
       } catch (rErr) {
-        console.warn('[Razorpay API] Order fetch notice:', rErr);
+        console.warn('[Razorpay API] Order request notice:', rErr);
       }
     }
 
@@ -63,8 +76,9 @@ export async function POST(req: NextRequest) {
         id: orderId,
         amount: amountInPaise,
         currency: 'INR',
-        channelsCount: channels,
-        pricePerChannel,
+        planId,
+        planName: planConfig.name,
+        channelsLimit: planConfig.channelsLimit,
         totalAmount: totalAmountInr,
         keyId,
         user: {
