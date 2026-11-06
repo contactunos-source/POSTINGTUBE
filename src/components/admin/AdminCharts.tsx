@@ -31,11 +31,11 @@ export const InteractiveAreaChart: React.FC<{
   const minVal = 0;
   const range = maxVal - minVal;
 
-  const width = 640;
-  const paddingLeft = 45;
-  const paddingRight = 20;
-  const paddingTop = 15;
-  const paddingBottom = 25;
+  const width = 680;
+  const paddingLeft = 55;
+  const paddingRight = 25;
+  const paddingTop = 20;
+  const paddingBottom = 28;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
 
@@ -112,19 +112,28 @@ export const InteractiveAreaChart: React.FC<{
           );
         })}
 
-        {/* Sample bottom labels so they never collide */}
+        {/* Cleanly Sampled bottom labels with zero collisions */}
         {(() => {
-          const maxLabels = 7;
-          const step = Math.max(1, Math.ceil(data.length / maxLabels));
-          return points.map((p, i) => {
+          if (points.length === 0) return null;
+          const maxLabels = 6;
+          const selectedIndices: number[] = [];
+          if (points.length <= maxLabels) {
+            for (let i = 0; i < points.length; i++) selectedIndices.push(i);
+          } else {
+            const step = (points.length - 1) / (maxLabels - 1);
+            for (let k = 0; k < maxLabels; k++) {
+              selectedIndices.push(Math.round(k * step));
+            }
+          }
+          const uniqueIndices = Array.from(new Set(selectedIndices)).sort((a, b) => a - b);
+          return uniqueIndices.map((idx, i) => {
+            const p = points[idx];
+            if (!p) return null;
             const isFirst = i === 0;
-            const isLast = i === points.length - 1;
-            const isSampled = i % step === 0 && (points.length - 1 - i) >= Math.floor(step / 2);
-            if (!isFirst && !isLast && !isSampled) return null;
-
+            const isLast = i === uniqueIndices.length - 1;
             return (
               <text
-                key={`label-${i}`}
+                key={`label-${idx}`}
                 x={p.x}
                 y={height - 6}
                 textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}

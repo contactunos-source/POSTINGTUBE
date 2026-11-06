@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
       userId = '',
       userEmail = '',
       amount = 0,
+      billingInterval = 'monthly',
     } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id) {
@@ -44,7 +45,8 @@ export async function POST(req: NextRequest) {
 
     const planId: PlanId = SubscriptionService.normalizePlanId(rawPlanId);
     const planConfig = OFFICIAL_PLANS[planId];
-    const totalAmount = amount || planConfig.priceInr;
+    const isYearly = billingInterval === 'yearly';
+    const totalAmount = amount || (isYearly ? planConfig.yearlyPriceInr : planConfig.priceInr);
 
     // 1. Activate Paid Plan in Supabase & resilient store
     const subscription = await SubscriptionService.activateSubscription({
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
       userEmail: userEmail || undefined,
       planId,
       currency: 'INR',
+      billingInterval: isYearly ? 'yearly' : 'monthly',
       provider: 'razorpay',
       providerPaymentId: razorpay_payment_id,
       providerOrderId: razorpay_order_id,

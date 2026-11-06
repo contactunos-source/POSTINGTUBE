@@ -86,7 +86,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     { label: 'Starter (₹999)', count: dist.starter || 0, color: '#0ea5e9' },
     { label: 'Pro (₹1,999)', count: dist.pro || dist.creator_pro || 0, color: '#10b981' },
     { label: 'Growth (₹2,999)', count: dist.growth || 0, color: '#8b5cf6' },
-    { label: 'Agency (₹9,999)', count: dist.agency || dist.agency_scale || 0, color: '#f59e0b' },
+    { label: 'Agency (₹5,999)', count: dist.agency || dist.agency_scale || 0, color: '#f59e0b' },
   ].filter((s) => s.count > 0);
 
   // Platform segments

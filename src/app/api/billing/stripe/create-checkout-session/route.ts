@@ -4,7 +4,13 @@ import { OFFICIAL_PLANS, PlanId, SubscriptionService } from '@/lib/subscription'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { planId: rawPlanId = 'pro', userId, userEmail } = body;
+    const {
+      planId: rawPlanId = 'pro',
+      userId,
+      userEmail,
+      billingInterval = 'monthly',
+      currency = 'usd',
+    } = body;
 
     const planId: PlanId = SubscriptionService.normalizePlanId(rawPlanId);
     if (planId === 'free') {
@@ -15,6 +21,12 @@ export async function POST(req: NextRequest) {
     }
 
     const planConfig = OFFICIAL_PLANS[planId];
+    const isYearly = billingInterval === 'yearly';
+    const isUsd = (currency || 'usd').toLowerCase() === 'usd';
+    const unitAmount = isUsd
+      ? (isYearly ? planConfig.yearlyPriceUsd : planConfig.priceUsd) * 100
+      : (isYearly ? planConfig.yearlyPriceInr : planConfig.priceInr) * 100;
+
     const stripeKey = process.env.STRIPE_SECRET_KEY || '';
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -38,10 +50,12 @@ export async function POST(req: NextRequest) {
     if (userEmail) params.append('customer_email', userEmail);
     params.append('metadata[planId]', planId);
     params.append('metadata[userId]', userId || '');
-    params.append('line_items[0][price_data][currency]', 'inr');
+    params.append('metadata[billingInterval]', isYearly ? 'yearly' : 'monthly');
+    params.append('metadata[currency]', isUsd ? 'USD' : 'INR');
+    params.append('line_items[0][price_data][currency]', isUsd ? 'usd' : 'inr');
     params.append('line_items[0][price_data][product_data][name]', `PostingTube ${planConfig.name} (${planConfig.channelsLimit} Channels)`);
-    params.append('line_items[0][price_data][recurring][interval]', 'month');
-    params.append('line_items[0][price_data][unit_amount]', String(Math.round(planConfig.priceInr * 100)));
+    params.append('line_items[0][price_data][recurring][interval]', isYearly ? 'year' : 'month');
+    params.append('line_items[0][price_data][unit_amount]', String(Math.round(unitAmount)));
     params.append('line_items[0][quantity]', '1');
 
     const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {

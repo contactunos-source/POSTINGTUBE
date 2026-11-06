@@ -5,6 +5,9 @@
 
 export type PlanId = 'free' | 'starter' | 'pro' | 'growth' | 'agency';
 
+export type BillingInterval = 'monthly' | 'yearly';
+export type BillingCurrency = 'INR' | 'USD';
+
 export type SubscriptionStatus =
   | 'free'
   | 'pending'
@@ -19,6 +22,13 @@ export interface SubscriptionPlan {
   name: string;
   tagline: string;
   priceInr: number;
+  yearlyPriceInr: number;
+  normalAnnualPriceInr: number;
+  yearlySavingsInr: number;
+  priceUsd: number;
+  yearlyPriceUsd: number;
+  normalAnnualPriceUsd: number;
+  yearlySavingsUsd: number;
   channelsLimit: number;
   monthlyPostsLimit: number; // 15 for free, -1 for unlimited
   userLimit: number;
@@ -37,13 +47,13 @@ export interface SubscriptionPlan {
 }
 
 /**
- * 1. OFFICIAL POSTINGTUBE MONTHLY PRICING
- * Exactly as specified by business requirements:
- * Free: 3 channels, ₹0, 15 posts total/month
- * Starter: 5 channels, ₹999, Unlimited posts
- * Pro: 10 channels, ₹1,999, Unlimited posts (Most Popular)
- * Growth: 15 channels, ₹2,999, Unlimited posts (Best Value)
- * Agency: 50 channels, ₹9,999, Unlimited posts
+ * 1. OFFICIAL POSTINGTUBE PRICING MATRIX
+ * Monthly & Yearly Plans:
+ * Free: 3 channels, ₹0/mo, 15 posts total/month
+ * Starter: 5 channels, ₹999/mo, ₹9,999/yr (Normal: ₹11,988, Save: ₹1,989)
+ * Pro: 10 channels, ₹1,999/mo, ₹19,999/yr (Normal: ₹23,988, Save: ₹3,989) [Most Popular]
+ * Growth: 15 channels, ₹2,999/mo, ₹29,999/yr (Normal: ₹35,988, Save: ₹5,989) [Best Value]
+ * Agency: 30 channels, ₹5,999/mo, ₹63,999/yr (Normal: ₹71,988, Save: ₹7,989)
  */
 export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
   free: {
@@ -51,14 +61,21 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     name: 'Free',
     tagline: 'Get Started',
     priceInr: 0,
+    yearlyPriceInr: 0,
+    normalAnnualPriceInr: 0,
+    yearlySavingsInr: 0,
+    priceUsd: 0,
+    yearlyPriceUsd: 0,
+    normalAnnualPriceUsd: 0,
+    yearlySavingsUsd: 0,
     channelsLimit: 3,
     monthlyPostsLimit: 15,
     userLimit: 1,
     analyticsTier: 'basic',
     features: [
       '3 connected social accounts',
-      '15 scheduled posts per month in total',
-      'Basic scheduling',
+      '5 scheduled posts per channel (15 total/month)',
+      'Core scheduling and publishing',
       'Basic analytics',
       '1 user',
       'Access to core supported publishing features',
@@ -75,6 +92,13 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     name: 'Starter',
     tagline: 'Start Growing',
     priceInr: 999,
+    yearlyPriceInr: 9999,
+    normalAnnualPriceInr: 11988,
+    yearlySavingsInr: 1989,
+    priceUsd: 19,
+    yearlyPriceUsd: 199,
+    normalAnnualPriceUsd: 228,
+    yearlySavingsUsd: 29,
     channelsLimit: 5,
     monthlyPostsLimit: -1,
     userLimit: 1,
@@ -100,6 +124,13 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     name: 'Pro',
     tagline: 'Most Popular',
     priceInr: 1999,
+    yearlyPriceInr: 19999,
+    normalAnnualPriceInr: 23988,
+    yearlySavingsInr: 3989,
+    priceUsd: 39,
+    yearlyPriceUsd: 399,
+    normalAnnualPriceUsd: 468,
+    yearlySavingsUsd: 69,
     channelsLimit: 10,
     monthlyPostsLimit: -1,
     userLimit: 1,
@@ -127,6 +158,13 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     name: 'Growth',
     tagline: 'Scale Your Business',
     priceInr: 2999,
+    yearlyPriceInr: 29999,
+    normalAnnualPriceInr: 35988,
+    yearlySavingsInr: 5989,
+    priceUsd: 59,
+    yearlyPriceUsd: 599,
+    normalAnnualPriceUsd: 708,
+    yearlySavingsUsd: 109,
     channelsLimit: 15,
     monthlyPostsLimit: -1,
     userLimit: 1,
@@ -154,13 +192,21 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     id: 'agency',
     name: 'Agency',
     tagline: 'Manage at Scale',
-    priceInr: 9999,
-    channelsLimit: 50,
+    priceInr: 5999,
+    yearlyPriceInr: 63999,
+    normalAnnualPriceInr: 71988,
+    yearlySavingsInr: 7989,
+    priceUsd: 119,
+    yearlyPriceUsd: 1199,
+    normalAnnualPriceUsd: 1428,
+    yearlySavingsUsd: 229,
+    channelsLimit: 30,
     monthlyPostsLimit: -1,
     userLimit: 1,
     analyticsTier: 'advanced',
+    badge: 'Agency Scale',
     features: [
-      '50 connected channels',
+      '30 connected channels',
       'Unlimited posts',
       'Agency-level account management',
       'Advanced analytics and reporting',
@@ -169,14 +215,66 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
       'Priority support',
       '1 user',
     ],
-    maxChannels: 50,
-    pricePerChannelInr: 9999 / 50,
+    maxChannels: 30,
+    pricePerChannelInr: 5999 / 30,
     pricePerChannelUsd: 120,
     monthlyPostsPerChannel: -1,
     maxMonthlyPostsTotal: -1,
     scheduledPostsPerChannel: -1,
   },
 };
+
+/**
+ * Format plan price helper
+ */
+export function getPlanDisplayPrice(
+  plan: SubscriptionPlan,
+  interval: BillingInterval,
+  currency: BillingCurrency
+): {
+  price: number;
+  priceFormatted: string;
+  normalAnnualPrice?: number;
+  normalAnnualFormatted?: string;
+  savings?: number;
+  savingsFormatted?: string;
+  periodLabel: string;
+} {
+  const isYearly = interval === 'yearly';
+  const isUsd = currency === 'USD';
+  const symbol = isUsd ? '$' : '₹';
+
+  if (plan.id === 'free') {
+    return {
+      price: 0,
+      priceFormatted: `${symbol}0`,
+      periodLabel: isYearly ? '/year' : '/month',
+    };
+  }
+
+  if (isYearly) {
+    const price = isUsd ? plan.yearlyPriceUsd : plan.yearlyPriceInr;
+    const normal = isUsd ? plan.normalAnnualPriceUsd : plan.normalAnnualPriceInr;
+    const savings = isUsd ? plan.yearlySavingsUsd : plan.yearlySavingsInr;
+
+    return {
+      price,
+      priceFormatted: isUsd ? `$${price.toLocaleString()}` : `₹${price.toLocaleString('en-IN')}`,
+      normalAnnualPrice: normal,
+      normalAnnualFormatted: isUsd ? `$${normal.toLocaleString()}` : `₹${normal.toLocaleString('en-IN')}`,
+      savings,
+      savingsFormatted: isUsd ? `$${savings.toLocaleString()}` : `₹${savings.toLocaleString('en-IN')}`,
+      periodLabel: '/year',
+    };
+  }
+
+  const price = isUsd ? plan.priceUsd : plan.priceInr;
+  return {
+    price,
+    priceFormatted: isUsd ? `$${price.toLocaleString()}` : `₹${price.toLocaleString('en-IN')}`,
+    periodLabel: '/month',
+  };
+}
 
 /**
  * Backwards compatibility proxy for existing references to PRICING_CONFIG
@@ -234,9 +332,9 @@ export const PRICING_CONFIG = {
   agency: {
     id: 'agency',
     name: 'Agency',
-    pricePerChannelInr: 9999,
-    pricePerChannelUsd: 120,
-    maxChannels: 50,
+    pricePerChannelInr: 5999,
+    pricePerChannelUsd: 119,
+    maxChannels: 30,
     monthlyPostsPerChannel: -1,
     maxMonthlyPostsTotal: -1,
     scheduledPostsPerChannel: -1,
@@ -257,7 +355,7 @@ export interface CustomerSubscription {
   pricePerChannel?: number;
   amount: number;
   currency: 'INR' | 'USD';
-  billingInterval: 'monthly';
+  billingInterval: BillingInterval;
   status: SubscriptionStatus;
   provider: 'razorpay' | 'stripe' | 'manual';
   providerSubscriptionId?: string;

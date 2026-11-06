@@ -10,15 +10,27 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * Maps Supabase PostgreSQL snake_case post row to Post TypeScript model
  */
 export function mapDbPostToPost(row: any): Post {
+  const supabasePublicBase = 'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/';
   return {
     id: row.id,
     userId: row.user_id || undefined,
     workspaceId: (row.workspace_id && UUID_REGEX.test(row.workspace_id)) ? row.workspace_id : DEFAULT_WORKSPACE_ID,
     content: row.content || '',
-    media: (row.media || []).map((m: any) => ({
-      ...m,
-      thumbnailUrl: (m.thumbnailUrl && !m.thumbnailUrl.startsWith('blob:')) ? m.thumbnailUrl : m.url,
-    })),
+    media: (row.media || []).map((m: any) => {
+      let safeUrl = m.url || '';
+      let safeThumb = m.thumbnailUrl || '';
+      if (typeof safeUrl === 'string' && safeUrl.startsWith('blob:') && m.name) {
+        safeUrl = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
+      }
+      if (typeof safeThumb === 'string' && safeThumb.startsWith('blob:') && m.name) {
+        safeThumb = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
+      }
+      return {
+        ...m,
+        url: safeUrl,
+        thumbnailUrl: safeThumb || safeUrl,
+      };
+    }),
     targetAccountIds: row.target_account_ids || [],
     postType: row.post_type || 'post',
     platformOverrides: row.platform_overrides || {},
@@ -517,7 +529,22 @@ export const DatabaseService = {
           console.log('[Supabase] Post successfully persisted for workspace:', targetWsId, post.id);
         }
 
-        // If scheduled, also upsert background job queue for all target destinations
+        // Record immutable usage ledger event for each targeted account
+        if (post.status === 'scheduled' || post.status === 'published') {
+          try {
+            const { SubscriptionService } = await import('@/lib/subscription');
+            await SubscriptionService.recordUsageEvent({
+              postId: post.id,
+              accountIds: post.targetAccountIds || [],
+              userId: resolvedUser || post.userId,
+              workspaceId: targetWsId,
+              actionType: post.status === 'published' ? 'publish' : 'schedule',
+              targetDate: post.scheduledFor || post.publishedAt || post.createdAt,
+            });
+          } catch (ledgerErr) {
+            console.warn('[UsageLedger] Error recording usage event on post save:', ledgerErr);
+          }
+        }
         if (post.status === 'scheduled' && post.scheduledFor) {
           const targetIds = post.targetAccountIds && post.targetAccountIds.length > 0
             ? post.targetAccountIds

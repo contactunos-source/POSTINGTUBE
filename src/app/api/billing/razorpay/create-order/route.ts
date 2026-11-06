@@ -4,7 +4,7 @@ import { OFFICIAL_PLANS, PlanId, SubscriptionService } from '@/lib/subscription'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { planId: rawPlanId, userId, userEmail } = body;
+    const { planId: rawPlanId, userId, userEmail, billingInterval = 'monthly' } = body;
 
     const planId = SubscriptionService.normalizePlanId(rawPlanId);
     if (planId === 'free') {
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const totalAmountInr = planConfig.priceInr;
+    const isYearly = billingInterval === 'yearly';
+    const totalAmountInr = isYearly ? planConfig.yearlyPriceInr : planConfig.priceInr;
     const amountInPaise = totalAmountInr * 100;
 
     const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
               planId,
               planName: planConfig.name,
               channelsLimit: planConfig.channelsLimit,
-              billingInterval: 'monthly',
+              billingInterval: isYearly ? 'yearly' : 'monthly',
               userId: userId || 'customer',
               userEmail: userEmail || '',
             },

@@ -165,19 +165,21 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                   <div className="bg-[#222b35] text-white text-[11px] font-semibold px-3 py-2 rounded-xl shadow-xl text-center space-y-1 w-max max-w-[220px] whitespace-normal leading-snug">
                     <div className="font-bold">{account.displayName || `@${account.username}`}</div>
                     {!isSupported ? (
-                      <div className="text-[10px] text-amber-300 font-medium">
+                      <div className="text-[10px] text-gray-400 font-medium leading-relaxed">
                         {unsupportedReason}
                       </div>
                     ) : (
                       (() => {
                         const usage = monthlyUsageByAccount?.[account.id];
                         if (!usage || usage.limit <= 0) return null;
-                        const isReached = usage.usedCount >= usage.limit;
+                        const limit = usage.limit;
+                        const isReached = usage.usedCount >= limit;
+                        const displayCount = Math.min(usage.usedCount, limit);
                         return (
-                          <div className={`text-[10px] font-normal ${isReached ? 'text-amber-300 font-bold' : 'text-gray-300'}`}>
+                          <div className={`text-[10px] ${isReached ? 'text-gray-300 font-semibold' : 'text-gray-400 font-medium'}`}>
                             {isReached
-                              ? `Monthly limit reached (${usage.usedCount}/${usage.limit})`
-                              : `${usage.usedCount}/${usage.limit} posts used this month (${usage.remaining} left)`}
+                              ? `Monthly limit reached (${displayCount}/${limit})`
+                              : `${usage.usedCount}/${limit} posts used this month (${Math.max(0, limit - usage.usedCount)} left)`}
                           </div>
                         );
                       })()

@@ -133,7 +133,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
             <option value="starter">Starter (5 channels)</option>
             <option value="pro">Pro (10 channels)</option>
             <option value="growth">Growth (15 channels)</option>
-            <option value="agency">Agency (50 channels)</option>
+            <option value="agency">Agency (30 channels)</option>
           </select>
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
   Building,
 } from 'lucide-react';
 import { HorizontalComparisonBar } from './AdminCharts';
+import { OFFICIAL_PLANS } from '@/lib/pricing-config';
 
 interface BillingViewProps {
   billingData: {
@@ -206,39 +207,64 @@ export const BillingView: React.FC<BillingViewProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {[
-            { id: 'free', name: 'Free', price: '₹0', channels: 3, posts: '15 total/mo', badge: 'Get Started' },
-            { id: 'starter', name: 'Starter', price: '₹999', channels: 5, posts: 'Unlimited', badge: 'Start Growing' },
-            { id: 'pro', name: 'Pro', price: '₹1,999', channels: 10, posts: 'Unlimited', badge: 'Most Popular', highlight: true },
-            { id: 'growth', name: 'Growth', price: '₹2,999', channels: 15, posts: 'Unlimited', badge: 'Best Value' },
-            { id: 'agency', name: 'Agency', price: '₹9,999', channels: 50, posts: 'Unlimited', badge: 'Agency Scale' },
+            OFFICIAL_PLANS.free,
+            OFFICIAL_PLANS.starter,
+            OFFICIAL_PLANS.pro,
+            OFFICIAL_PLANS.growth,
+            OFFICIAL_PLANS.agency,
           ].map((plan) => {
             const activeSubs = subscriptions.filter((s) => {
               const pid = (s.plan_id || '').toLowerCase();
               return (pid === plan.id || (plan.id === 'pro' && pid === 'creator_pro') || (plan.id === 'agency' && pid === 'agency_scale')) && s.status === 'active';
             }).length;
 
+            const isPro = plan.id === 'pro';
+            const isGrowth = plan.id === 'growth';
+
             return (
               <div
                 key={plan.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  plan.highlight
-                    ? 'border-emerald-500 bg-emerald-50/20 shadow-xs'
-                    : 'border-gray-200 bg-gray-50/50 hover:bg-white'
+                className={`p-4 rounded-2xl border transition-all ${
+                  isPro
+                    ? 'border-emerald-500 bg-emerald-50/20 shadow-xs ring-1 ring-emerald-500/30'
+                    : isGrowth
+                    ? 'border-blue-500 bg-blue-50/20 shadow-xs ring-1 ring-blue-500/30'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-black text-gray-900">{plan.name}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                    plan.highlight ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700'
+                    isPro ? 'bg-emerald-600 text-white' : isGrowth ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
                   }`}>
-                    {plan.badge}
+                    {plan.badge || (plan.id === 'free' ? 'Free Forever' : 'Plan')}
                   </span>
                 </div>
-                <div className="text-lg font-black text-gray-900">{plan.price}<span className="text-[10px] font-normal text-gray-500">/mo</span></div>
-                <div className="mt-2 space-y-1 text-[11px] text-gray-600">
-                  <div>Channels: <strong className="text-gray-900">{plan.channels}</strong></div>
-                  <div>Posts: <strong className="text-gray-900">{plan.posts}</strong></div>
-                  <div className="pt-1 border-t border-gray-200/60 text-emerald-700 font-bold">
+
+                <div className="text-lg font-black text-gray-900">
+                  {plan.priceInr === 0 ? '₹0' : `₹${plan.priceInr.toLocaleString('en-IN')}`}
+                  <span className="text-[10px] font-normal text-gray-500">/mo</span>
+                </div>
+
+                {plan.id !== 'free' && (
+                  <div className="mt-1 pt-1 border-t border-gray-100 space-y-0.5">
+                    <div className="text-[11px] font-bold text-gray-800">
+                      ₹{plan.yearlyPriceInr.toLocaleString('en-IN')}
+                      <span className="text-[9px] font-normal text-gray-400">/yr</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400 line-through">
+                      ₹{plan.normalAnnualPriceInr.toLocaleString('en-IN')}/yr normal
+                    </div>
+                    <div className="text-[10px] font-bold text-emerald-600">
+                      Save ₹{plan.yearlySavingsInr.toLocaleString('en-IN')}/yr
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1 text-[11px] text-gray-600">
+                  <div>Channels: <strong className="text-gray-900">{plan.channelsLimit} connected</strong></div>
+                  <div>Posts: <strong className="text-gray-900">{plan.monthlyPostsLimit === -1 ? 'Unlimited' : '15 total/mo'}</strong></div>
+                  <div className="pt-1 border-t border-gray-100 text-emerald-700 font-bold">
                     {activeSubs} active {activeSubs === 1 ? 'subscriber' : 'subscribers'}
                   </div>
                 </div>

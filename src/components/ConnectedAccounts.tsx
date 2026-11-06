@@ -2693,7 +2693,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               </h3>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {channelLimitModal.planId === 'free'
-                  ? 'You have reached the Free plan limit of 3 connected social channels. Upgrade to Starter (5 channels), Pro (10 channels), Growth (15 channels), or Agency (50 channels) for more channels and unlimited scheduled posts.'
+                  ? 'You have reached the Free plan limit of 3 connected social channels. Upgrade to Starter (5 channels), Pro (10 channels), Growth (15 channels), or Agency (30 channels) for more channels and unlimited scheduled posts.'
                   : `You have connected all ${channelLimitModal.limit} channels in your current plan. Upgrade to a higher plan to connect more channels.`}
               </p>
             </div>

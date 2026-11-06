@@ -272,7 +272,7 @@ export const SubscriptionService = {
 
   /**
    * Enforces channel connection limit.
-   * Free = 3, Starter = 5, Pro = 10, Growth = 15, Agency = 50.
+   * Free = 3, Starter = 5, Pro = 10, Growth = 15, Agency = 30.
    */
   async checkCanConnectChannel(
     userId?: string,
@@ -294,7 +294,7 @@ export const SubscriptionService = {
         allowed: false,
         reason:
           sub.planId === 'free'
-            ? `You have reached the Free plan limit of ${limit} connected channels (${currentChannelsCount}/${limit} connected). Upgrade to Starter (5 channels), Pro (10 channels), Growth (15 channels), or Agency (50 channels) for more channels and unlimited posting.`
+            ? `You have reached the Free plan limit of ${limit} connected channels (${currentChannelsCount}/${limit} connected). Upgrade to Starter (5 channels), Pro (10 channels), Growth (15 channels), or Agency (30 channels) for more channels and unlimited posting.`
             : `You have reached the ${planConfig.name} plan limit of ${limit} connected channels (${currentChannelsCount}/${limit} connected). Upgrade to a higher plan to connect more channels.`,
         limit,
         current: currentChannelsCount,
@@ -334,11 +334,108 @@ export const SubscriptionService = {
   },
 
   /**
+   * Retrieves usage count from post_usage_ledger cache/file.
+   */
+  getLocalLedgerUsage(accountId: string, monthKey: string): number {
+    if (typeof window !== 'undefined') return 0;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = eval("require('fs')");
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = eval("require('path')");
+      const filePath = path.join(process.cwd(), 'src', 'data', 'usage_ledger.json');
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          return list.filter((item: any) => item.accountId === accountId && item.monthKey === monthKey).length;
+        }
+      }
+    } catch {}
+    return 0;
+  },
+
+  /**
+   * Records ledger entries to local JSON cache and Supabase post_usage_ledger.
+   * Uses ON CONFLICT (post_id, account_id) DO NOTHING to ensure idempotency.
+   */
+  async recordUsageEvent(params: {
+    postId: string;
+    accountIds: string[];
+    userId?: string;
+    workspaceId?: string;
+    actionType: 'schedule' | 'publish';
+    targetDate?: Date | string;
+  }): Promise<void> {
+    const { postId, accountIds, userId, workspaceId, actionType, targetDate } = params;
+    if (!postId || !accountIds || accountIds.length === 0) return;
+
+    const dateObj = targetDate ? new Date(targetDate) : new Date();
+    const { monthKey } = this.getMonthWindow(isNaN(dateObj.getTime()) ? new Date() : dateObj);
+
+    // 1. Write to local JSON file for instant access (server-side only)
+    if (typeof window === 'undefined') {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = eval("require('fs')");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const path = eval("require('path')");
+        const filePath = path.join(process.cwd(), 'src', 'data', 'usage_ledger.json');
+        let current: any[] = [];
+        if (fs.existsSync(filePath)) {
+          try {
+            current = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            if (!Array.isArray(current)) current = [];
+          } catch {}
+        }
+
+        for (const accId of accountIds) {
+          const exists = current.some((item: any) => item.postId === postId && item.accountId === accId);
+          if (!exists) {
+            current.push({
+              id: `ledger_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              postId,
+              accountId: accId,
+              userId: userId || 'customer',
+              workspaceId: workspaceId || null,
+              monthKey,
+              actionType,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        }
+        fs.writeFileSync(filePath, JSON.stringify(current, null, 2), 'utf-8');
+      } catch (e) {
+        console.warn('[UsageLedger] Failed to write local ledger:', e);
+      }
+    }
+
+    // 2. Persist to Supabase public.post_usage_ledger
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const rows = accountIds.map((accId) => ({
+          post_id: postId,
+          account_id: accId,
+          user_id: userId || 'customer',
+          workspace_id: workspaceId || null,
+          month_key: monthKey,
+          action_type: actionType,
+        }));
+        await client.from('post_usage_ledger').upsert(rows, { onConflict: 'post_id,account_id', ignoreDuplicates: true });
+      } catch (err) {
+        console.warn('[UsageLedger] Failed to upsert to Supabase post_usage_ledger:', err);
+      }
+    }
+  },
+
+  /**
    * Calculates monthly post usage.
-   * Free plan rule: 15 scheduled posts TOTAL per calendar month across all connected accounts.
-   * Paid plans (Starter, Pro, Growth, Agency): Unlimited posts.
-   * Drafts never count.
-   * Retries on the same post (excludePostId) do not duplicate count.
+   * Free plan rule:
+   * - Maximum 5 scheduled posts per connected channel per calendar month.
+   * - Maximum 15 posts total across all connected channels.
+   * - Deleting a scheduled or published post NEVER restores allowance (ledger preserved).
+   * - Paid plans (Starter, Pro, Growth, Agency): Unlimited posts.
    */
   calculateMonthlyUsage(
     posts: any[],
@@ -369,25 +466,33 @@ export const SubscriptionService = {
       return postDate >= start && postDate <= end;
     });
 
-    const totalUsedAllAccounts = countedPosts.length;
     const accountUsageMap: Record<string, AccountMonthlyUsage> = {};
+    let totalUsedAllAccounts = 0;
 
     for (const acc of accounts || []) {
       const accId = acc.id;
-      const matchingPosts = countedPosts.filter((p) => {
+      const liveMatching = countedPosts.filter((p) => {
         const targets = p.targetAccountIds || p.target_account_ids || [];
         return Array.isArray(targets) && targets.includes(accId);
-      });
+      }).length;
 
-      const usedCount = matchingPosts.length;
+      // Immutable ledger takes precedence so deleting a post never restores allowance
+      const ledgerCount = this.getLocalLedgerUsage(accId, monthKey);
+      const usedCount = Math.max(liveMatching, ledgerCount);
+
+      // Independent 5 posts per channel per month for Free plan
+      const accountLimit = isPaid ? -1 : 5;
+      const remaining = isPaid ? 9999 : Math.max(0, accountLimit - usedCount);
+
+      totalUsedAllAccounts += usedCount;
 
       accountUsageMap[accId] = {
         accountId: accId,
         accountName: acc.displayName || acc.username || 'Channel',
         platform: acc.platform || 'social',
         usedCount,
-        limit: isPaid ? -1 : totalMaxPosts,
-        remaining: isPaid ? 9999 : Math.max(0, totalMaxPosts - totalUsedAllAccounts),
+        limit: accountLimit,
+        remaining,
         monthKey,
         monthLabel,
         periodStart: start.toISOString(),
@@ -401,15 +506,17 @@ export const SubscriptionService = {
       monthLabel,
       resetsAt: resetsAt.toISOString(),
       totalPostsUsed: totalUsedAllAccounts,
-      totalPostsLimit: totalMaxPosts,
-      perAccountLimit: isPaid ? -1 : totalMaxPosts,
+      totalPostsLimit: totalMaxPosts, // 15
+      perAccountLimit: isPaid ? -1 : 5, // 5
       accounts: accountUsageMap,
     };
   },
 
   /**
    * Enforces plan limits on scheduling and publishing:
-   * Free plan: maximum 15 scheduled posts per calendar month TOTAL across all connected channels.
+   * Free plan:
+   * - Maximum 5 scheduled posts per connected channel per calendar month.
+   * - Maximum 15 posts total per calendar month across all channels.
    * Paid plans (Starter, Pro, Growth, Agency): Unlimited posts.
    */
   async checkCanPublishOrSchedulePosts(params: {
@@ -448,17 +555,50 @@ export const SubscriptionService = {
       };
     }
 
-    // Free plan: strictly enforce 15 posts total per calendar month across all connected accounts
+    const resetsDate = new Date(usageSummary.resetsAt).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    // 1. Check account-level limits: strictly 5 posts per account per calendar month
+    const blockedAccounts: { id: string; name: string; platform: string; count: number; limit: number }[] = [];
+    const allowedAccountIds: string[] = [];
+
+    for (const chId of targetAccountIds) {
+      const accUsage = usageSummary.accounts[chId];
+      const acc = accounts.find((a) => a.id === chId);
+      const used = accUsage ? accUsage.usedCount : 0;
+      if (used >= 5) {
+        blockedAccounts.push({
+          id: chId,
+          name: acc?.displayName || acc?.username || 'Channel',
+          platform: acc?.platform || 'social',
+          count: used,
+          limit: 5,
+        });
+      } else {
+        allowedAccountIds.push(chId);
+      }
+    }
+
+    if (blockedAccounts.length > 0) {
+      const blockedNames = blockedAccounts.map((b) => b.name).join(', ');
+      return {
+        allowed: false,
+        reason: `${blockedNames} has reached the Free plan monthly limit of 5 posts (5/5 used this month). Usage automatically resets on ${resetsDate}. Upgrade to Starter, Pro, Growth, or Agency for unlimited scheduled posts.`,
+        blockedAccounts,
+        allowedAccountIds,
+        usageSummary,
+        planId: 'free',
+      };
+    }
+
+    // 2. Check total monthly posts limit (15 total across all connected channels)
     const totalLimit = OFFICIAL_PLANS.free.monthlyPostsLimit; // 15
     const currentTotalUsed = usageSummary.totalPostsUsed;
 
     if (currentTotalUsed >= totalLimit) {
-      const resetsDate = new Date(usageSummary.resetsAt).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-
       const blockedList = targetAccountIds.map((chId) => {
         const acc = accounts.find((a) => a.id === chId);
         return {
@@ -546,6 +686,7 @@ export const SubscriptionService = {
     customerId?: string;
     amount?: number;
     currency?: 'INR' | 'USD';
+    billingInterval?: 'monthly' | 'yearly';
   }): Promise<CustomerSubscription> {
     const {
       userId,
@@ -558,13 +699,20 @@ export const SubscriptionService = {
       customerId,
       amount: customAmount,
       currency = 'INR',
+      billingInterval = 'monthly',
     } = params;
 
     const planId = this.normalizePlanId(requestedPlanId === 'free' ? 'pro' : requestedPlanId);
     const planConfig = OFFICIAL_PLANS[planId];
-    const finalAmount = customAmount !== undefined ? customAmount : planConfig.priceInr;
+    const isYearly = billingInterval === 'yearly';
+    const isUsd = currency === 'USD';
+    const defaultAmount = isYearly
+      ? (isUsd ? planConfig.yearlyPriceUsd : planConfig.yearlyPriceInr)
+      : (isUsd ? planConfig.priceUsd : planConfig.priceInr);
+    const finalAmount = customAmount !== undefined ? customAmount : defaultAmount;
     const now = new Date().toISOString();
-    const periodEnd = new Date(Date.now() + 30 * 86400000).toISOString();
+    const periodDurationMs = isYearly ? 365 * 86400000 : 30 * 86400000;
+    const periodEnd = new Date(Date.now() + periodDurationMs).toISOString();
 
     const subId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newSub: CustomerSubscription = {
@@ -579,7 +727,7 @@ export const SubscriptionService = {
       pricePerChannel: Math.round(finalAmount / planConfig.channelsLimit),
       amount: finalAmount,
       currency,
-      billingInterval: 'monthly',
+      billingInterval,
       status: 'active',
       provider,
       providerPaymentId,
@@ -614,7 +762,7 @@ export const SubscriptionService = {
             price_per_channel: Math.round(finalAmount / planConfig.channelsLimit),
             amount: finalAmount,
             currency,
-            billing_interval: 'monthly',
+            billing_interval: billingInterval,
             status: 'active',
             provider,
             provider_payment_id: providerPaymentId,

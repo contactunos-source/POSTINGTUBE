@@ -3,14 +3,21 @@
 import React, { useState } from 'react';
 import {
   X,
-  Zap,
   Check,
   Loader2,
   Lock,
   ShieldCheck,
-  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
-import { OFFICIAL_PLANS, PlanId, SubscriptionPlan } from '@/lib/pricing-config';
+import { PostingTubeLogo } from './PostingTubeLogo';
+import {
+  OFFICIAL_PLANS,
+  PlanId,
+  SubscriptionPlan,
+  BillingInterval,
+  BillingCurrency,
+  getPlanDisplayPrice,
+} from '@/lib/pricing-config';
 import { supabase } from '@/lib/supabase';
 
 interface UpgradePlanModalProps {
@@ -28,6 +35,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   onPlanUpdated,
 }) => {
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>('pro');
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
+  const [currency, setCurrency] = useState<BillingCurrency>('INR');
+  const [showYearlyToast, setShowYearlyToast] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -40,6 +50,17 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     OFFICIAL_PLANS.growth,
     OFFICIAL_PLANS.agency,
   ];
+
+  const handleToggleInterval = (interval: BillingInterval) => {
+    if (interval === billingInterval) return;
+    setBillingInterval(interval);
+    if (interval === 'yearly') {
+      setShowYearlyToast(true);
+      setTimeout(() => setShowYearlyToast(false), 4500);
+    } else {
+      setShowYearlyToast(false);
+    }
+  };
 
   const handleCheckout = async () => {
     setIsLoading(true);
@@ -60,6 +81,36 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       } catch {}
     }
 
+    // USD Checkout with Stripe
+    if (currency === 'USD') {
+      try {
+        const stripeRes = await fetch('/api/billing/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: selectedPlanId,
+            billingInterval,
+            currency: 'USD',
+            userId,
+            userEmail,
+          }),
+        });
+
+        const stripeData = await stripeRes.json();
+        if (stripeRes.ok && stripeData.success && stripeData.url) {
+          window.location.href = stripeData.url;
+          return;
+        } else {
+          throw new Error(stripeData.error || 'Failed to initialize Stripe checkout.');
+        }
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Stripe checkout unavailable.');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // INR Checkout with Razorpay
     try {
       // 1. Ensure Razorpay script is loaded
       if (typeof window !== 'undefined' && !window.Razorpay) {
@@ -74,12 +125,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
       const planConfig = OFFICIAL_PLANS[selectedPlanId];
 
-      // 2. Initialize Order on Backend
+      // 2. Initialize Order on Backend with billingInterval
       const res = await fetch('/api/billing/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: selectedPlanId,
+          billingInterval,
+          currency: 'INR',
           userId,
           userEmail,
         }),
@@ -91,6 +144,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       }
 
       const { order } = data;
+      const intervalLabel = billingInterval === 'yearly' ? 'Yearly' : 'Monthly';
 
       // 3. Open Razorpay Checkout Modal
       const options = {
@@ -98,7 +152,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         amount: order.amount,
         currency: 'INR',
         name: 'PostingTube',
-        description: `${planConfig.name} Plan • ${planConfig.channelsLimit} Channels • Monthly`,
+        description: `${planConfig.name} Plan • ${planConfig.channelsLimit} Channels • ${intervalLabel}`,
         order_id: order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
           name: userName,
@@ -118,6 +172,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 planId: selectedPlanId,
+                billingInterval,
+                currency: 'INR',
                 userId,
                 userEmail,
                 amount: order.totalAmount,
@@ -159,17 +215,16 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   };
 
   const activePlanConfig = OFFICIAL_PLANS[selectedPlanId];
+  const activePricing = getPlanDisplayPrice(activePlanConfig, billingInterval, currency);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Modal Header */}
+      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Modal Header with Official PostingTube Logo */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Zap className="w-4 h-4 fill-emerald-600" />
-            </div>
-            <div>
+          <div className="flex items-center space-x-3">
+            <PostingTubeLogo size="sm" />
+            <div className="border-l border-gray-200 pl-3">
               <h2 className="text-base font-black text-gray-950">Upgrade Your Plan</h2>
               <p className="text-[11px] text-gray-500">Connect more social channels with unlimited post scheduling.</p>
             </div>
@@ -189,23 +244,91 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-2xl text-xs flex items-center justify-between">
               <span>{errorMsg}</span>
-              <button onClick={() => setErrorMsg(null)} className="font-bold text-rose-600 ml-2">
+              <button onClick={() => setErrorMsg(null)} className="font-bold text-rose-600 ml-2 cursor-pointer">
                 Dismiss
               </button>
             </div>
           )}
+
+          {/* Interactive Controls Bar: Monthly/Yearly Toggle + Currency Switcher */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100 relative">
+            <div className="relative inline-flex items-center bg-white p-1 rounded-xl border border-gray-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleToggleInterval('monthly')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  billingInterval === 'monthly'
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleInterval('yearly')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  billingInterval === 'yearly'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                <span>Yearly</span>
+                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                  billingInterval === 'yearly' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  Save up to ₹7,989
+                </span>
+              </button>
+
+              {/* Toast when yearly selected */}
+              {showYearlyToast && (
+                <div className="absolute -top-10 left-0 z-50 bg-gray-900 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-xl flex items-center space-x-1.5 animate-in fade-in duration-150 whitespace-nowrap">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Your yearly discount has been applied!</span>
+                </div>
+              )}
+            </div>
+
+            <div className="inline-flex items-center bg-white p-1 rounded-xl border border-gray-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setCurrency('INR')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  currency === 'INR'
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                INR (₹)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('USD')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  currency === 'USD'
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                USD ($)
+              </button>
+            </div>
+          </div>
 
           {/* Plan Selector Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {paidPlans.map((plan) => {
               const isSelected = selectedPlanId === plan.id;
               const isCurrent = currentNormalized === plan.id;
+              const pricing = getPlanDisplayPrice(plan, billingInterval, currency);
+              const isYearly = billingInterval === 'yearly';
 
               return (
                 <div
                   key={plan.id}
                   onClick={() => !isCurrent && setSelectedPlanId(plan.id)}
-                  className={`relative p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`relative p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                     isCurrent
                       ? 'bg-gray-50 border-gray-200 opacity-60 cursor-default'
                       : isSelected
@@ -223,17 +346,29 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </span>
                   )}
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div>
                       <h4 className="text-base font-black text-gray-950">{plan.name}</h4>
                       <p className="text-[11px] text-gray-500">{plan.tagline}</p>
                     </div>
 
                     <div className="pt-1">
+                      {isYearly && pricing.normalAnnualFormatted && (
+                        <div className="text-[11px] text-gray-400 line-through font-medium">
+                          {pricing.normalAnnualFormatted}/year
+                        </div>
+                      )}
                       <div className="text-2xl font-black text-gray-950">
-                        ₹{plan.priceInr.toLocaleString('en-IN')}
-                        <span className="text-xs font-semibold text-gray-500">/mo</span>
+                        {pricing.priceFormatted}
+                        <span className="text-xs font-semibold text-gray-500">{pricing.periodLabel}</span>
                       </div>
+                      {isYearly && pricing.savingsFormatted && (
+                        <div className="mt-1">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Save {pricing.savingsFormatted} yearly
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-gray-100/70 rounded-xl px-2.5 py-1 text-[11px] font-bold text-gray-700">
@@ -278,8 +413,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-black text-gray-950">{activePlanConfig.name} Plan</span>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  ₹{activePlanConfig.priceInr.toLocaleString('en-IN')} / month
+                  {activePricing.priceFormatted} {activePricing.periodLabel}
                 </span>
+                {billingInterval === 'yearly' && activePricing.savingsFormatted && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                    Save {activePricing.savingsFormatted}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500">
                 Includes {activePlanConfig.channelsLimit} channels and unlimited post scheduling across all accounts.
@@ -302,7 +442,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               ) : (
                 <>
                   <Lock className="w-3.5 h-3.5" />
-                  <span>Pay ₹{activePlanConfig.priceInr.toLocaleString('en-IN')} via Razorpay</span>
+                  <span>Pay {activePricing.priceFormatted} &amp; Upgrade</span>
                 </>
               )}
             </button>
@@ -313,12 +453,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 shrink-0">
           <div className="flex items-center space-x-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Encrypted 256-bit payment verification via Razorpay.</span>
+            <span>100% Secure 256-bit encrypted payment verification.</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="font-semibold text-gray-600 hover:text-gray-900"
+            className="font-semibold text-gray-600 hover:text-gray-900 cursor-pointer"
           >
             Cancel
           </button>

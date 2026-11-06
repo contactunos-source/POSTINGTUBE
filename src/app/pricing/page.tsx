@@ -10,12 +10,19 @@ import {
   ShieldCheck,
   Zap,
   Sparkles,
-  HelpCircle,
-  Building,
   Users,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { PostingTubeLogo } from '@/components/PostingTubeLogo';
-import { OFFICIAL_PLANS, PlanId, SubscriptionPlan } from '@/lib/pricing-config';
+import {
+  OFFICIAL_PLANS,
+  PlanId,
+  SubscriptionPlan,
+  BillingInterval,
+  BillingCurrency,
+  getPlanDisplayPrice,
+} from '@/lib/pricing-config';
 import { supabase } from '@/lib/supabase';
 
 declare global {
@@ -25,6 +32,9 @@ declare global {
 }
 
 export default function PricingPage() {
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
+  const [currency, setCurrency] = useState<BillingCurrency>('INR');
+  const [showYearlyToast, setShowYearlyToast] = useState(false);
   const [loadingPlanId, setLoadingPlanId] = useState<PlanId | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<any>(null);
@@ -48,6 +58,19 @@ export default function PricingPage() {
       });
     }
   }, []);
+
+  // Handle switching to yearly
+  const handleToggleInterval = (interval: BillingInterval) => {
+    if (interval === billingInterval) return;
+    setBillingInterval(interval);
+    if (interval === 'yearly') {
+      setShowYearlyToast(true);
+      // Auto-hide toast after 4.5 seconds
+      setTimeout(() => setShowYearlyToast(false), 4500);
+    } else {
+      setShowYearlyToast(false);
+    }
+  };
 
   // Dynamically load Razorpay SDK
   const loadRazorpayScript = (): Promise<boolean> => {
@@ -77,18 +100,50 @@ export default function PricingPage() {
     const effectiveEmail = authUser?.email || 'customer@postingtube.com';
     const effectiveName = authUser?.user_metadata?.full_name || 'PostingTube Creator';
 
+    // USD Checkout -> Redirect to Stripe Checkout Session
+    if (currency === 'USD') {
+      try {
+        const stripeRes = await fetch('/api/billing/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: plan.id,
+            billingInterval,
+            currency: 'USD',
+            userId: effectiveUserId,
+            userEmail: effectiveEmail,
+          }),
+        });
+
+        const stripeData = await stripeRes.json();
+        if (stripeRes.ok && stripeData.success && stripeData.url) {
+          window.location.href = stripeData.url;
+          return;
+        } else {
+          throw new Error(stripeData.error || 'Failed to initialize Stripe checkout.');
+        }
+      } catch (err: any) {
+        setCheckoutError(err?.message || 'Stripe payments unavailable.');
+        setLoadingPlanId(null);
+        return;
+      }
+    }
+
+    // INR Checkout -> Open Razorpay Checkout Modal
     try {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
-        throw new Error('Failed to load secure Razorpay payment gateway. Please check your internet connection.');
+        throw new Error('Failed to load secure payment gateway. Please check your internet connection.');
       }
 
-      // 1. Create order on backend for the selected plan
+      // 1. Create order on backend for the selected plan and billing interval
       const orderRes = await fetch('/api/billing/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: plan.id,
+          billingInterval,
+          currency: 'INR',
           userId: effectiveUserId,
           userEmail: effectiveEmail,
         }),
@@ -100,6 +155,7 @@ export default function PricingPage() {
       }
 
       const { order } = orderData;
+      const intervalLabel = billingInterval === 'yearly' ? 'Yearly' : 'Monthly';
 
       // 2. Open Razorpay Checkout Modal
       const options = {
@@ -107,7 +163,7 @@ export default function PricingPage() {
         amount: order.amount,
         currency: 'INR',
         name: 'PostingTube',
-        description: `${plan.name} Plan • ${plan.channelsLimit} Channels • Monthly`,
+        description: `${plan.name} Plan • ${plan.channelsLimit} Channels • ${intervalLabel}`,
         order_id: order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
           name: effectiveName,
@@ -127,6 +183,8 @@ export default function PricingPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 planId: plan.id,
+                billingInterval,
+                currency: 'INR',
                 userId: effectiveUserId,
                 userEmail: effectiveEmail,
                 amount: order.totalAmount,
@@ -154,7 +212,7 @@ export default function PricingPage() {
 
       const razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on('payment.failed', function (resp: any) {
-        console.error('Razorpay payment failed:', resp.error);
+        console.error('Payment failed:', resp.error);
         setCheckoutError(`Payment failed: ${resp.error?.description || 'Transaction declined'}`);
         setLoadingPlanId(null);
       });
@@ -182,7 +240,7 @@ export default function PricingPage() {
           <div className="flex items-center space-x-3">
             <Link
               href="/dashboard"
-              className="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100 mr-2"
+              className="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100 mr-2 cursor-pointer"
               title="Return to Dashboard"
             >
               <ArrowLeft className="w-4 h-4 mr-1" />
@@ -194,7 +252,7 @@ export default function PricingPage() {
           <div className="flex items-center space-x-3">
             <Link
               href={authUser ? '/dashboard' : '/login'}
-              className="text-xs font-semibold text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              className="text-xs font-semibold text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             >
               {authUser ? 'Go to Dashboard' : 'Sign in'}
             </Link>
@@ -203,10 +261,10 @@ export default function PricingPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 space-y-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 space-y-10">
         {/* Title & Benefit-focused Headline */}
         <div className="text-center max-w-3xl mx-auto space-y-3">
-          <div className="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+          <div className="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
             <span>Official PostingTube Plans</span>
           </div>
@@ -217,7 +275,7 @@ export default function PricingPage() {
           </h1>
 
           <p className="text-sm sm:text-base text-gray-600 max-w-2xl mx-auto font-medium">
-            Designed for Indian creators, freelancers, businesses, and marketing agencies.
+            Designed for creators, freelancers, businesses, and marketing agencies.
             Schedule and publish across Instagram, Facebook, and YouTube with verified official Meta &amp; Google APIs.
           </p>
         </div>
@@ -228,12 +286,87 @@ export default function PricingPage() {
             <span>{checkoutError}</span>
             <button
               onClick={() => setCheckoutError(null)}
-              className="text-rose-600 hover:text-rose-900 font-bold ml-3"
+              className="text-rose-600 hover:text-rose-900 font-bold ml-3 cursor-pointer"
             >
               Dismiss
             </button>
           </div>
         )}
+
+        {/* Interactive Controls Bar: Monthly/Yearly Toggle + Currency Switcher */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative">
+          {/* Monthly / Yearly Billing Toggle */}
+          <div className="relative inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleToggleInterval('monthly')}
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                billingInterval === 'monthly'
+                  ? 'bg-white text-gray-950 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-950'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleInterval('yearly')}
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                billingInterval === 'yearly'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-950'
+              }`}
+            >
+              <span>Yearly</span>
+              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                billingInterval === 'yearly' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                Save up to ₹7,989
+              </span>
+            </button>
+
+            {/* Confirmation Toast near Billing Toggle when Yearly Selected */}
+            {showYearlyToast && (
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-2 duration-200 whitespace-nowrap">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Your yearly discount has been applied!</span>
+                <button
+                  type="button"
+                  onClick={() => setShowYearlyToast(false)}
+                  className="text-gray-400 hover:text-white ml-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* INR / USD Currency Switcher */}
+          <div className="inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200/90 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setCurrency('INR')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                currency === 'INR'
+                  ? 'bg-white text-gray-950 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-950'
+              }`}
+            >
+              INR (₹)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrency('USD')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                currency === 'USD'
+                  ? 'bg-white text-gray-950 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-950'
+              }`}
+            >
+              USD ($)
+            </button>
+          </div>
+        </div>
 
         {/* 5-Plan Responsive Pricing Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-stretch">
@@ -242,6 +375,8 @@ export default function PricingPage() {
             const isLoading = loadingPlanId === plan.id;
             const isPro = plan.isPopular;
             const isGrowth = plan.isBestValue;
+            const pricing = getPlanDisplayPrice(plan, billingInterval, currency);
+            const isYearly = billingInterval === 'yearly';
 
             return (
               <div
@@ -251,18 +386,18 @@ export default function PricingPage() {
                     ? 'border-2 border-emerald-500 shadow-xl ring-4 ring-emerald-500/10 scale-[1.02] z-10'
                     : isGrowth
                     ? 'border-2 border-blue-500 shadow-xl ring-4 ring-blue-500/10 scale-[1.01] z-10'
-                    : 'border border-gray-200 shadow-xs hover:shadow-md hover:border-gray-300'
-                } p-6`}
+                    : 'border border-gray-200/90 shadow-xs hover:shadow-md hover:border-gray-300'
+                } p-7`}
               >
                 {/* Badges */}
                 {isPro && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] font-black tracking-wider uppercase px-3.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] font-black tracking-wider uppercase px-3.5 py-1 rounded-full shadow-md flex items-center space-x-1 whitespace-nowrap">
                     <Sparkles className="w-3 h-3" />
                     <span>MOST POPULAR</span>
                   </div>
                 )}
                 {isGrowth && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black tracking-wider uppercase px-3.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black tracking-wider uppercase px-3.5 py-1 rounded-full shadow-md flex items-center space-x-1 whitespace-nowrap">
                     <Zap className="w-3 h-3 fill-white" />
                     <span>BEST VALUE</span>
                   </div>
@@ -276,28 +411,49 @@ export default function PricingPage() {
                   </div>
 
                   {/* Price Display */}
-                  <div className="pt-2 pb-1 border-b border-gray-100">
+                  <div className="pt-2 pb-2 border-b border-gray-100">
+                    {/* Normal annual price strikethrough in yearly mode */}
+                    {isYearly && plan.id !== 'free' && pricing.normalAnnualFormatted && (
+                      <div className="text-xs text-gray-400 font-medium line-through">
+                        {pricing.normalAnnualFormatted}/year
+                      </div>
+                    )}
+
                     <div className="flex items-baseline space-x-1">
                       <span className="text-3xl sm:text-4xl font-black text-gray-950">
-                        {plan.priceInr === 0 ? '₹0' : `₹${plan.priceInr.toLocaleString('en-IN')}`}
+                        {pricing.priceFormatted}
                       </span>
-                      <span className="text-xs font-semibold text-gray-500">/month</span>
+                      <span className="text-xs font-semibold text-gray-500">{pricing.periodLabel}</span>
                     </div>
-                    <p className="text-[11px] text-gray-500 font-medium mt-1">
-                      {plan.id === 'free' ? 'Free forever' : 'Billed monthly in INR'}
+
+                    {/* Actual Yearly Savings Badge */}
+                    {isYearly && plan.id !== 'free' && pricing.savingsFormatted && (
+                      <div className="mt-1.5">
+                        <span className="inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Save {pricing.savingsFormatted} yearly
+                        </span>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-gray-400 font-medium mt-1">
+                      {plan.id === 'free'
+                        ? 'Free forever'
+                        : isYearly
+                        ? `Billed yearly in ${currency}`
+                        : `Billed monthly in ${currency}`}
                     </p>
                   </div>
 
                   {/* Core Capacity Highlights */}
-                  <div className="bg-gray-50/80 rounded-2xl p-3 border border-gray-100 space-y-1.5">
+                  <div className="bg-gray-50/80 rounded-2xl p-3.5 border border-gray-100 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-medium">Channels:</span>
-                      <span className="font-bold text-gray-900">{plan.channelsLimit} connected</span>
+                      <span className="text-gray-600 font-semibold">Connected Channels:</span>
+                      <span className="font-bold text-gray-950">{plan.channelsLimit} channels</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-medium">Posts:</span>
-                      <span className={`font-bold ${plan.id === 'free' ? 'text-gray-900' : 'text-emerald-700'}`}>
-                        {plan.id === 'free' ? '15 total/month' : 'Unlimited'}
+                      <span className="text-gray-600 font-semibold">Monthly Posts:</span>
+                      <span className={`font-bold ${plan.id === 'free' ? 'text-gray-950' : 'text-emerald-700'}`}>
+                        {plan.id === 'free' ? '15 total/month (5/channel)' : 'Unlimited posts'}
                       </span>
                     </div>
                   </div>
@@ -375,7 +531,7 @@ export default function PricingPage() {
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                 <Lock className="w-5 h-5" />
               </div>
-              <h4 className="text-xs font-bold text-gray-900">Secure Razorpay Payments</h4>
+              <h4 className="text-xs font-bold text-gray-900">100% Secure Encrypted Payments</h4>
               <p className="text-[11px] text-gray-500">
                 Pay securely with UPI, Netbanking, Debit, or Credit cards. Encrypted and verified.
               </p>
