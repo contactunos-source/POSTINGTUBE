@@ -32,33 +32,60 @@ export async function POST(req: NextRequest) {
     await writeFile(filePath, buffer);
 
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|m4v)$/i.test(filename);
-    let publicUrl = `/uploads/${filename}`;
+    const hostHeader = req.headers.get('host') || 'localhost:3000';
+    const protocol = req.headers.get('x-forwarded-proto') || (hostHeader.includes('localhost') ? 'http' : 'https');
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${hostHeader}`;
+    let publicUrl = `${appBaseUrl}/uploads/${filename}`;
+
+    // Normalize MIME type for strict Supabase Storage bucket acceptance
+    let contentType = file.type || '';
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (contentType === 'image/jpg' || (!contentType && (ext === 'jpg' || ext === 'jpeg'))) {
+      contentType = 'image/jpeg';
+    } else if (!contentType && ext === 'png') {
+      contentType = 'image/png';
+    } else if (!contentType && ext === 'webp') {
+      contentType = 'image/webp';
+    } else if (!contentType && ext === 'gif') {
+      contentType = 'image/gif';
+    } else if (!contentType && ext === 'mp4') {
+      contentType = 'video/mp4';
+    } else if (!contentType && (ext === 'mov' || ext === 'quicktime')) {
+      contentType = 'video/quicktime';
+    } else if (!contentType && ext === 'webm') {
+      contentType = 'video/webm';
+    } else if (!contentType && ext === 'avi') {
+      contentType = 'video/x-msvideo';
+    }
 
     // Also attempt uploading to Supabase Storage if configured
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseAnonKey) {
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseKey) {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        const supabase = createClient(supabaseUrl, supabaseKey);
         
-        // Try known bucket names
+        // Try known bucket names, prioritizing postingtube-media
         for (const bucketName of ['postingtube-media', 'postbridge-media', 'media', 'uploads', 'public']) {
           const { data: sData, error: sErr } = await supabase.storage
             .from(bucketName)
-            .upload(filename, buffer, { contentType: file.type, upsert: true });
+            .upload(filename, buffer, { contentType: contentType || 'application/octet-stream', upsert: true });
 
           if (!sErr && sData) {
             const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(filename);
             if (pubData?.publicUrl) {
               publicUrl = pubData.publicUrl;
+              console.log(`[MediaUpload] Successfully uploaded to Supabase Storage (${bucketName}):`, publicUrl);
               break;
             }
+          } else if (sErr) {
+            console.warn(`[MediaUpload] Supabase Storage (${bucketName}) upload note:`, sErr.message);
           }
         }
       } catch (sbErr) {
         // Fall back gracefully to disk storage
-        console.warn('Supabase storage upload note:', sbErr);
+        console.warn('Supabase storage upload error:', sbErr);
       }
     }
 

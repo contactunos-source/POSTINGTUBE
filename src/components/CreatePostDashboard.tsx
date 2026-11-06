@@ -569,11 +569,32 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         setMediaList(updatedList);
       }
 
-      showToast('Uploading replaced slide...');
+      setUploadState({
+        isUploading: true,
+        progress: 1,
+        loadedBytes: 0,
+        totalBytes: file.size,
+        stage: 'uploading',
+        statusMessage: `Replacing slide ${index + 1}...`,
+        error: null,
+      });
+      setDisplayProgress(1);
+
       try {
-        const uploadRes = await uploadFileWithProgress(file, () => {});
+        const uploadRes = await uploadFileWithProgress(file, (pct, loaded, total, stage) => {
+          setUploadState((prev) => ({
+            ...prev,
+            progress: pct,
+            loadedBytes: loaded,
+            totalBytes: total,
+            stage,
+            statusMessage: `Uploading replaced slide (${pct}%)...`,
+          }));
+          setDisplayProgress(pct);
+        });
+
         if (uploadRes.success && uploadRes.url) {
-          const finalMedia = {
+          const finalMedia: PostMedia = {
             ...tempMedia,
             url: uploadRes.url,
             thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
@@ -585,10 +606,32 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           } else {
             setMediaList(finalList);
           }
+          setUploadState((prev) => ({
+            ...prev,
+            isUploading: false,
+            progress: 100,
+            stage: 'complete',
+            statusMessage: 'Slide updated successfully!',
+          }));
+          setDisplayProgress(100);
           showToast(`Slide ${index + 1} updated.`);
+        } else {
+          setUploadState((prev) => ({
+            ...prev,
+            isUploading: false,
+            stage: 'error',
+            error: uploadRes.error || 'Failed to upload slide',
+          }));
+          showToast(uploadRes.error || 'Slide replacement failed.');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Replace slide error:', e);
+        setUploadState((prev) => ({
+          ...prev,
+          isUploading: false,
+          stage: 'error',
+          error: e?.message || 'Error uploading slide',
+        }));
       }
       return;
     }
@@ -623,12 +666,33 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     const targetIdx = currentList.length;
     setActiveSlideIndices((prev) => ({ ...prev, [targetAccId]: targetIdx, global: targetIdx }));
 
-    showToast(`Uploading ${filesToAdd.length} carousel slide${filesToAdd.length > 1 ? 's' : ''}...`);
+    // Activate visible loading overlay for carousel slides upload
+    const totalBytesToAdd = filesToAdd.reduce((acc, f) => acc + f.size, 0);
+    setUploadState({
+      isUploading: true,
+      progress: 1,
+      loadedBytes: 0,
+      totalBytes: totalBytesToAdd,
+      stage: 'uploading',
+      statusMessage: `Uploading carousel slide (1 of ${filesToAdd.length})...`,
+      error: null,
+    });
+    setDisplayProgress(1);
 
     for (let i = 0; i < filesToAdd.length; i++) {
       const file = filesToAdd[i];
       try {
-        const uploadRes = await uploadFileWithProgress(file, () => {});
+        const uploadRes = await uploadFileWithProgress(file, (pct, loaded, total, stage) => {
+          const overallPct = Math.min(99, Math.round(((i + (pct / 100)) / filesToAdd.length) * 100));
+          setUploadState((prev) => ({
+            ...prev,
+            progress: overallPct,
+            stage,
+            statusMessage: `Uploading slide ${i + 1} of ${filesToAdd.length} (${pct}%)...`,
+          }));
+          setDisplayProgress(overallPct);
+        });
+
         if (uploadRes.success && uploadRes.url) {
           newItems[i] = {
             ...newItems[i],
@@ -646,6 +710,15 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         console.warn('Upload slide error:', err);
       }
     }
+
+    setUploadState((prev) => ({
+      ...prev,
+      isUploading: false,
+      progress: 100,
+      stage: 'complete',
+      statusMessage: 'Carousel updated successfully!',
+    }));
+    setDisplayProgress(100);
     showToast(`Carousel updated (${combinedList.length} slides total).`);
   };
 
@@ -2650,47 +2723,51 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                                 {/* Carousel or Single Media Actions Row */}
                                 {isCarousel ? (
-                                  <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                                    <div className="flex items-center space-x-2 min-w-0">
-                                      <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700 shrink-0">
-                                        {activeSlide + 1}/{effectiveMedia.length}
+                                  <div className="bg-white rounded-2xl border border-gray-200/90 p-3 shadow-2xs space-y-2.5">
+                                    {/* Top Row: Slide indicator + navigation arrows */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center space-x-2 min-w-0">
+                                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[11px] font-bold text-emerald-700 shrink-0">
+                                          Slide {activeSlide + 1} of {effectiveMedia.length}
+                                        </span>
+                                        <span className="text-[11px] text-gray-500 font-medium truncate">
+                                          {currentMedia?.size ? `${(currentMedia.size / (1024 * 1024)).toFixed(1)} MB` : ''}
+                                        </span>
+                                        {customizeMediaPerPlatform && (
+                                          <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Custom</span>
+                                        )}
                                       </div>
-                                      <span className="text-[11px] text-gray-500 font-medium truncate">
-                                        {currentMedia?.size ? `${(currentMedia.size / (1024 * 1024)).toFixed(1)} MB` : 'Slide'} • Slide {activeSlide + 1}
-                                      </span>
-                                      {customizeMediaPerPlatform && (
-                                        <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Custom</span>
-                                      )}
+
+                                      {/* Reorder Arrows */}
+                                      <div className="flex items-center space-x-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          disabled={activeSlide === 0}
+                                          onClick={() => handleCarouselMoveLeft(accId)}
+                                          className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
+                                          title="Move slide left"
+                                        >
+                                          <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={activeSlide === effectiveMedia.length - 1}
+                                          onClick={() => handleCarouselMoveRight(accId)}
+                                          className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
+                                          title="Move slide right"
+                                        >
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
 
-                                    <div className="flex items-center flex-wrap gap-1.5 shrink-0">
-                                      {/* Reorder Left */}
-                                      <button
-                                        type="button"
-                                        disabled={activeSlide === 0}
-                                        onClick={() => handleCarouselMoveLeft(accId)}
-                                        className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 text-xs font-semibold transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
-                                        title="Move slide left"
-                                      >
-                                        <ChevronLeft className="w-3.5 h-3.5" />
-                                      </button>
-
-                                      {/* Reorder Right */}
-                                      <button
-                                        type="button"
-                                        disabled={activeSlide === effectiveMedia.length - 1}
-                                        onClick={() => handleCarouselMoveRight(accId)}
-                                        className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 text-xs font-semibold transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
-                                        title="Move slide right"
-                                      >
-                                        <ChevronRight className="w-3.5 h-3.5" />
-                                      </button>
-
+                                    {/* Bottom Row: Actions (Replace, Remove, + Add Slide) */}
+                                    <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
                                       {/* Replace Slide */}
                                       <button
                                         type="button"
                                         onClick={() => triggerReplaceSlide(accId, activeSlide)}
-                                        className="px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-gray-200/80 shadow-2xs"
+                                        className="flex-1 py-1.5 px-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-gray-200/80 shadow-2xs"
                                         title="Replace this slide"
                                       >
                                         <RotateCcw className="w-3 h-3 text-gray-500" />
@@ -2701,7 +2778,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleCarouselRemoveSlide(accId, activeSlide)}
-                                        className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-rose-200/80 shadow-2xs"
+                                        className="flex-1 py-1.5 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-rose-200/80 shadow-2xs"
                                         title="Remove this slide"
                                       >
                                         <Trash2 className="w-3 h-3 text-rose-500" />
@@ -2713,7 +2790,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => triggerCreateCarousel(accId)}
-                                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                          className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-emerald-200/80 shadow-2xs"
                                           title="Add another slide (up to 10 max)"
                                         >
                                           <Plus className="w-3 h-3 text-emerald-600" />
