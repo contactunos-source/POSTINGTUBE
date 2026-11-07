@@ -117,11 +117,20 @@ export default function DashboardPage() {
       setMediaItems(StorageService.getMedia(user.id));
 
       // Asynchronously synchronize official account avatars (YouTube, Facebook, Instagram) in the background without blocking page load
-      fetch('/api/accounts/sync-avatars', { method: 'POST' })
+      fetch('/api/accounts/sync-avatars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: userWs, userId: user.id }),
+      })
         .then((r) => r.json())
         .then((res) => {
-          if (res?.success && Array.isArray(res.accounts) && res.accounts.length > 0) {
-            setAccounts(res.accounts);
+          if (res?.success && Array.isArray(res.accounts)) {
+            setAccounts((prev) =>
+              prev.map((acc) => {
+                const matched = res.accounts.find((a: any) => a.id === acc.id);
+                return matched?.avatarUrl ? { ...acc, avatarUrl: matched.avatarUrl } : acc;
+              })
+            );
           }
         })
         .catch((e) => console.warn('[AvatarSync] Notice:', e));
@@ -238,22 +247,14 @@ export default function DashboardPage() {
       );
       const hasAuthCookie = typeof document !== 'undefined' && document.cookie.includes('pb_auth_session=1');
 
-      // 1. Check guest demo session first
-      const guest = getGuestUser();
-      if (guest) {
-        if (isMounted) {
-          setAuthUser(guest);
-          await initUserData(guest);
-          setAuthChecking(false);
-        }
-        return;
-      }
-
-      // 2. Check Supabase session
+      // 1. Check Supabase authenticated session FIRST (Single Source of Truth)
       if (supabase) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('pb_guest_session');
+            }
             if (isMounted) {
               setAuthUser(session.user);
               await initUserData(session.user);
@@ -269,6 +270,9 @@ export default function DashboardPage() {
         const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
           if (session?.user) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('pb_guest_session');
+            }
             if (session.user.id !== currentUserIdRef.current) {
               setAccounts([]);
               setPosts([]);
@@ -286,64 +290,55 @@ export default function DashboardPage() {
           }
         });
 
-        // Check current session
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (currentSession?.user) {
-          if (isMounted) {
-            setAuthUser(currentSession.user);
-            await initUserData(currentSession.user);
-            setAuthChecking(false);
+        // Check current session via getUser
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('pb_guest_session');
+            }
+            if (isMounted) {
+              setAuthUser(user);
+              await initUserData(user);
+              setAuthChecking(false);
+            }
+            return;
           }
-          return;
-        }
+        } catch {}
 
-        // If returning from OAuth callback or auth cookie exists, preserve the authenticated session!
+        // If returning from OAuth callback, wait briefly for auth cookie
         if (isOAuthReturn || hasAuthCookie) {
-          signInAsGuest();
-          const restored = getGuestUser() || {
-            id: 'usr_oauth_user',
-            email: 'creator@postingtube.com',
-            user_metadata: { full_name: 'PostingTube Creator' },
-          };
-          if (isMounted) {
-            setAuthUser(restored);
-            await initUserData(restored);
-            setAuthChecking(false);
+          const { data: { session: retSession } } = await supabase.auth.getSession();
+          if (retSession?.user) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('pb_guest_session');
+            }
+            if (isMounted) {
+              setAuthUser(retSession.user);
+              await initUserData(retSession.user);
+              setAuthChecking(false);
+            }
+            return;
           }
-          return;
         }
+      }
 
-        // Auto-provision creator demo session so dashboard is immediately ready with zero login blockers
-        if (!getGuestUser() && !hasAuthCookie) {
-          signInAsGuest();
-          const autoGuest = getGuestUser() || {
-            id: 'usr_guest_demo',
-            email: 'creator@postingtube.com',
-            user_metadata: { full_name: 'PostingTube Creator' },
-          };
-          if (isMounted) {
-            setAuthUser(autoGuest);
-            await initUserData(autoGuest);
-            setAuthChecking(false);
-          }
-          return;
-        }
-
-        return () => {
-          listener.subscription.unsubscribe();
-        };
-      } else {
-        // Fallback demo mode if supabase client not loaded
-        signInAsGuest();
-        const fallbackGuest = getGuestUser() || {
-          id: 'usr_guest_demo',
-          email: 'demo@postingtube.com',
-          user_metadata: { full_name: 'Demo Creator' },
-        };
+      // 2. Check guest demo session only if explicitly saved AND no Supabase session exists
+      const guest = getGuestUser();
+      if (guest) {
         if (isMounted) {
-          setAuthUser(fallbackGuest);
-          await initUserData(fallbackGuest);
+          setAuthUser(guest);
+          await initUserData(guest);
           setAuthChecking(false);
+        }
+        return;
+      }
+
+      // 3. If unauthenticated, redirect to login
+      if (isMounted) {
+        setAuthChecking(false);
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?redirectTo=/dashboard';
         }
       }
     }
@@ -891,10 +886,19 @@ export default function DashboardPage() {
 
       // Also trigger official avatar sync
       try {
-        const syncRes = await fetch('/api/accounts/sync-avatars', { method: 'POST' });
+        const syncRes = await fetch('/api/accounts/sync-avatars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: userWs, userId: authUser.id }),
+        });
         const syncData = await syncRes.json();
-        if (syncData?.success && Array.isArray(syncData.accounts) && syncData.accounts.length > 0) {
-          setAccounts(syncData.accounts);
+        if (syncData?.success && Array.isArray(syncData.accounts)) {
+          setAccounts((prev) =>
+            prev.map((acc) => {
+              const matched = syncData.accounts.find((a: any) => a.id === acc.id);
+              return matched?.avatarUrl ? { ...acc, avatarUrl: matched.avatarUrl } : acc;
+            })
+          );
         }
       } catch (e) {
         console.warn('Avatar sync refresh notice:', e);

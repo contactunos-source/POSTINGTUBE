@@ -958,17 +958,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               {/* Card 2: Monthly Post Quota */}
               <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Monthly Post Usage</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Total Monthly Post Allowance</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     isFreePlan ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-purple-50 text-purple-700'
                   }`}>
-                    {isFreePlan ? 'Shared 30 Posts / Mo' : 'Unlimited'}
+                    {isFreePlan ? 'Shared Across All Platforms' : 'Unlimited Posts'}
                   </span>
                 </div>
                 <div className="mt-3">
                   <div className="flex items-baseline justify-between mb-1.5">
                     <span className="text-lg font-extrabold text-gray-900">{isFreePlan ? `${monthlyUsage.totalPostsUsed} / 30 posts` : 'Unlimited'}</span>
-                    <span className="text-[11px] text-gray-500 font-medium">{isFreePlan ? `${Math.max(0, 30 - monthlyUsage.totalPostsUsed)} remaining` : 'Resets 1st of month'}</span>
+                    <span className="text-[11px] text-gray-500 font-medium">{isFreePlan ? `${Math.max(0, 30 - monthlyUsage.totalPostsUsed)} remaining this month` : 'Resets 1st of month'}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                     <div
@@ -1121,49 +1121,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           </div>
                         </div>
 
-                        {/* Middle Box: Monthly Post Quota Usage Counter */}
-                        <div className="mt-4 bg-gray-50/80 border border-gray-100 rounded-xl p-3">
-                          <div className="flex items-center justify-between text-xs mb-1.5">
-                            <span className="text-[11px] font-semibold text-gray-500">{isFreePlan ? 'Shared Allowance' : 'Monthly Usage'}</span>
-                            <span className="font-bold text-gray-900 text-[11px]">
-                              {isFreePlan ? (
-                                <>
-                                  <span className={monthlyUsage.totalPostsUsed >= 30 ? 'text-rose-600 font-bold' : 'text-gray-900'}>
-                                    {monthlyUsage.totalPostsUsed}
-                                  </span>{' '}
-                                  / 30 shared
-                                </>
-                              ) : (
-                                <span className="text-emerald-700 font-bold">Unlimited Posts</span>
-                              )}
-                            </span>
-                          </div>
 
-                          {isFreePlan ? (
-                            <>
-                              <div className="w-full bg-gray-200/80 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                                    accUsage.usedCount >= 30
-                                      ? 'bg-rose-500'
-                                      : accUsage.usedCount >= 3
-                                      ? 'bg-amber-500'
-                                      : 'bg-emerald-500'
-                                  }`}
-                                  style={{ width: `${usagePercent}%` }}
-                                />
-                              </div>
-                              <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1.5 font-medium">
-                                <span>{Math.max(0, 30 - monthlyUsage.totalPostsUsed)} remaining (shared across channels)</span>
-                                <span>Resets 1st of month</span>
-                              </div>
-                            </>
-                          ) : (
-                            <p className="text-[10px] text-gray-400 font-medium">
-                              Full access to automated multi-channel posting
-                            </p>
-                          )}
-                        </div>
                       </div>
 
                       {/* Card Footer Actions */}

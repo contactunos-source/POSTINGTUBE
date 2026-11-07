@@ -8,9 +8,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { data: rows, error } = await supabase
-      .from('connected_accounts')
-      .select('*');
+    let workspaceId: string | null = null;
+    try {
+      const body = await req.json();
+      workspaceId = body?.workspaceId || null;
+    } catch {
+      workspaceId = req.nextUrl.searchParams.get('workspaceId');
+    }
+
+    let query = supabase.from('connected_accounts').select('*');
+    if (workspaceId) {
+      query = query.eq('workspace_id', workspaceId);
+    }
+    const { data: rows, error } = await query;
 
     if (error || !Array.isArray(rows)) {
       return NextResponse.json({ error: error?.message || 'Failed to fetch accounts' }, { status: 500 });
@@ -150,8 +160,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Return the updated accounts
-    const { data: updatedRows } = await supabase.from('connected_accounts').select('*');
+    // Return the updated accounts for this workspace
+    let retQuery = supabase.from('connected_accounts').select('*');
+    if (workspaceId) {
+      retQuery = retQuery.eq('workspace_id', workspaceId);
+    }
+    const { data: updatedRows } = await retQuery;
     const mapped = (updatedRows || []).map(mapDbAccountToAccount);
 
     return NextResponse.json({

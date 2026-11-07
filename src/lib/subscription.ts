@@ -499,8 +499,10 @@ export const SubscriptionService = {
     const countedPosts = (posts || []).filter((p) => {
       if (!p) return false;
       if (options?.excludePostId && p.id === options.excludePostId) return false;
-      if (p.status === 'draft') return false; // Drafts do not consume slots until scheduled
-      if (p.status === 'failed' && !p.results) return false;
+      // Only count active committed posts: scheduled, published, partially_published, or publishing
+      if (p.status !== 'scheduled' && p.status !== 'published' && p.status !== 'partially_published' && p.status !== 'publishing') {
+        return false;
+      }
 
       const ts = p.publishedAt || p.scheduledFor || p.createdAt || p.updatedAt;
       if (!ts) return false;
