@@ -1190,7 +1190,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         }
       }
 
-      // 2. Instagram Compatibility: Requires media; Reels require video
+      // 2. Instagram Compatibility: Requires media (text-only not supported on Instagram)
       if (acc.platform === 'instagram') {
         if (currentPostType === 'text') {
           warnings.push({
@@ -1198,26 +1198,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             accountName: acc.displayName || acc.username,
             platform: 'instagram',
             issue: `Instagram does not support text-only posts. Media (image or video) is required.`,
-          });
-        }
-        if (activeFormat === 'reel' && hasImage && !hasVideo) {
-          warnings.push({
-            accountId: acc.id,
-            accountName: acc.displayName || acc.username,
-            platform: 'instagram',
-            issue: `Instagram Reels require video media. Remove images or switch format to Post.`,
-          });
-        }
-      }
-
-      // 3. Facebook Compatibility: Reels require video
-      if (acc.platform === 'facebook') {
-        if (activeFormat === 'reel' && hasImage && !hasVideo) {
-          warnings.push({
-            accountId: acc.id,
-            accountName: acc.displayName || acc.username,
-            platform: 'facebook',
-            issue: `Facebook Reels require video media. Remove images or switch format to Post.`,
           });
         }
       }
@@ -4109,37 +4089,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
               {scheduleMode === 'schedule' ? (
                 <div className="space-y-4">
-                  {/* Media Compatibility Warning Banner for Schedule Mode */}
-                  {hasBlockingWarning && (
-                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-xs animate-in fade-in">
-                      <div className="flex items-center space-x-2 text-rose-800 font-bold">
-                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                        <span>Scheduling Blocked</span>
-                      </div>
-                      <div className="space-y-1.5 text-rose-700 text-[11px] leading-snug">
-                        {platformMediaWarnings.map((w, idx) => (
-                          <div key={idx} className="flex items-start justify-between gap-2 bg-white/80 p-2 rounded-xl border border-rose-100">
-                            <div className="min-w-0">
-                              <span className="font-bold text-rose-900 block">{w.accountName}:</span>
-                              <span className="text-rose-700">{w.issue}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleAccount(w.accountId)}
-                              className="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-bold transition-colors cursor-pointer shrink-0"
-                              title={`Unselect ${w.accountName}`}
-                            >
-                              Unselect
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-rose-600 font-medium pt-0.5">
-                        Unselect the unsupported platform above or replace media to enable scheduling.
-                      </p>
-                    </div>
-                  )}
-
                   {/* Professional Date & Time Picker */}
                   <ScheduleDatePicker
                     scheduledDate={scheduledDate}
@@ -4177,37 +4126,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               ) : (
                 /* Instant Live Dispatch Mode */
                 <div className="space-y-4">
-                  {/* Media Compatibility Warning Banner for Instant Mode */}
-                  {hasBlockingWarning && (
-                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-xs animate-in fade-in">
-                      <div className="flex items-center space-x-2 text-rose-800 font-bold">
-                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                        <span>Publishing Blocked</span>
-                      </div>
-                      <div className="space-y-1.5 text-rose-700 text-[11px] leading-snug">
-                        {platformMediaWarnings.map((w, idx) => (
-                          <div key={idx} className="flex items-start justify-between gap-2 bg-white/80 p-2 rounded-xl border border-rose-100">
-                            <div className="min-w-0">
-                              <span className="font-bold text-rose-900 block">{w.accountName}:</span>
-                              <span className="text-rose-700">{w.issue}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleAccount(w.accountId)}
-                              className="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-bold transition-colors cursor-pointer shrink-0"
-                              title={`Unselect ${w.accountName}`}
-                            >
-                              Unselect
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-rose-600 font-medium pt-0.5">
-                        Unselect the unsupported platform above or replace media to enable publishing.
-                      </p>
-                    </div>
-                  )}
-
                   <button
                     type="button"
                     disabled={isSubmitting || hasBlockingWarning}
