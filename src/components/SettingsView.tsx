@@ -535,7 +535,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {isPaidPlan ? `Configured for up to ${subscriptionData?.channelsCount || 5} connected social channels with unlimited scheduling.` : 'Free starter tier with 3 social accounts and 15 scheduled posts total per month.'}
+                  {isPaidPlan ? `Configured for up to ${subscriptionData?.channelsCount || 5} connected social channels with unlimited scheduling.` : 'Free starter tier with 3 social accounts and 30 shared scheduled posts per month.'}
                 </p>
               </div>
 
@@ -586,10 +586,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   Scheduled Posts
                 </span>
                 <div className="text-2xl font-black text-gray-900">
-                  {isPaidPlan ? 'Unlimited' : `${usageData?.monthlyPosts?.totalUsed ?? usageData?.scheduledPosts?.total ?? 0} / 15`}
+                  {isPaidPlan ? 'Unlimited' : `${usageData?.monthlyPosts?.totalUsed ?? usageData?.scheduledPosts?.total ?? 0} / 30`}
                 </div>
                 <span className="text-[11px] text-gray-500 block">
-                  {isPaidPlan ? 'Unlimited scheduled posts' : 'Max 15 posts total per month'}
+                  {isPaidPlan ? 'Unlimited scheduled posts' : 'Max 30 shared posts per month'}
                 </span>
               </div>
 
@@ -628,14 +628,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {!isProPlan && usageData?.scheduledPosts?.byChannel && Object.keys(usageData.scheduledPosts.byChannel).length > 0 && (
               <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2">
                 <span className="text-xs font-bold text-amber-950 block">
-                  Scheduled Posts Usage (5 Posts Limit Per Channel):
+                  Scheduled Posts Usage (30 Shared Posts Limit / Mo):
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {Object.entries(usageData.scheduledPosts.byChannel).map(([accId, item]: any) => (
                     <div key={accId} className="p-2.5 bg-white rounded-lg border border-amber-200 text-xs flex items-center justify-between">
                       <span className="font-semibold text-gray-800 truncate mr-2">{item.name}</span>
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${item.scheduledCount >= 5 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
-                        {item.scheduledCount} / 5
+                        {item.scheduledCount} posts
                       </span>
                     </div>
                   ))}

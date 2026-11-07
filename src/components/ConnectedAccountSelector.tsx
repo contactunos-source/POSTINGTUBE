@@ -178,8 +178,8 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                         return (
                           <div className={`text-[10px] ${isReached ? 'text-gray-300 font-semibold' : 'text-gray-400 font-medium'}`}>
                             {isReached
-                              ? `Monthly limit reached (${displayCount}/${limit})`
-                              : `${usage.usedCount}/${limit} posts used this month (${Math.max(0, limit - usage.usedCount)} left)`}
+                              ? `Monthly limit reached (${displayCount}/${limit} shared posts)`
+                              : `${usage.usedCount}/${limit} shared posts used this month (${Math.max(0, limit - usage.usedCount)} left)`}
                           </div>
                         );
                       })()

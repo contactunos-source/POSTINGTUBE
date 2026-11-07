@@ -29,6 +29,7 @@ import {
   CalendarDays,
   List as ListIcon,
   Sparkles,
+  RotateCw,
 } from 'lucide-react';
 import {
   format,
@@ -73,6 +74,7 @@ interface CalendarViewProps {
   onReschedulePost?: (postId: string, newScheduledFor: string) => Promise<boolean>;
   openCreateModal?: () => void;
   onNavigateToTab?: (tab: string) => void;
+  onRefreshData?: () => Promise<void> | void;
 }
 
 export type CalendarViewMode = 'day' | 'week' | 'month' | 'year';
@@ -86,13 +88,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onReschedulePost,
   openCreateModal,
   onNavigateToTab,
+  onRefreshData,
 }) => {
   // Navigation & View Mode
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Auto-refresh when CalendarView mounts to ensure 100% backend synchronization
+  useEffect(() => {
+    if (onRefreshData) {
+      onRefreshData();
+    }
+  }, []);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'scheduled' | 'draft' | 'failed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'scheduled' | 'draft' | 'failed' | 'partially_published'>('all');
   const [platformFilter, setPlatformFilter] = useState<'all' | SocialPlatform>('all');
   const [postTypeFilter, setPostTypeFilter] = useState<'all' | 'post' | 'reel' | 'video' | 'story'>('all');
 
@@ -269,11 +280,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const filteredPosts = useMemo(() => {
     return posts.filter((p) => {
       // Status filter
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'failed') {
+          const isOverallFailed = p.status === 'failed';
+          const isPartialFailed = p.status === 'partially_published';
+          const hasFailedChannel = Object.values(p.results || {}).some(
+            (r: any) => r?.status === 'failed' || r?.status === 'action_required' || r?.error || r?.errorMessage
+          );
+          if (!isOverallFailed && !isPartialFailed && !hasFailedChannel) return false;
+        } else if (statusFilter === 'partially_published') {
+          if (p.status !== 'partially_published') return false;
+        } else if (p.status !== statusFilter) {
+          return false;
+        }
+      }
 
       // Platform filter
       if (platformFilter !== 'all') {
-        const postAccs = accounts.filter((a) => p.targetAccountIds.includes(a.id));
+        const resultAccIds = Object.keys(p.results || {});
+        const allIds = Array.from(new Set([...(p.targetAccountIds || []), ...resultAccIds]));
+        const postAccs = accounts.filter((a) => allIds.includes(a.id));
         const hasPlatform = postAccs.some((a) => a.platform === platformFilter);
         if (!hasPlatform) return false;
       }
@@ -416,13 +442,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Helper to determine per-account publish status for a post
   const getAccountPublishStatus = (postItem: Post, account: SocialAccount) => {
-    if (postItem.status === 'scheduled') return 'scheduled';
     if (postItem.status === 'draft') return 'draft';
+    if (postItem.status === 'scheduled') return 'scheduled';
 
-    const res = postItem.results?.[account.id] || postItem.results?.[account.platform];
-    if (res?.status === 'failed') return 'failed';
-    if (res?.status === 'action_required' || (account.platform === 'youtube' && postItem.status === 'failed')) return 'failed';
-    if (res?.status === 'success') return 'success';
+    const res = (postItem.results?.[account.id] || postItem.results?.[account.platform]) as any;
+    if (res?.status === 'failed' || res?.status === 'action_required' || Boolean(res?.error) || Boolean(res?.errorMessage)) {
+      return 'failed';
+    }
+    if (res?.status === 'success') {
+      return 'success';
+    }
 
     if (postItem.status === 'failed') return 'failed';
     if (postItem.status === 'published') return 'success';
@@ -474,6 +503,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             ? 'border-gray-200/90 hover:border-emerald-500'
             : post.status === 'draft'
             ? 'border-amber-200/90 hover:border-amber-400'
+            : post.status === 'partially_published'
+            ? 'border-amber-300 hover:border-amber-500 bg-amber-50/15'
             : 'border-rose-200/90 hover:border-rose-400 bg-rose-50/15'
         }`}
       >
@@ -537,6 +568,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   ? 'bg-sky-500'
                   : post.status === 'draft'
                   ? 'bg-amber-500'
+                  : post.status === 'partially_published'
+                  ? 'bg-amber-500 ring-2 ring-amber-200'
                   : 'bg-rose-500 ring-2 ring-rose-200 animate-pulse'
               }`}
               title={`Status: ${post.status}`}
@@ -677,6 +710,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             Today
           </button>
 
+          {/* Refresh Button */}
+          {onRefreshData && (
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await onRefreshData();
+                } finally {
+                  setTimeout(() => setIsRefreshing(false), 400);
+                }
+              }}
+              disabled={isRefreshing}
+              className="p-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer flex items-center space-x-1"
+              title="Refresh calendar posts"
+            >
+              <RotateCw className={`w-3.5 h-3.5 text-gray-500 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+            </button>
+          )}
+
           {/* View Mode Selector Dropdown: Day, Week, Month, Year */}
           <div className="relative" ref={viewMenuRef}>
             <button
@@ -731,6 +783,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {[
                   { id: 'all', label: 'All Posts' },
                   { id: 'published', label: 'Published' },
+                  { id: 'partially_published', label: 'Partially Published' },
                   { id: 'scheduled', label: 'Scheduled' },
                   { id: 'draft', label: 'Drafts' },
                   { id: 'failed', label: 'Failed' },

@@ -270,7 +270,7 @@ async function handlePublishCron(req: NextRequest) {
         );
 
         // Update post status in Supabase
-        const overallStatus = postSuccessCount > 0 ? 'published' : postFailCount > 0 ? 'failed' : 'published';
+        const overallStatus = (postSuccessCount > 0 && postFailCount > 0) ? 'partially_published' : (postSuccessCount > 0 ? 'published' : (postFailCount > 0 ? 'failed' : 'published'));
         await supabase
           .from('posts')
           .update({

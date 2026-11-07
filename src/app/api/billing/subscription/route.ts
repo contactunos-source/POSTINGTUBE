@@ -57,10 +57,11 @@ export async function GET(req: NextRequest) {
         },
         monthlyPosts: {
           totalUsed: monthlyUsage.totalPostsUsed,
-          totalLimit: monthlyUsage.totalPostsLimit, // 15 for Free, -1 for paid plans
-          perAccountLimit: monthlyUsage.perAccountLimit,
+          totalLimit: monthlyUsage.totalPostsLimit, // 30 for Free, -1 for paid plans
+          remaining: monthlyUsage.remainingPosts ?? Math.max(0, (monthlyUsage.totalPostsLimit === -1 ? 999999 : 30) - monthlyUsage.totalPostsUsed),
           monthLabel: monthlyUsage.monthLabel,
           resetsAt: monthlyUsage.resetsAt,
+          isLimitReached: monthlyUsage.isLimitReached,
           byChannel: monthlyUsage.accounts,
         },
         scheduledPosts: {

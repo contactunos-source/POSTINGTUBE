@@ -11,7 +11,7 @@ export type SocialPlatform =
 
 export type PostType = 'post' | 'reel' | 'story' | 'video' | 'short' | 'carousel';
 
-export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed' | 'needs_approval';
+export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed' | 'needs_approval' | 'partially_published';
 
 export interface SocialAccount {
   id: string;

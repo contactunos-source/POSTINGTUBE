@@ -818,10 +818,10 @@ export default function LandingPage() {
                             plan.id === 'free' ? 'text-gray-950' : 'text-emerald-700 font-extrabold'
                           }`}
                         >
-                          {plan.id === 'free' ? '15 posts / month' : 'Unlimited posts'}
+                          {plan.id === 'free' ? '30 posts / month' : 'Unlimited posts'}
                         </div>
                         <div className="text-[11px] font-medium text-gray-500 mt-0.5">
-                          {plan.id === 'free' ? '5 posts per channel' : 'No scheduling caps'}
+                          {plan.id === 'free' ? 'Shared across all channels' : 'No scheduling caps'}
                         </div>
                       </div>
                     </div>

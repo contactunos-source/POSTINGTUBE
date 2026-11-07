@@ -888,7 +888,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   ? 'bg-purple-50 text-purple-700 border border-purple-200'
                   : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               }`}>
-                {subscriptionData?.planId === 'pro' ? '★ Pro Plan' : 'Free Plan (5 Posts / Channel / Mo)'}
+                {subscriptionData?.planId && subscriptionData.planId !== 'free' ? `★ ${subscriptionData.planId.toUpperCase()} Plan` : 'Free Plan (30 Shared Posts / Mo)'}
               </span>
             </div>
             <p className="text-sm text-gray-500 mt-1.5 max-w-2xl leading-relaxed">
@@ -927,7 +927,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           const maxChannels = isFreePlan ? 3 : (subscriptionData?.channelsCount || 5);
           const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
           const channelUsagePercent = Math.min(100, Math.round((accounts.length / maxChannels) * 100));
-          const postsUsagePercent = isFreePlan ? Math.min(100, Math.round((monthlyUsage.totalPostsUsed / 15) * 100)) : 0;
+          const postsUsagePercent = isFreePlan ? Math.min(100, Math.round((monthlyUsage.totalPostsUsed / 30) * 100)) : 0;
 
           return (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -962,13 +962,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     isFreePlan ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-purple-50 text-purple-700'
                   }`}>
-                    {isFreePlan ? '5 / Account / Mo' : 'Unlimited'}
+                    {isFreePlan ? 'Shared 30 Posts / Mo' : 'Unlimited'}
                   </span>
                 </div>
                 <div className="mt-3">
                   <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-lg font-extrabold text-gray-900">{isFreePlan ? `${monthlyUsage.totalPostsUsed} / 15 posts` : 'Unlimited'}</span>
-                    <span className="text-[11px] text-gray-400 font-medium">Resets 1st of month</span>
+                    <span className="text-lg font-extrabold text-gray-900">{isFreePlan ? `${monthlyUsage.totalPostsUsed} / 30 posts` : 'Unlimited'}</span>
+                    <span className="text-[11px] text-gray-500 font-medium">{isFreePlan ? `${Math.max(0, 30 - monthlyUsage.totalPostsUsed)} remaining` : 'Resets 1st of month'}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                     <div
@@ -1015,13 +1015,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             </p>
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Free Plan includes up to 3 connected channels (5 posts/channel/mo)</span>
+              <span>Free Plan includes up to 3 connected channels (30 shared posts/mo)</span>
             </div>
           </div>
         ) : (
           /* Active Account Cards Grid */
           (() => {
-            const isFreePlan = subscriptionData?.planId !== 'pro';
+            const isFreePlan = subscriptionData?.planId === 'free' || !subscriptionData?.planId;
             const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
 
             return (
@@ -1034,7 +1034,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     remaining: isFreePlan ? 5 : 999999,
                     isExceeded: false,
                   };
-                  const usagePercent = isFreePlan ? Math.min(100, Math.round((accUsage.usedCount / 5) * 100)) : 0;
+                  const usagePercent = isFreePlan ? Math.min(100, Math.round((monthlyUsage.totalPostsUsed / 30) * 100)) : 0;
                   const isExpired = account.status === 'expired' || account.status === 'error';
 
                   return (
@@ -1124,17 +1124,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         {/* Middle Box: Monthly Post Quota Usage Counter */}
                         <div className="mt-4 bg-gray-50/80 border border-gray-100 rounded-xl p-3">
                           <div className="flex items-center justify-between text-xs mb-1.5">
-                            <span className="text-[11px] font-semibold text-gray-500">Monthly Usage</span>
+                            <span className="text-[11px] font-semibold text-gray-500">{isFreePlan ? 'Shared Allowance' : 'Monthly Usage'}</span>
                             <span className="font-bold text-gray-900 text-[11px]">
                               {isFreePlan ? (
                                 <>
-                                  <span className={accUsage.usedCount >= 5 ? 'text-rose-600' : 'text-gray-900'}>
-                                    {accUsage.usedCount}
+                                  <span className={monthlyUsage.totalPostsUsed >= 30 ? 'text-rose-600 font-bold' : 'text-gray-900'}>
+                                    {monthlyUsage.totalPostsUsed}
                                   </span>{' '}
-                                  / 5 posts
+                                  / 30 shared
                                 </>
                               ) : (
-                                <span className="text-emerald-700 font-bold">Unlimited Pro</span>
+                                <span className="text-emerald-700 font-bold">Unlimited Posts</span>
                               )}
                             </span>
                           </div>
@@ -1144,7 +1144,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                               <div className="w-full bg-gray-200/80 rounded-full h-1.5 overflow-hidden">
                                 <div
                                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                                    accUsage.usedCount >= 5
+                                    accUsage.usedCount >= 30
                                       ? 'bg-rose-500'
                                       : accUsage.usedCount >= 3
                                       ? 'bg-amber-500'
@@ -1154,7 +1154,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 />
                               </div>
                               <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1.5 font-medium">
-                                <span>{accUsage.remaining > 0 ? `${accUsage.remaining} remaining` : 'Limit reached'}</span>
+                                <span>{Math.max(0, 30 - monthlyUsage.totalPostsUsed)} remaining (shared across channels)</span>
                                 <span>Resets 1st of month</span>
                               </div>
                             </>

@@ -411,6 +411,31 @@ export default function DashboardPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Realtime subscription on Supabase `posts` table to keep Calendar and Post list 100% in sync
+  useEffect(() => {
+    if (!supabase || !authUser?.id) return;
+    const client = supabase;
+
+    const channel = client
+      .channel(`realtime:posts:${authUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'posts',
+        },
+        () => {
+          handleRefreshUserData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [authUser?.id]);
+
   // Active Publishing Daemon for Scheduled Posts
   // Track in-flight post IDs to prevent concurrent executions
   const publishingPostIdsRef = React.useRef<Set<string>>(new Set());
@@ -477,6 +502,10 @@ export default function DashboardPage() {
   const handleTabChange = (tab: ActiveTab) => {
     if (activeTab !== tab) setPreviousTab(activeTab);
     setActiveTab(tab);
+
+    if (tab === 'calendar' || tab === 'posts-all' || tab === 'connections') {
+      handleRefreshUserData();
+    }
 
     try {
       localStorage.setItem('postingtube_active_tab', tab);
@@ -587,7 +616,7 @@ export default function DashboardPage() {
     action: 'schedule' | 'publish-now' | 'draft',
     onProgress?: (update: any) => void
   ) => {
-    // 1. Monthly limit enforcement for Free plan (5 posts per account per month)
+    // 1. Monthly limit enforcement for Free plan (30 shared posts per month)
     // Applies to both immediate publishing and scheduling. Drafts are exempt.
     if (action === 'schedule' || action === 'publish-now') {
       const { SubscriptionService } = await import('@/lib/subscription');
@@ -604,7 +633,7 @@ export default function DashboardPage() {
       if (!check.allowed) {
         alert(
           check.reason ||
-            'Monthly post limit reached (5 scheduled or published posts per connected account per month on Free plan). Upgrade to Pro for unlimited posting.'
+            'Monthly post limit reached (30 scheduled posts per calendar month on Free plan). Upgrade to a paid plan for unlimited posting.'
         );
         return;
       }
@@ -1035,6 +1064,7 @@ export default function DashboardPage() {
             onReschedulePost={handleReschedulePost}
             onNavigateToTab={(tab) => handleTabChange(tab as any)}
             openCreateModal={() => handleOpenCreateModal('image')}
+            onRefreshData={handleRefreshUserData}
             onCreateAtDate={(d) => {
               setPreviousTab('calendar');
               const dayStr = getIstDateString(d);

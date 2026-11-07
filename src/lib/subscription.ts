@@ -116,10 +116,13 @@ export interface AccountMonthlyUsage {
 export interface MonthlyUsageSummary {
   planId: PlanId;
   monthLabel: string;
+  monthKey?: string;
   resetsAt: string;
   totalPostsUsed: number;
   totalPostsLimit: number;
   perAccountLimit: number;
+  remainingPosts?: number;
+  isLimitReached?: boolean;
   accounts: Record<string, AccountMonthlyUsage>;
 }
 
@@ -334,10 +337,11 @@ export const SubscriptionService = {
   },
 
   /**
-   * Retrieves usage count from post_usage_ledger cache/file.
+   * Retrieves unique post IDs from local post_usage_ledger cache/file.
    */
-  getLocalLedgerUsage(accountId: string, monthKey: string): number {
-    if (typeof window !== 'undefined') return 0;
+  getLocalLedgerPostIds(monthKey: string, userId?: string): Set<string> {
+    const postIds = new Set<string>();
+    if (typeof window !== 'undefined') return postIds;
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = eval("require('fs')");
@@ -348,30 +352,47 @@ export const SubscriptionService = {
         const raw = fs.readFileSync(filePath, 'utf-8');
         const list = JSON.parse(raw);
         if (Array.isArray(list)) {
-          return list.filter((item: any) => item.accountId === accountId && item.monthKey === monthKey).length;
+          for (const item of list) {
+            if (item.monthKey === monthKey) {
+              if (!userId || item.userId === userId || !item.userId || item.userId === 'customer') {
+                if (item.postId) postIds.add(item.postId);
+              }
+            }
+          }
         }
       }
     } catch {}
-    return 0;
+    return postIds;
   },
 
   /**
-   * Records ledger entries to local JSON cache and Supabase post_usage_ledger.
-   * Uses ON CONFLICT (post_id, account_id) DO NOTHING to ensure idempotency.
+   * Backward-compatible helper for per-account ledger check.
+   * With shared monthly usage, returns the shared post count for the month.
+   */
+  getLocalLedgerUsage(accountId: string, monthKey: string): number {
+    return this.getLocalLedgerPostIds(monthKey).size;
+  },
+
+  /**
+   * Records ledger entry for a unique committed scheduled or published post.
+   * Consumes exactly 1 slot per post, regardless of how many channels are targeted.
+   * Transaction-safe, idempotent, and persists to both Supabase and local JSON cache.
    */
   async recordUsageEvent(params: {
     postId: string;
-    accountIds: string[];
+    accountIds?: string[];
     userId?: string;
     workspaceId?: string;
     actionType: 'schedule' | 'publish';
     targetDate?: Date | string;
+    idempotencyKey?: string;
   }): Promise<void> {
-    const { postId, accountIds, userId, workspaceId, actionType, targetDate } = params;
-    if (!postId || !accountIds || accountIds.length === 0) return;
+    const { postId, accountIds = [], userId, workspaceId, actionType, targetDate, idempotencyKey } = params;
+    if (!postId) return;
 
     const dateObj = targetDate ? new Date(targetDate) : new Date();
     const { monthKey } = this.getMonthWindow(isNaN(dateObj.getTime()) ? new Date() : dateObj);
+    const key = idempotencyKey || `ledger_${monthKey}_${postId}`;
 
     // 1. Write to local JSON file for instant access (server-side only)
     if (typeof window === 'undefined') {
@@ -389,40 +410,58 @@ export const SubscriptionService = {
           } catch {}
         }
 
-        for (const accId of accountIds) {
-          const exists = current.some((item: any) => item.postId === postId && item.accountId === accId);
-          if (!exists) {
-            current.push({
-              id: `ledger_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-              postId,
-              accountId: accId,
-              userId: userId || 'customer',
-              workspaceId: workspaceId || null,
-              monthKey,
-              actionType,
-              createdAt: new Date().toISOString(),
-            });
-          }
+        const exists = current.some((item: any) => item.postId === postId && item.monthKey === monthKey);
+        if (!exists) {
+          current.push({
+            id: `ledger_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            postId,
+            accountId: accountIds[0] || 'shared',
+            userId: userId || 'customer',
+            workspaceId: workspaceId || null,
+            monthKey,
+            actionType,
+            status: 'committed',
+            idempotencyKey: key,
+            createdAt: new Date().toISOString(),
+          });
+          fs.writeFileSync(filePath, JSON.stringify(current, null, 2), 'utf-8');
         }
-        fs.writeFileSync(filePath, JSON.stringify(current, null, 2), 'utf-8');
       } catch (e) {
         console.warn('[UsageLedger] Failed to write local ledger:', e);
       }
     }
 
-    // 2. Persist to Supabase public.post_usage_ledger
+    // 2. Persist to Supabase public.post_usage_ledger via RPC or upsert
     const client = getSupabaseClient();
     if (client) {
       try {
-        const rows = accountIds.map((accId) => ({
-          post_id: postId,
-          account_id: accId,
-          user_id: userId || 'customer',
-          workspace_id: workspaceId || null,
-          month_key: monthKey,
-          action_type: actionType,
-        }));
-        await client.from('post_usage_ledger').upsert(rows, { onConflict: 'post_id,account_id', ignoreDuplicates: true });
+        const { error: rpcErr } = await client.rpc('check_and_reserve_monthly_usage', {
+          p_user_id: userId || 'customer',
+          p_workspace_id: workspaceId || null,
+          p_post_id: postId,
+          p_month_key: monthKey,
+          p_action_type: actionType,
+          p_idempotency_key: key,
+        });
+
+        if (rpcErr) {
+          // Fallback direct upsert
+          await client.from('post_usage_ledger').upsert(
+            [
+              {
+                post_id: postId,
+                account_id: accountIds[0] || 'shared',
+                user_id: userId || 'customer',
+                workspace_id: workspaceId || null,
+                month_key: monthKey,
+                action_type: actionType,
+                status: 'committed',
+                idempotency_key: key,
+              },
+            ],
+            { onConflict: 'post_id,account_id', ignoreDuplicates: true }
+          );
+        }
       } catch (err) {
         console.warn('[UsageLedger] Failed to upsert to Supabase post_usage_ledger:', err);
       }
@@ -431,10 +470,14 @@ export const SubscriptionService = {
 
   /**
    * Calculates monthly post usage.
-   * Free plan rule:
-   * - Maximum 5 scheduled posts per connected channel per calendar month.
-   * - Maximum 15 posts total across all connected channels.
+   * New official Free plan rule:
+   * - Maximum 3 connected social accounts.
+   * - Exactly 30 scheduled posts per calendar month in total, shared across all connected accounts.
+   * - No per-account quota; users can distribute their 30 posts however they want.
+   * - 1 multi-platform post counts as ONE post towards the 30-post allowance.
    * - Deleting a scheduled or published post NEVER restores allowance (ledger preserved).
+   * - Editing an existing scheduled post does not consume another slot.
+   * - Retrying a publishing job does not consume another slot.
    * - Paid plans (Starter, Pro, Growth, Agency): Unlimited posts.
    */
   calculateMonthlyUsage(
@@ -444,18 +487,19 @@ export const SubscriptionService = {
     options?: {
       targetDate?: Date;
       excludePostId?: string;
+      userId?: string;
     }
   ): MonthlyUsageSummary {
     const { start, end, resetsAt, monthKey, monthLabel } = this.getMonthWindow(options?.targetDate || new Date());
     const isPaid = planId !== 'free';
-    const totalMaxPosts = isPaid ? -1 : OFFICIAL_PLANS.free.monthlyPostsLimit; // 15 for free
+    const totalMaxPosts = isPaid ? -1 : 30; // Exactly 30 shared posts for Free plan
 
-    // Filter relevant posts for this month window
-    // Ignore drafts, failed (without partial success), and exclude current post if retrying/editing
+    // Filter valid posts for this calendar month window
+    // Ignore drafts, failed (without partial results), and exclude current post if editing/retrying
     const countedPosts = (posts || []).filter((p) => {
       if (!p) return false;
       if (options?.excludePostId && p.id === options.excludePostId) return false;
-      if (p.status === 'draft') return false; // DRAFTS NEVER CONSUME ALLOWANCE
+      if (p.status === 'draft') return false; // Drafts do not consume slots until scheduled
       if (p.status === 'failed' && !p.results) return false;
 
       const ts = p.publishedAt || p.scheduledFor || p.createdAt || p.updatedAt;
@@ -466,33 +510,34 @@ export const SubscriptionService = {
       return postDate >= start && postDate <= end;
     });
 
-    const accountUsageMap: Record<string, AccountMonthlyUsage> = {};
-    let totalUsedAllAccounts = 0;
+    // Compute distinct post IDs from both live posts and immutable ledger
+    const uniquePostIds = new Set<string>();
+    for (const p of countedPosts) {
+      if (p.id) uniquePostIds.add(p.id);
+    }
 
+    // Add unique posts from local ledger cache (guarantees deleting posts does NOT restore allowance)
+    const ledgerPostIds = this.getLocalLedgerPostIds(monthKey, options?.userId);
+    for (const pid of ledgerPostIds) {
+      if (options?.excludePostId && pid === options.excludePostId) continue;
+      uniquePostIds.add(pid);
+    }
+
+    const totalPostsUsed = uniquePostIds.size;
+    const remainingPosts = isPaid ? 999999 : Math.max(0, totalMaxPosts - totalPostsUsed);
+    const isLimitReached = isPaid ? false : totalPostsUsed >= totalMaxPosts;
+
+    const accountUsageMap: Record<string, AccountMonthlyUsage> = {};
     for (const acc of accounts || []) {
       const accId = acc.id;
-      const liveMatching = countedPosts.filter((p) => {
-        const targets = p.targetAccountIds || p.target_account_ids || [];
-        return Array.isArray(targets) && targets.includes(accId);
-      }).length;
-
-      // Immutable ledger takes precedence so deleting a post never restores allowance
-      const ledgerCount = this.getLocalLedgerUsage(accId, monthKey);
-      const usedCount = Math.max(liveMatching, ledgerCount);
-
-      // Independent 5 posts per channel per month for Free plan
-      const accountLimit = isPaid ? -1 : 5;
-      const remaining = isPaid ? 9999 : Math.max(0, accountLimit - usedCount);
-
-      totalUsedAllAccounts += usedCount;
-
+      // Per-account stats represent the shared 30-post quota
       accountUsageMap[accId] = {
         accountId: accId,
         accountName: acc.displayName || acc.username || 'Channel',
         platform: acc.platform || 'social',
-        usedCount,
-        limit: accountLimit,
-        remaining,
+        usedCount: totalPostsUsed,
+        limit: isPaid ? -1 : 30,
+        remaining: remainingPosts,
         monthKey,
         monthLabel,
         periodStart: start.toISOString(),
@@ -504,10 +549,13 @@ export const SubscriptionService = {
     return {
       planId,
       monthLabel,
+      monthKey,
       resetsAt: resetsAt.toISOString(),
-      totalPostsUsed: totalUsedAllAccounts,
-      totalPostsLimit: totalMaxPosts, // 15
-      perAccountLimit: isPaid ? -1 : 5, // 5
+      totalPostsUsed,
+      totalPostsLimit: totalMaxPosts,
+      perAccountLimit: isPaid ? -1 : 30,
+      remainingPosts,
+      isLimitReached,
       accounts: accountUsageMap,
     };
   },
@@ -515,8 +563,8 @@ export const SubscriptionService = {
   /**
    * Enforces plan limits on scheduling and publishing:
    * Free plan:
-   * - Maximum 5 scheduled posts per connected channel per calendar month.
-   * - Maximum 15 posts total per calendar month across all channels.
+   * - Exactly 30 scheduled posts per calendar month in total, shared across all connected accounts.
+   * - No per-channel 5-post limit.
    * Paid plans (Starter, Pro, Growth, Agency): Unlimited posts.
    */
   async checkCanPublishOrSchedulePosts(params: {
@@ -542,6 +590,7 @@ export const SubscriptionService = {
     const usageSummary = this.calculateMonthlyUsage(existingPosts, accounts, sub.planId, {
       targetDate: isNaN(targetDate.getTime()) ? new Date() : targetDate,
       excludePostId,
+      userId,
     });
 
     // All paid subscribers have unlimited publishing & scheduling
@@ -561,41 +610,8 @@ export const SubscriptionService = {
       year: 'numeric',
     });
 
-    // 1. Check account-level limits: strictly 5 posts per account per calendar month
-    const blockedAccounts: { id: string; name: string; platform: string; count: number; limit: number }[] = [];
-    const allowedAccountIds: string[] = [];
-
-    for (const chId of targetAccountIds) {
-      const accUsage = usageSummary.accounts[chId];
-      const acc = accounts.find((a) => a.id === chId);
-      const used = accUsage ? accUsage.usedCount : 0;
-      if (used >= 5) {
-        blockedAccounts.push({
-          id: chId,
-          name: acc?.displayName || acc?.username || 'Channel',
-          platform: acc?.platform || 'social',
-          count: used,
-          limit: 5,
-        });
-      } else {
-        allowedAccountIds.push(chId);
-      }
-    }
-
-    if (blockedAccounts.length > 0) {
-      const blockedNames = blockedAccounts.map((b) => b.name).join(', ');
-      return {
-        allowed: false,
-        reason: `${blockedNames} has reached the Free plan monthly limit of 5 posts (5/5 used this month). Usage automatically resets on ${resetsDate}. Upgrade to Starter, Pro, Growth, or Agency for unlimited scheduled posts.`,
-        blockedAccounts,
-        allowedAccountIds,
-        usageSummary,
-        planId: 'free',
-      };
-    }
-
-    // 2. Check total monthly posts limit (15 total across all connected channels)
-    const totalLimit = OFFICIAL_PLANS.free.monthlyPostsLimit; // 15
+    // Check shared 30 posts limit for Free plan
+    const totalLimit = 30;
     const currentTotalUsed = usageSummary.totalPostsUsed;
 
     if (currentTotalUsed >= totalLimit) {
@@ -612,7 +628,7 @@ export const SubscriptionService = {
 
       return {
         allowed: false,
-        reason: `You have reached the Free plan monthly limit of 15 posts total (${currentTotalUsed}/${totalLimit} posts used this month across all channels). Usage automatically resets on ${resetsDate}. Upgrade to Starter, Pro, Growth, or Agency for unlimited scheduled posts.`,
+        reason: `You have reached the Free plan monthly limit of 30 posts total (${currentTotalUsed}/${totalLimit} posts used this month across all channels). Usage automatically resets on ${resetsDate}. Upgrade to Starter, Pro, Growth, or Agency for unlimited scheduled posts.`,
         blockedAccounts: blockedList,
         allowedAccountIds: [],
         usageSummary,

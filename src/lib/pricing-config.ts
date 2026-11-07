@@ -49,7 +49,7 @@ export interface SubscriptionPlan {
 /**
  * 1. OFFICIAL POSTINGTUBE PRICING MATRIX
  * Monthly & Yearly Plans:
- * Free: 3 channels, ₹0/mo, 15 posts total/month
+ * Free: 3 channels, ₹0/mo, 30 posts total/month (shared across all accounts)
  * Starter: 5 channels, ₹999/mo, ₹9,999/yr (Normal: ₹11,988, Save: ₹1,989)
  * Pro: 10 channels, ₹1,999/mo, ₹19,999/yr (Normal: ₹23,988, Save: ₹3,989) [Most Popular]
  * Growth: 15 channels, ₹2,999/mo, ₹29,999/yr (Normal: ₹35,988, Save: ₹5,989) [Best Value]
@@ -69,12 +69,12 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     normalAnnualPriceUsd: 0,
     yearlySavingsUsd: 0,
     channelsLimit: 3,
-    monthlyPostsLimit: 15,
+    monthlyPostsLimit: 30,
     userLimit: 1,
     analyticsTier: 'basic',
     features: [
       '3 connected social accounts',
-      '5 scheduled posts per channel (15 total/month)',
+      '30 scheduled posts per month (shared across channels)',
       'Core scheduling and publishing',
       'Basic analytics',
       '1 user',
@@ -83,9 +83,9 @@ export const OFFICIAL_PLANS: Record<PlanId, SubscriptionPlan> = {
     maxChannels: 3,
     pricePerChannelInr: 0,
     pricePerChannelUsd: 0,
-    monthlyPostsPerChannel: 15,
-    maxMonthlyPostsTotal: 15,
-    scheduledPostsPerChannel: 15,
+    monthlyPostsPerChannel: 30,
+    maxMonthlyPostsTotal: 30,
+    scheduledPostsPerChannel: 30,
   },
   starter: {
     id: 'starter',
@@ -286,9 +286,9 @@ export const PRICING_CONFIG = {
     pricePerChannelInr: 0,
     pricePerChannelUsd: 0,
     maxChannels: 3,
-    monthlyPostsPerChannel: 15,
-    maxMonthlyPostsTotal: 15, // 15 total scheduled posts per month across all accounts
-    scheduledPostsPerChannel: 15,
+    monthlyPostsPerChannel: 30,
+    maxMonthlyPostsTotal: 30, // 30 total scheduled posts per month shared across all accounts
+    scheduledPostsPerChannel: 30,
     userLimit: 1,
     analyticsTier: 'basic' as const,
   },

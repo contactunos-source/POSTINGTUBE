@@ -263,7 +263,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
 
                 <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1 text-[11px] text-gray-600">
                   <div>Channels: <strong className="text-gray-900">{plan.channelsLimit} connected</strong></div>
-                  <div>Posts: <strong className="text-gray-900">{plan.monthlyPostsLimit === -1 ? 'Unlimited' : '15 total/mo'}</strong></div>
+                  <div>Posts: <strong className="text-gray-900">{plan.monthlyPostsLimit === -1 ? 'Unlimited' : '30 shared posts/mo'}</strong></div>
                   <div className="pt-1 border-t border-gray-100 text-emerald-700 font-bold">
                     {activeSubs} active {activeSubs === 1 ? 'subscriber' : 'subscribers'}
                   </div>

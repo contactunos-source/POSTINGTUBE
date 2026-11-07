@@ -405,6 +405,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     if (initialPost?.targetAccountIds && initialPost.targetAccountIds.length > 0) {
       return initialPost.targetAccountIds;
     }
+    if (initialPostType === 'video') {
+      const allVideoAccs = accounts
+        .filter((a) => isPlatformSupportedForPostType(a.platform, 'video'))
+        .map((a) => a.id);
+      if (allVideoAccs.length > 0) return allVideoAccs;
+    }
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('pb_remembered_accounts');
       if (saved) {
@@ -1020,13 +1026,20 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handleSelectPostType = (type: 'text' | 'image' | 'video') => {
     setCurrentPostType(type);
 
-    // Filter currently selected accounts to only those compatible with the newly chosen type
-    const supportedIds = selectedAccountIds.filter((id) => {
-      const plat = accounts.find((a) => a.id === id)?.platform;
-      return plat ? isPlatformSupportedForPostType(plat, type) : false;
-    });
+    if (type === 'video') {
+      // Whenever user switches to Video Post:
+      // Automatically select all currently connected social accounts that support the selected video format (Instagram, Facebook, YouTube, LinkedIn, etc.)
+      const supportedVideoAccIds = accounts
+        .filter((a) => isPlatformSupportedForPostType(a.platform, 'video'))
+        .map((a) => a.id);
+      setSelectedAccountIds(supportedVideoAccIds);
+    } else {
+      // For Image or Text: keep compatible accounts from current selection, or select first supported
+      const supportedIds = selectedAccountIds.filter((id) => {
+        const plat = accounts.find((a) => a.id === id)?.platform;
+        return plat ? isPlatformSupportedForPostType(plat, type) : false;
+      });
 
-    if (supportedIds.length !== selectedAccountIds.length) {
       if (supportedIds.length > 0) {
         setSelectedAccountIds(supportedIds);
       } else {
@@ -1052,12 +1065,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   // Synchronize selection so unsupported accounts are never kept in state for the active post type
   useEffect(() => {
     setSelectedAccountIds((prev) => {
+      if (currentPostType === 'video' && prev.length === 0 && accounts.length > 0) {
+        const supported = accounts
+          .filter((a) => isPlatformSupportedForPostType(a.platform, 'video'))
+          .map((a) => a.id);
+        if (supported.length > 0) return supported;
+      }
       const valid = prev.filter((id) => {
         const acc = accounts.find((a) => a.id === id);
         return acc ? isPlatformSupportedForPostType(acc.platform, currentPostType) : false;
       });
       if (valid.length !== prev.length) {
         if (valid.length > 0) return valid;
+        if (currentPostType === 'video') {
+          return accounts
+            .filter((a) => isPlatformSupportedForPostType(a.platform, 'video'))
+            .map((a) => a.id);
+        }
         const firstSupported = accounts.find((a) => isPlatformSupportedForPostType(a.platform, currentPostType));
         return firstSupported ? [firstSupported.id] : [];
       }
@@ -1696,11 +1720,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       return;
     }
 
-    // Monthly post limit enforcement for Free plan (15 posts total per month across all connected accounts)
+    // Monthly post limit enforcement for Free plan (30 posts total per month across all connected accounts)
     // Enforced on both scheduling and publishing. Drafts are exempt.
     if (action === 'schedule' || action === 'publish-now') {
       if (isFreePlan) {
-        if (monthlyUsage.totalPostsUsed >= 15) {
+        if (monthlyUsage.totalPostsUsed >= 30) {
           const blocked = selectedAccountIds.map((chId) => {
             const acc = accounts.find((a) => a.id === chId);
             return {
@@ -3979,13 +4003,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 Monthly Post Limit Reached (Free Plan)
               </h3>
               <p className="text-xs text-gray-400 leading-relaxed">
-                The Free plan allows up to <span className="font-semibold text-white">15 scheduled or published posts total per month across all connected accounts</span>. You have reached 15 / 15 posts used for this month:
+                The Free plan allows up to <span className="font-semibold text-white">30 scheduled or published posts total per month across all connected accounts</span>. You have reached 30 / 30 posts used for this month:
               </p>
               <div className="space-y-1.5 pt-1">
                 {scheduleLimitModal.blockedChannels.map((c) => (
                   <div key={c.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 border border-white/5 text-xs">
                     <span className="font-medium text-gray-200">{c.name}</span>
-                    <span className="text-amber-400 font-bold font-mono">15 / 15 used this month</span>
+                    <span className="text-amber-400 font-bold font-mono">30 / 30 used this month</span>
                   </div>
                 ))}
               </div>

@@ -416,7 +416,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <div className="text-2xl font-black text-gray-900 mt-0.5">{stats.freePlanUsers.toLocaleString()}</div>
             </div>
             <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
-              <span className="text-gray-400">15 posts total / mo</span>
+              <span className="text-gray-400">30 shared posts / mo</span>
               <span className="font-semibold text-gray-600">Free Tier</span>
             </div>
           </div>

@@ -291,8 +291,8 @@ export async function executePostPublish(
     if (publishedCount === 0 && failedCount > 0) {
       overallStatus = 'failed';
     } else if (failedCount > 0 && publishedCount > 0) {
-      // Partial success: keep as published so completed platforms are live
-      overallStatus = 'published';
+      // Partial success: marked as partially_published so failures are clearly visible
+      overallStatus = 'partially_published';
     } else if (publishedCount === 0 && failedCount === 0) {
       overallStatus = 'draft';
     }
