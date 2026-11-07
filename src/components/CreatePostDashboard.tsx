@@ -863,9 +863,33 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   };
 
   // Per-platform media helpers
-  const getEffectiveMediaForAccount = (accId: string): PostMedia[] => {
+  const getRawMediaForAccount = (accId: string): PostMedia[] => {
     if (!customizeMediaPerPlatform) return mediaList;
     return platformMediaMap[accId] !== undefined ? platformMediaMap[accId] : mediaList;
+  };
+
+  const getEffectiveMediaForAccount = (accId: string): PostMedia[] => {
+    const acc = accounts.find((a) => a.id === accId);
+    const rawList = getRawMediaForAccount(accId);
+
+    // YouTube supports Shorts video only in PostingTube.
+    // NEVER take or attach image files to YouTube.
+    if (acc?.platform === 'youtube') {
+      return rawList.filter(
+        (m) => m.type === 'video' || /\.(mp4|mov|webm|m4v|avi|mpg|mpeg)$/i.test(m.name || '')
+      );
+    }
+
+    return rawList;
+  };
+
+  const hasYoutubeImageAttempt = (accId: string): boolean => {
+    const acc = accounts.find((a) => a.id === accId);
+    if (acc?.platform !== 'youtube') return false;
+    const raw = getRawMediaForAccount(accId);
+    return raw.some(
+      (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
+    );
   };
 
   const handlePlatformReplaceMedia = (accId: string) => {
@@ -888,6 +912,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handlePlatformFilesSelected = async (accId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
+    const acc = accounts.find((a) => a.id === accId);
+
+    // Explicitly block non-video media for YouTube
+    if (acc?.platform === 'youtube') {
+      const isVideo = file.type.startsWith('video') || /\.(mp4|mov|webm|m4v|avi|mpg|mpeg)$/i.test(file.name);
+      if (!isVideo) {
+        showToast('YouTube only supports vertical video for Shorts. Image files (PNG, JPG) cannot be uploaded to YouTube.');
+        return;
+      }
+    }
+
     let blobUrl = '';
     try {
       blobUrl = URL.createObjectURL(file);
@@ -982,6 +1017,30 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
     setAccountFormats((prev) => ({ ...prev, [accId]: formatId }));
   };
+
+  // Automatically switch any account set to 'reel' back to 'post' whenever media is image-only (not video)
+  useEffect(() => {
+    const hasImage = mediaList.some(
+      (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
+    );
+    const hasVideo = mediaList.some(
+      (m) => m.type === 'video' || /\.(mp4|mov|webm|m4v|avi)$/i.test(m.name || '')
+    );
+
+    if ((hasImage && !hasVideo) || currentPostType === 'image') {
+      setAccountFormats((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, fmt] of Object.entries(next)) {
+          if (fmt === 'reel') {
+            next[id] = 'post';
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [mediaList, currentPostType]);
 
   // Keyboard Escape listener for modals and master caption
   useEffect(() => {
@@ -1693,14 +1752,92 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     showToast(`Copied main caption to ${acc?.displayName || acc?.username || targetId}`);
   };
 
+  // Validation engine for blocking media/format issues
+  const getBlockingErrors = (): string[] => {
+    const errors: string[] = [];
+
+    if (selectedAccountIds.length === 0) {
+      errors.push('Please select at least one social account in the top bar.');
+      return errors;
+    }
+
+    for (const accId of selectedAccountIds) {
+      const acc = accounts.find((a) => a.id === accId);
+      if (!acc) continue;
+
+      const rawMedia = getRawMediaForAccount(accId);
+      const effectiveMedia = getEffectiveMediaForAccount(accId);
+      const activeFormat =
+        accountFormats[accId] ||
+        (acc.platform === 'youtube'
+          ? 'short'
+          : currentPostType === 'video'
+          ? 'reel'
+          : 'post');
+
+      const hasImageInRaw = rawMedia.some(
+        (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
+      );
+      const hasOnlyImage =
+        rawMedia.length > 0
+          ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
+          : currentPostType === 'image';
+
+      // 1. YouTube validation:
+      if (acc.platform === 'youtube') {
+        if (hasImageInRaw || currentPostType === 'image') {
+          errors.push(
+            `${acc.displayName || 'YouTube'}: Image files are not supported. YouTube supports Shorts video only. Please upload a vertical video or unselect YouTube.`
+          );
+        } else if (effectiveMedia.length === 0 && currentPostType === 'video') {
+          errors.push(
+            `${acc.displayName || 'YouTube'}: Please upload a vertical video (MP4/MOV) for YouTube Shorts.`
+          );
+        }
+      }
+
+      // 2. Reel format validation (Instagram / Facebook):
+      if (activeFormat === 'reel' && hasOnlyImage) {
+        errors.push(
+          `${acc.displayName || acc.platform}: Reels only support video files. Please switch format to Post or upload a video.`
+        );
+      }
+
+      // 3. Instagram text-only validation:
+      if (acc.platform === 'instagram' && currentPostType === 'text') {
+        errors.push(
+          `${acc.displayName || 'Instagram'}: Instagram requires image or video media (text-only posts are not supported).`
+        );
+      }
+
+      // 4. Character limit validation:
+      const config = getPlatformVisualConfig(acc.platform);
+      const accCaption = accountCaptions[accId]?.caption ?? '';
+      const effectiveCaption = accCaption.trim().length > 0 ? accCaption : mainCaption;
+      if (config.limit && effectiveCaption.length > config.limit) {
+        errors.push(
+          `${acc.displayName || acc.platform}: Caption exceeds maximum limit of ${config.limit.toLocaleString()} characters.`
+        );
+      }
+    }
+
+    return errors;
+  };
+
+  const blockingErrors = getBlockingErrors();
+  const hasBlockingErrors = blockingErrors.length > 0;
+
   // Handle Save / Publish execution
   const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
     // Idempotency: prevent double-clicks or repeated submissions while in progress
     if (isSubmitting) return;
 
-    if (action !== 'draft' && selectedAccountIds.length === 0) {
-      showToast('Please select at least one social platform to publish to.');
-      return;
+    if (action !== 'draft') {
+      const blocking = getBlockingErrors();
+      if (blocking.length > 0) {
+        showToast(blocking[0]);
+        return;
+      }
     }
 
     // If media is still streaming to server, seamlessly await completion instead of blocking alerts
@@ -2442,11 +2579,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         {config.supportedFormats.map((fmt) => {
                           const isActive = activeFormat === fmt.id;
                           const isSingle = config.supportedFormats.length === 1;
+
+                          // Check if Reel is blocked because media is image-only
+                          const rawMedia = getRawMediaForAccount(acc.id);
+                          const hasImageOnly = rawMedia.length > 0
+                            ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
+                            : currentPostType === 'image';
+                          const isReelBlocked = fmt.id === 'reel' && hasImageOnly;
+
                           return (
                             <button
                               key={fmt.id}
                               type="button"
+                              disabled={isReelBlocked}
                               onClick={() => {
+                                if (isReelBlocked) {
+                                  showToast('Reels require video files. Please upload a video or use Post format.');
+                                  return;
+                                }
                                 handleSelectFormat(acc.id, acc.platform, fmt.id);
                                 // Default aspect ratio based on selected format
                                 if (fmt.id === 'reel' || fmt.id === 'story' || fmt.id === 'short') {
@@ -2455,17 +2605,27 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   setAccountAspectRatios(prev => ({ ...prev, [acc.id]: '16:9' }));
                                 }
                               }}
+                              title={
+                                isReelBlocked
+                                  ? 'Reels require video files. Switch format to Post or upload a video.'
+                                  : fmt.label
+                              }
                               className={`${
                                 isSingle
                                   ? 'py-1 px-5 rounded-full text-xs font-bold w-auto min-w-[100px] max-w-[140px] mx-auto shadow-2xs'
                                   : 'flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold'
-                              } transition-all cursor-pointer text-center ${
-                                isActive
-                                  ? 'bg-gray-900 text-white shadow-xs'
-                                  : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80'
+                              } transition-all text-center ${
+                                isReelBlocked
+                                  ? 'bg-gray-100 text-gray-300 border border-gray-200/50 cursor-not-allowed opacity-50'
+                                  : isActive
+                                  ? 'bg-gray-900 text-white shadow-xs cursor-pointer'
+                                  : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80 cursor-pointer'
                               }`}
                             >
-                              {fmt.label}
+                              <span>{fmt.label}</span>
+                              {isReelBlocked && (
+                                <span className="block text-[8px] font-medium text-gray-400 -mt-0.5">Video only</span>
+                              )}
                             </button>
                           );
                         })}
@@ -2512,45 +2672,41 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         );
                       })()}
 
-                      {/* YouTube Image Warning matching reference image media_1793768290589_7a75e9ea.png */}
+                      {/* Incompatible Media / Format Warning Banners */}
                       {(() => {
-                        const effectiveMedia = getEffectiveMediaForAccount(acc.id);
-                        const isImage = effectiveMedia.length > 0 && (effectiveMedia[0].type === 'image' || /\.(png|jpe?g|webp)$/i.test(effectiveMedia[0].name || ''));
-                        const isVideoFormat = activeFormat === 'video' || activeFormat === 'short';
-                        const isCommunityFormat = activeFormat === 'post';
+                        const isYt = acc.platform === 'youtube';
+                        const hasImageAttempt = hasYoutubeImageAttempt(acc.id);
+                        const rawMedia = getRawMediaForAccount(acc.id);
 
-                        if (acc.platform === 'youtube' && isVideoFormat && isImage && !dismissedYoutubeWarnings[acc.id]) {
-                          const ext = effectiveMedia[0].name?.split('.').pop()?.toUpperCase() || 'PNG';
+                        // 1. YouTube Image Warning
+                        if (isYt && hasImageAttempt) {
+                          const firstImage = rawMedia.find(m => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''));
+                          const ext = firstImage?.name?.split('.').pop()?.toUpperCase() || 'PNG';
                           return (
-                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start justify-between gap-3 text-xs shadow-xs animate-in fade-in">
-                              <div className="flex items-start space-x-2.5 min-w-0">
-                                <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
-                                <span className="leading-snug">
-                                  We can&apos;t quite use that type of file ({ext}). Could you try one of the following instead: MOV, MP4, M4V, MPG, MPEG, AVI, WEBM? Or switch to <strong>Community Post</strong>.
+                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start space-x-2.5 text-xs shadow-xs animate-in fade-in">
+                              <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 min-w-0">
+                                <span className="font-bold text-white block">We can&apos;t use that type of file ({ext})</span>
+                                <span className="leading-snug text-[#fca5a5]/90 block">
+                                  YouTube only supports vertical video for Shorts (MOV, MP4, M4V, MPG, MPEG, AVI, WEBM). Image files cannot be used on YouTube and have been blocked. Please upload a video or unselect YouTube.
                                 </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setDismissedYoutubeWarnings((prev) => ({ ...prev, [acc.id]: true }))}
-                                className="text-[#fca5a5]/70 hover:text-white shrink-0 p-0.5 transition-colors cursor-pointer"
-                                title="Dismiss warning"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
                             </div>
                           );
                         }
 
-                        if (acc.platform === 'youtube' && isCommunityFormat) {
+                        // 2. Reel format with image warning
+                        const hasImageOnly = rawMedia.length > 0
+                          ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
+                          : currentPostType === 'image';
+
+                        if (activeFormat === 'reel' && hasImageOnly) {
                           return (
-                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 rounded-2xl p-3 flex items-start space-x-2 text-xs animate-in fade-in">
-                              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5 min-w-0">
-                                <span className="font-semibold block text-amber-950">YouTube Community Post Workflow</span>
-                                <span className="text-[11px] text-amber-800 leading-tight block">
-                                  YouTube Data API v3 does not permit 3rd-party automated Community Post image posting. We save your draft and provide a 1-Click launcher to publish on your Community tab.
-                                </span>
-                              </div>
+                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start space-x-2.5 text-xs shadow-xs animate-in fade-in">
+                              <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
+                              <span className="leading-snug">
+                                Reels only support video files. Please switch format to <strong>Post</strong> or upload an MP4/MOV video.
+                              </span>
                             </div>
                           );
                         }
@@ -2562,7 +2718,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <input
                         type="file"
                         ref={(el) => { platformFileInputRefs.current[accId] = el; }}
-                        accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
+                        accept={acc.platform === 'youtube' ? 'video/*' : currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
                         className="hidden"
                         onChange={(e) => {
                           handlePlatformFilesSelected(accId, e.target.files);
@@ -2575,6 +2731,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         const effectiveMedia = getEffectiveMediaForAccount(accId);
                         const isUploading = uploadState.isUploading && !customizeMediaPerPlatform;
                         const isYouTube = acc.platform === 'youtube';
+                        const hasImageAttempt = hasYoutubeImageAttempt(accId);
                         const isCarousel = effectiveMedia.length > 1;
                         const activeSlide = Math.min(activeSlideIndices[accId] ?? activeSlideIndices['global'] ?? 0, Math.max(0, effectiveMedia.length - 1));
                         const currentMedia = effectiveMedia[activeSlide] || effectiveMedia[0];
@@ -2585,17 +2742,25 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               /* Soft Grey Dropzone */
                               <div
                                 onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerUploadPicker}
-                                className="bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border border-transparent hover:border-gray-300 transition-all group"
+                                className={`bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border transition-all group ${
+                                  isYouTube && hasImageAttempt
+                                    ? 'border-red-300 bg-red-50/40 hover:border-red-400'
+                                    : 'border-transparent hover:border-gray-300'
+                                }`}
                               >
-                                <div className="w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center text-gray-700 mb-3 group-hover:scale-105 transition-transform">
-                                  <UploadCloud className="w-6 h-6 text-gray-700" />
+                                <div className={`w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center mb-3 group-hover:scale-105 transition-transform ${
+                                  isYouTube && hasImageAttempt ? 'text-red-500' : 'text-gray-700'
+                                }`}>
+                                  <UploadCloud className="w-6 h-6" />
                                 </div>
                                 <h4 className="text-xs font-bold text-gray-900">
-                                  Drop your files here or browse
+                                  {isYouTube && hasImageAttempt
+                                    ? 'Image blocked: Drop vertical video for YouTube Shorts'
+                                    : 'Drop your files here or browse'}
                                 </h4>
                                 <p className="text-[11px] text-gray-400 mt-1">
                                   {isYouTube
-                                    ? 'Upload vertical video for YouTube Shorts (up to 500 MB)'
+                                    ? 'Upload vertical video for YouTube Shorts (MP4, MOV up to 500 MB)'
                                     : 'Upload images, video, or select multiple for carousel'}
                                 </p>
                               </div>
@@ -3899,12 +4064,37 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     onValidationChange={(valid) => setIsScheduleValid(valid)}
                   />
 
+                  {/* Action Required / Blocking Issues Banner */}
+                  {hasBlockingErrors && (
+                    <div className="bg-red-50 border border-red-200/90 rounded-2xl p-3.5 space-y-1.5 text-xs text-red-900 shadow-2xs animate-in fade-in">
+                      <div className="flex items-center space-x-2 font-bold text-red-700">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>Action Required Before Scheduling</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-red-800 text-[11px] font-medium pl-1">
+                        {blockingErrors.map((err, idx) => (
+                          <li key={idx} className="leading-tight">{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Schedule Post Action Button */}
                   <button
                     type="button"
-                    disabled={isSubmitting || !isScheduleValid}
-                    onClick={() => handleExecute('schedule')}
-                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isSubmitting || !isScheduleValid || hasBlockingErrors}
+                    onClick={() => {
+                      if (hasBlockingErrors) {
+                        showToast(blockingErrors[0]);
+                        return;
+                      }
+                      handleExecute('schedule');
+                    }}
+                    className={`w-full py-3.5 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 text-sm shadow-md transition-all ${
+                      hasBlockingErrors
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
+                        : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white cursor-pointer'
+                    }`}
                   >
                     {submittingAction === 'schedule' ? (
                       <>
@@ -3926,11 +4116,36 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               ) : (
                 /* Instant Live Dispatch Mode */
                 <div className="space-y-4">
+                  {/* Action Required / Blocking Issues Banner */}
+                  {hasBlockingErrors && (
+                    <div className="bg-red-50 border border-red-200/90 rounded-2xl p-3.5 space-y-1.5 text-xs text-red-900 shadow-2xs animate-in fade-in">
+                      <div className="flex items-center space-x-2 font-bold text-red-700">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>Action Required Before Publishing</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-red-800 text-[11px] font-medium pl-1">
+                        {blockingErrors.map((err, idx) => (
+                          <li key={idx} className="leading-tight">{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled={isSubmitting}
-                    onClick={() => handleExecute('publish-now')}
-                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                    disabled={isSubmitting || hasBlockingErrors}
+                    onClick={() => {
+                      if (hasBlockingErrors) {
+                        showToast(blockingErrors[0]);
+                        return;
+                      }
+                      handleExecute('publish-now');
+                    }}
+                    className={`w-full py-3.5 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 text-sm shadow-md transition-all ${
+                      hasBlockingErrors
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
+                        : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white cursor-pointer'
+                    }`}
                   >
                     {submittingAction === 'publish-now' ? (
                       <>

@@ -64,11 +64,16 @@ export async function POST(req: NextRequest) {
 
     // Helper to execute publishing with a given token
     async function executePublish(token: string) {
+      const isImageFile = Boolean(mediaUrl && (/\.(png|jpe?g|webp|gif)$/i.test(mediaUrl) || mediaUrl.startsWith('data:image/')));
+      const isVideoFile = Boolean(mediaUrl && (/\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl) || mediaUrl.startsWith('data:video/')));
+      let effectivePostType = postType;
+      if (effectivePostType === 'reel' && isImageFile && !isVideoFile) {
+        console.warn('[Facebook Publish] Auto-correcting Reel format to Post because media is an image.');
+        effectivePostType = 'post';
+      }
+
       const isVideo =
-        postType === 'reel' ||
-        postType === 'video' ||
-        (mediaUrl && /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl)) ||
-        (mediaUrl && mediaUrl.startsWith('data:video/'));
+        (effectivePostType === 'reel' || effectivePostType === 'video' || isVideoFile) && !isImageFile;
 
       // Guard against browser-local temporary blob URLs
       if (mediaUrl && mediaUrl.startsWith('blob:')) {

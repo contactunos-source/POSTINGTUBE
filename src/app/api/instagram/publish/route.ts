@@ -75,11 +75,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(cachedPublish.result);
     }
 
+    const isImageFile = Boolean(mediaUrl && (/\.(png|jpe?g|webp|gif)$/i.test(mediaUrl) || mediaUrl.startsWith('data:image/')));
+    const isVideoFile = Boolean(mediaUrl && (/\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl) || mediaUrl.startsWith('data:video/')));
+    let effectivePostType = postType;
+    if (effectivePostType === 'reel' && isImageFile && !isVideoFile) {
+      console.warn('[Instagram Publish] Auto-correcting Reel format to Post because media is an image.');
+      effectivePostType = 'post';
+    }
+
     const isVideo =
-      postType === 'reel' ||
-      postType === 'video' ||
-      /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl) ||
-      mediaUrl.startsWith('data:video/');
+      (effectivePostType === 'reel' || effectivePostType === 'video' || isVideoFile) && !isImageFile;
 
     if (mediaUrl && mediaUrl.startsWith('blob:')) {
       return NextResponse.json(
