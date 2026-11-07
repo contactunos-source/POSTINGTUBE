@@ -1,6 +1,12 @@
 'use client';
 
-import { getIstTimeParts, formatDateFullSafe, IST_TIMEZONE } from '@/lib/dateUtils';
+import {
+  getLocalTimeParts,
+  formatDateFullSafe,
+  formatLocalToUtcIso,
+  useUserTimezone,
+} from '@/lib/dateUtils';
+import { TimezoneSelectorModal } from './TimezoneSelectorModal';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import {
@@ -71,10 +77,9 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }, []);
 
-  // Timezone detection: Fixed to India Standard Time (IST - Asia/Kolkata, UTC+5:30)
-  const detectedTimezone = useMemo(() => {
-    return { tzName: 'Asia/Kolkata', abbr: 'IST (UTC+5:30)' };
-  }, []);
+  // Dynamic User Timezone (Auto-detected from browser or user configured)
+  const { timeZone, info: tzInfo } = useUserTimezone();
+  const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
 
   // Parse 24-hr scheduledTime into 12-hr format
   const { hour12, minute, period } = useMemo(() => {
@@ -114,19 +119,16 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     }
   }, [scheduledDate, scheduledTime]);
 
-  // Is schedule strictly in the past? Calculated using India Standard Time (+05:30)
+  // Is schedule strictly in the past? Evaluated in the user's localized country timezone
   const isPast = useMemo(() => {
     try {
-      const [y, m, d] = scheduledDate.split('-').map(Number);
-      const [hh, mm] = scheduledTime.split(':').map(Number);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const istIso = `${y}-${pad(m || 1)}-${pad(d || 1)}T${pad(hh || 0)}:${pad(mm || 0)}:00+05:30`;
-      const scheduledTimeMs = new Date(istIso).getTime();
+      const utcIso = formatLocalToUtcIso(scheduledDate, scheduledTime, timeZone);
+      const scheduledTimeMs = new Date(utcIso).getTime();
       return scheduledTimeMs < Date.now() - 30 * 1000;
     } catch {
       return false;
     }
-  }, [scheduledDate, scheduledTime]);
+  }, [scheduledDate, scheduledTime, timeZone]);
 
   useEffect(() => {
     if (onValidationChange) {
@@ -134,20 +136,17 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     }
   }, [isPast, onValidationChange]);
 
-  // Scheduling summary formatted string with phase description (morning / afternoon / evening / night)
+  // Scheduling summary formatted string with localized phase description
   const summaryString = useMemo(() => {
     try {
-      const [y, m, d] = scheduledDate.split('-').map(Number);
-      const [hh, mm] = scheduledTime.split(':').map(Number);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const istIso = `${y}-${pad(m || 1)}-${pad(d || 1)}T${pad(hh || 0)}:${pad(mm || 0)}:00+05:30`;
-      const parts = getIstTimeParts(istIso);
-      const dateFormatted = formatDateFullSafe(istIso);
-      return `${dateFormatted} · ${parts.timeStr} (${parts.periodLabel} • IST)`;
+      const utcIso = formatLocalToUtcIso(scheduledDate, scheduledTime, timeZone);
+      const parts = getLocalTimeParts(utcIso, timeZone);
+      const dateFormatted = formatDateFullSafe(utcIso, '', timeZone);
+      return `${dateFormatted} · ${parts.timeStr} (${parts.periodLabel} • ${tzInfo.abbr})`;
     } catch {
-      return `${scheduledDate} · ${scheduledTime} IST`;
+      return `${scheduledDate} · ${scheduledTime} ${tzInfo.abbr}`;
     }
-  }, [scheduledDate, scheduledTime]);
+  }, [scheduledDate, scheduledTime, timeZone, tzInfo.abbr]);
 
   // Calendar calculations
   const monthNames = [
@@ -471,11 +470,22 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
         </div>
       </div>
 
-      {/* 2. Detected Timezone Badge */}
-      <div className="flex items-center space-x-1.5 text-[11px] text-gray-500 px-1">
-        <Globe className="w-3.5 h-3.5 text-emerald-600" />
-        <span>Timezone:</span>
-        <strong className="text-gray-700 font-semibold">India Standard Time (IST – Asia/Kolkata, UTC+5:30)</strong>
+      {/* 2. Detected Timezone Badge with Quick Switcher Button */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center space-x-1.5 text-[11px] text-gray-500 truncate">
+          <Globe className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="shrink-0">Timezone:</span>
+          <strong className="text-gray-800 font-bold truncate" title={tzInfo.label}>
+            {tzInfo.label}
+          </strong>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsTimezoneModalOpen(true)}
+          className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer ml-2 shrink-0"
+        >
+          Change
+        </button>
       </div>
 
       {/* 3. Scheduling Summary Preview Card */}
@@ -507,6 +517,12 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Global Timezone Switcher Modal */}
+      <TimezoneSelectorModal
+        isOpen={isTimezoneModalOpen}
+        onClose={() => setIsTimezoneModalOpen(false)}
+      />
     </div>
   );
 };

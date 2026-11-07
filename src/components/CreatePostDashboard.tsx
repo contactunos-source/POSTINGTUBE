@@ -70,7 +70,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getIstDateString } from '@/lib/dateUtils';
+import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getLocalDateString } from '@/lib/dateUtils';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
 import { SubscriptionService, MonthlyUsageSummary } from '@/lib/subscription';
 import { OFFICIAL_YOUTUBE_CATEGORIES } from '@/app/api/youtube/categories/route';
@@ -808,7 +808,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     }
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return getIstDateString(d);
+    return getLocalDateString(d);
   });
   const [scheduledTime, setScheduledTime] = useState(() => {
     if (initialPost?.scheduledFor) {

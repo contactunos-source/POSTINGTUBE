@@ -59,11 +59,12 @@ import {
   formatDateFullSafe,
   formatToDateTimeLocal,
   formatDateTimeWithSeconds,
-  getIstTimeParts,
-  getIstDateString,
+  getLocalTimeParts,
+  getLocalDateString,
   formatLocalToUtcIso,
-  IST_TIMEZONE,
+  useUserTimezone,
 } from '@/lib/dateUtils';
+import { TimezoneSelectorModal } from './TimezoneSelectorModal';
 
 interface CalendarViewProps {
   posts: Post[];
@@ -214,10 +215,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [rescheduleDateInput, setRescheduleDateInput] = useState<string>('');
   const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
 
-  // Timezone: Fixed to India Standard Time (IST – Asia/Kolkata, UTC+5:30)
-  const userTimezone = useMemo(() => {
-    return 'IST (Asia/Kolkata • UTC+5:30)';
-  }, []);
+  // Dynamic User Timezone (Auto-detected from browser or user configured)
+  const { timeZone, info: tzInfo } = useUserTimezone();
+  const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
 
   // Navigation handlers
   const handleNext = () => {
@@ -319,36 +319,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return posts.filter((p) => p.status === 'draft' && !p.scheduledFor && !p.publishedAt);
   }, [posts]);
 
-  // Pre-index filtered posts into an IST date map to achieve instant O(1) lookups instead of O(N*logN) repeated 168 times
+  // Pre-index filtered posts into a localized date map to achieve instant O(1) lookups instead of O(N*logN) repeated 168 times
   const postsByDayMap = useMemo(() => {
     const map = new Map<string, Post[]>();
     for (const post of filteredPosts) {
       const dateIso = post.scheduledFor || post.publishedAt || post.createdAt;
       if (!dateIso) continue;
-      const istKey = getIstDateString(dateIso);
-      const list = map.get(istKey) || [];
+      const dayKey = getLocalDateString(dateIso, timeZone);
+      const list = map.get(dayKey) || [];
       list.push(post);
-      map.set(istKey, list);
+      map.set(dayKey, list);
     }
     map.forEach((list) => {
       list.sort((a, b) => {
         const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
         const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
-        const partsA = getIstTimeParts(timeA);
-        const partsB = getIstTimeParts(timeB);
+        const partsA = getLocalTimeParts(timeA, timeZone);
+        const partsB = getLocalTimeParts(timeB, timeZone);
         return partsA.hour24 * 60 + partsA.minute - (partsB.hour24 * 60 + partsB.minute);
       });
     });
     return map;
-  }, [filteredPosts]);
+  }, [filteredPosts, timeZone]);
 
-  // Retrieve posts for a specific day sorted chronologically by exact IST time (O(1) lookup)
+  // Retrieve posts for a specific day sorted chronologically by user's exact local time (O(1) lookup)
   const getPostsForDay = useCallback(
     (day: Date) => {
-      const key = getIstDateString(day);
+      const key = getLocalDateString(day, timeZone);
       return postsByDayMap.get(key) || [];
     },
-    [postsByDayMap]
+    [postsByDayMap, timeZone]
   );
 
   // Helper to get accounts targeted by a post
@@ -394,15 +394,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const post = posts.find((p) => p.id === postId);
     if (!post || post.status === 'published') return;
 
-    // Extract current IST time parts to preserve minutes
-    const originalParts = getIstTimeParts(post.scheduledFor || post.publishedAt || post.createdAt);
+    // Extract current local time parts to preserve minutes
+    const originalParts = getLocalTimeParts(post.scheduledFor || post.publishedAt || post.createdAt, timeZone);
     const hours = typeof targetHour === 'number' ? targetHour : originalParts.hour24;
     const minutes = originalParts.minute;
 
-    const targetDayStr = getIstDateString(targetDay);
+    const targetDayStr = getLocalDateString(targetDay, timeZone);
     const hh = String(hours).padStart(2, '0');
     const mm = String(minutes).padStart(2, '0');
-    const newScheduledIso = formatLocalToUtcIso(targetDayStr, `${hh}:${mm}`);
+    const newScheduledIso = formatLocalToUtcIso(targetDayStr, `${hh}:${mm}`, timeZone);
 
     setIsRescheduling(true);
     try {
@@ -461,8 +461,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Helper for rendering post card (matches the reference image layout in our clean brand theme)
   const renderPostCard = (post: Post, options: { compact?: boolean; showDragHandle?: boolean } = {}) => {
     const postAccounts = getAccountsForPost(post);
-    const istParts = getIstTimeParts(post.scheduledFor || post.publishedAt || post.createdAt);
-    const timeStr = istParts.timeStr;
+    const localParts = getLocalTimeParts(post.scheduledFor || post.publishedAt || post.createdAt, timeZone);
+    const timeStr = localParts.timeStr;
     const media = post.media && post.media.length > 0 ? post.media[0] : null;
     const isDraggable = post.status !== 'published';
 
@@ -516,7 +516,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {timeStr}
             </span>
             <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
-              {istParts.periodLabel}
+              {localParts.periodLabel}
             </span>
           </div>
 
@@ -919,16 +919,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             )}
           </button>
 
-          {/* Timezone Indicator */}
-          <div className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl flex items-center space-x-1.5">
-            <Globe className="w-3.5 h-3.5 text-gray-400" />
-            <span>{userTimezone}</span>
-          </div>
+          {/* Timezone Indicator & Quick Switcher */}
+          <button
+            type="button"
+            onClick={() => setIsTimezoneModalOpen(true)}
+            className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-emerald-50 border border-gray-200 hover:border-emerald-300 rounded-xl flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs group"
+            title="Click to view or change timezone"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+            <span className="font-bold text-gray-800">{tzInfo.label}</span>
+          </button>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* VIEW 1: WEEK VIEW (High-Precision India Standard Time Timeline Grid) */}
+      {/* VIEW 1: WEEK VIEW (High-Precision User Local Time Timeline Grid) */}
       {/* ========================================================================= */}
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
@@ -937,11 +942,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {/* Single Unified CSS Grid for Header and all 24 Hour Rows — Guaranteed Pixel-Perfect Column Alignment */}
               <div className="grid grid-cols-[68px_repeat(7,minmax(0,1fr))] relative">
                 {/* 1. Header Cells (Row 0): Sticky at top, perfectly synchronized with body columns */}
-                {/* Timezone corner header */}
-                <div className="sticky top-0 z-20 py-3 px-1 border-b border-r border-gray-200 bg-gray-50/95 backdrop-blur-xs flex flex-col items-center justify-center text-[10px] font-extrabold text-emerald-800 select-none">
-                  <span className="leading-tight">IST</span>
-                  <span className="text-[8px] text-emerald-600 font-semibold mt-0.5">UTC+5:30</span>
-                </div>
+                {/* Timezone corner header with quick modal launcher */}
+                <button
+                  type="button"
+                  onClick={() => setIsTimezoneModalOpen(true)}
+                  className="sticky top-0 z-20 py-3 px-1 border-b border-r border-gray-200 bg-gray-50/95 hover:bg-emerald-50/90 backdrop-blur-xs flex flex-col items-center justify-center text-[10px] font-extrabold text-emerald-800 transition-colors cursor-pointer select-none"
+                  title={`Active Timezone: ${tzInfo.label}. Click to change.`}
+                >
+                  <span className="leading-tight font-black">{tzInfo.abbr}</span>
+                  <span className="text-[8px] text-emerald-600 font-semibold mt-0.5">{tzInfo.offsetStr}</span>
+                </button>
 
                 {/* 7 Days Columns with highlighted today */}
                 {weekDays.map((day, dayIdx) => {
@@ -1014,7 +1024,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         // Filter posts scheduled specifically in this 1-hour slot
                         const slotPosts = dayPosts.filter((post) => {
                           const time = post.scheduledFor || post.publishedAt || post.createdAt;
-                          const parts = getIstTimeParts(time);
+                          const parts = getLocalTimeParts(time, timeZone);
                           return parts.hour24 === slot.hour;
                         });
 
@@ -1111,12 +1121,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
-          {/* Hourly Timeline with IST Phase Information */}
+          {/* Hourly Timeline with Local Phase Information */}
           <div className="divide-y divide-gray-100 max-h-[750px] overflow-y-auto">
             {Array.from({ length: 24 }).map((_, hour) => {
               const hourPosts = getPostsForDay(currentDate).filter((p) => {
                 const ts = p.scheduledFor || p.publishedAt || p.createdAt;
-                const parts = getIstTimeParts(ts);
+                const parts = getLocalTimeParts(ts, timeZone);
                 return parts.hour24 === hour;
               });
 
@@ -1622,10 +1632,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onClick={async () => {
                       if (!rescheduleDateInput) return;
                       const [datePart, timePart] = rescheduleDateInput.split('T');
-                      const newIso = formatLocalToUtcIso(datePart, timePart || '12:00');
+                      const newIso = formatLocalToUtcIso(datePart, timePart || '12:00', timeZone);
                       const ok = await onReschedulePost(inspectedPost.id, newIso);
                       if (ok) {
-                        setRescheduleSuccessMsg('Successfully rescheduled in IST!');
+                        setRescheduleSuccessMsg(`Successfully rescheduled in ${tzInfo.abbr}!`);
                         setTimeout(() => setRescheduleSuccessMsg(null), 3000);
                       }
                     }}
@@ -1666,6 +1676,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Global Timezone Switcher Modal */}
+      <TimezoneSelectorModal
+        isOpen={isTimezoneModalOpen}
+        onClose={() => setIsTimezoneModalOpen(false)}
+      />
     </div>
   );
 };

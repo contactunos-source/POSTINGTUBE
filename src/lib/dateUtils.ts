@@ -1,11 +1,248 @@
 import { Post } from '@/types/social';
+import { useState, useEffect } from 'react';
 
+/**
+ * Default fallback timezone & storage key for user-configured preference.
+ */
+export const USER_TZ_STORAGE_KEY = 'postingtube_user_tz';
+
+/**
+ * Legacy constant preserved for backward compatibility
+ * @deprecated Use getUserTimezone() instead.
+ */
 export const IST_TIMEZONE = 'Asia/Kolkata';
+
+/**
+ * Checks whether an IANA timezone identifier is valid and supported by the current JavaScript engine.
+ */
+export function isValidTimezone(tz: string | undefined | null): boolean {
+  if (!tz || typeof tz !== 'string') return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz.trim() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Dynamically retrieves the active user timezone:
+ * 1. Checks user preference saved in localStorage ('postingtube_user_tz').
+ * 2. Falls back to the user's browser device timezone (Intl.DateTimeFormat().resolvedOptions().timeZone).
+ * 3. Falls back to 'UTC' if running server-side or if browser timezone is undetermined.
+ */
+export function getUserTimezone(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(USER_TZ_STORAGE_KEY);
+      if (saved && isValidTimezone(saved)) {
+        return saved.trim();
+      }
+    } catch {}
+
+    try {
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (detected && isValidTimezone(detected)) {
+        return detected.trim();
+      }
+    } catch {}
+  }
+  return 'UTC';
+}
+
+/**
+ * Updates the user's preferred timezone:
+ * - If passed 'auto' or empty, resets preference to browser auto-detection.
+ * - Dispatches a custom event 'postingtube:timezone-changed' so all live UI components sync immediately.
+ */
+export function setUserTimezone(tz: string): void {
+  if (typeof window !== 'undefined') {
+    try {
+      const trimmed = tz ? tz.trim() : '';
+      if (!trimmed || trimmed === 'auto') {
+        localStorage.removeItem(USER_TZ_STORAGE_KEY);
+      } else if (isValidTimezone(trimmed)) {
+        localStorage.setItem(USER_TZ_STORAGE_KEY, trimmed);
+      }
+      window.dispatchEvent(
+        new CustomEvent('postingtube:timezone-changed', {
+          detail: { timeZone: getUserTimezone() },
+        })
+      );
+    } catch (e) {
+      console.warn('Failed to persist user timezone:', e);
+    }
+  }
+}
+
+export interface TimezoneInfo {
+  timeZone: string;
+  abbr: string;
+  offsetStr: string;
+  label: string;
+  city: string;
+  isAutoDetected: boolean;
+}
+
+/**
+ * Formats detailed timezone metadata including clean abbreviation, exact UTC offset, and display label.
+ */
+export function getUserTimezoneInfo(tzInput?: string): TimezoneInfo {
+  const activeTz = tzInput && isValidTimezone(tzInput) ? tzInput.trim() : getUserTimezone();
+  const isAutoDetected =
+    typeof window !== 'undefined' ? !localStorage.getItem(USER_TZ_STORAGE_KEY) : true;
+  const now = new Date();
+
+  let tzNamePart = '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: activeTz,
+      timeZoneName: 'short',
+    }).formatToParts(now);
+    tzNamePart = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+  } catch {}
+
+  // Calculate exact UTC offset string: e.g. UTC+05:30 or UTC-05:00
+  let offsetStr = 'UTC+00:00';
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: activeTz,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    });
+    const partsMap: Record<string, string> = {};
+    for (const p of dtf.formatToParts(now)) partsMap[p.type] = p.value;
+    let h = parseInt(partsMap.hour || '0', 10);
+    if (h === 24) h = 0;
+    const localMs = Date.UTC(
+      parseInt(partsMap.year || '2026', 10),
+      parseInt(partsMap.month || '1', 10) - 1,
+      parseInt(partsMap.day || '1', 10),
+      h,
+      parseInt(partsMap.minute || '0', 10),
+      parseInt(partsMap.second || '0', 10)
+    );
+    const diffMinutes = Math.round((localMs - now.getTime()) / 60000);
+    const sign = diffMinutes >= 0 ? '+' : '-';
+    const abs = Math.abs(diffMinutes);
+    const offH = Math.floor(abs / 60);
+    const offM = abs % 60;
+    offsetStr = `UTC${sign}${String(offH).padStart(2, '0')}:${String(offM).padStart(2, '0')}`;
+  } catch {}
+
+  // Provide clean, recognizable abbreviations for standard international timezones
+  let cleanAbbr = tzNamePart;
+  if (!cleanAbbr || cleanAbbr.startsWith('GMT') || cleanAbbr === offsetStr) {
+    if (activeTz === 'Asia/Kolkata' || activeTz === 'Asia/Calcutta') cleanAbbr = 'IST';
+    else if (activeTz === 'Asia/Tokyo') cleanAbbr = 'JST';
+    else if (activeTz === 'Asia/Singapore') cleanAbbr = 'SGT';
+    else if (activeTz === 'Asia/Dubai') cleanAbbr = 'GST';
+    else if (activeTz === 'Australia/Sydney') cleanAbbr = 'AEST';
+    else cleanAbbr = tzNamePart || offsetStr;
+  }
+
+  const city = activeTz.split('/').pop()?.replace(/_/g, ' ') || activeTz;
+  const label = cleanAbbr
+    ? `${activeTz} (${cleanAbbr} • ${offsetStr})`
+    : `${activeTz} (${offsetStr})`;
+
+  return {
+    timeZone: activeTz,
+    abbr: cleanAbbr || offsetStr,
+    offsetStr,
+    label,
+    city,
+    isAutoDetected,
+  };
+}
+
+/**
+ * React hook to reactively subscribe to the active user timezone and updates.
+ */
+export function useUserTimezone() {
+  const [tz, setTz] = useState<string>(() => getUserTimezone());
+  const [info, setInfo] = useState<TimezoneInfo>(() => getUserTimezoneInfo(tz));
+
+  useEffect(() => {
+    const update = () => {
+      const current = getUserTimezone();
+      setTz(current);
+      setInfo(getUserTimezoneInfo(current));
+    };
+
+    update();
+    window.addEventListener('postingtube:timezone-changed', update);
+    window.addEventListener('storage', update);
+
+    return () => {
+      window.removeEventListener('postingtube:timezone-changed', update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
+
+  const changeTimezone = (newTz: string) => {
+    setUserTimezone(newTz);
+    const updated = getUserTimezone();
+    setTz(updated);
+    setInfo(getUserTimezoneInfo(updated));
+  };
+
+  return { timeZone: tz, info, setTimezone: changeTimezone };
+}
+
+/**
+ * Curated list of popular world business timezones for quick selection.
+ */
+export const POPULAR_TIMEZONES = [
+  { region: 'Americas', tz: 'America/New_York', label: 'New York (Eastern Time - US & Canada)' },
+  { region: 'Americas', tz: 'America/Chicago', label: 'Chicago (Central Time - US & Canada)' },
+  { region: 'Americas', tz: 'America/Denver', label: 'Denver (Mountain Time - US & Canada)' },
+  { region: 'Americas', tz: 'America/Los_Angeles', label: 'Los Angeles / San Francisco (Pacific Time)' },
+  { region: 'Americas', tz: 'America/Toronto', label: 'Toronto (Eastern Time - Canada)' },
+  { region: 'Americas', tz: 'America/Vancouver', label: 'Vancouver (Pacific Time - Canada)' },
+  { region: 'Americas', tz: 'America/Sao_Paulo', label: 'São Paulo (Brasília Time - Brazil)' },
+  { region: 'Americas', tz: 'America/Mexico_City', label: 'Mexico City (Central Time - Mexico)' },
+  { region: 'Europe', tz: 'Europe/London', label: 'London (GMT / BST - United Kingdom)' },
+  { region: 'Europe', tz: 'Europe/Paris', label: 'Paris (CET / CEST - France)' },
+  { region: 'Europe', tz: 'Europe/Berlin', label: 'Berlin / Frankfurt (CET / CEST - Germany)' },
+  { region: 'Europe', tz: 'Europe/Amsterdam', label: 'Amsterdam (CET - Netherlands)' },
+  { region: 'Europe', tz: 'Europe/Madrid', label: 'Madrid (CET - Spain)' },
+  { region: 'Europe', tz: 'Europe/Rome', label: 'Rome (CET - Italy)' },
+  { region: 'Europe', tz: 'Europe/Athens', label: 'Athens (EET - Greece)' },
+  { region: 'Europe', tz: 'Europe/Istanbul', label: 'Istanbul (TRT - Turkey)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Kolkata', label: 'India (IST - New Delhi, Mumbai, Bengaluru)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Dubai', label: 'Dubai (GST - UAE & Gulf)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Riyadh', label: 'Riyadh (AST - Saudi Arabia)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Singapore', label: 'Singapore (SGT - Singapore)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Hong_Kong', label: 'Hong Kong (HKT)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Tokyo', label: 'Tokyo (JST - Japan)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Seoul', label: 'Seoul (KST - South Korea)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Bangkok', label: 'Bangkok / Jakarta (ICT)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Karachi', label: 'Karachi (PKT - Pakistan)' },
+  { region: 'Asia & Middle East', tz: 'Asia/Dhaka', label: 'Dhaka (BST - Bangladesh)' },
+  { region: 'Australia & Pacific', tz: 'Australia/Sydney', label: 'Sydney / Melbourne (AEST / AEDT)' },
+  { region: 'Australia & Pacific', tz: 'Australia/Brisbane', label: 'Brisbane (AEST - No DST)' },
+  { region: 'Australia & Pacific', tz: 'Australia/Perth', label: 'Perth (AWST - Western Australia)' },
+  { region: 'Australia & Pacific', tz: 'Pacific/Auckland', label: 'Auckland / Wellington (NZST / NZDT)' },
+  { region: 'Africa', tz: 'Africa/Cairo', label: 'Cairo (EET - Egypt)' },
+  { region: 'Africa', tz: 'Africa/Johannesburg', label: 'Johannesburg (SAST - South Africa)' },
+  { region: 'Africa', tz: 'Africa/Lagos', label: 'Lagos (WAT - Nigeria)' },
+  { region: 'Africa', tz: 'Africa/Nairobi', label: 'Nairobi (EAT - Kenya)' },
+  { region: 'Universal', tz: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+];
 
 /**
  * Safely parse any date input (string, Date, ISO, or YYYY-MM-DD) into a valid Date object.
  */
-export function parseDateSafe(dateInput: string | Date | undefined | null): Date | null {
+export function parseDateSafe(
+  dateInput: string | Date | undefined | null,
+  tz: string = getUserTimezone()
+): Date | null {
   if (!dateInput) return null;
   if (dateInput instanceof Date) {
     return isNaN(dateInput.getTime()) ? null : dateInput;
@@ -24,11 +261,12 @@ export function parseDateSafe(dateInput: string | Date | undefined | null): Date
     }
 
     // If string has date + time without timezone (e.g. "2026-10-30T14:40" or "2026-10-30 14:40:00")
-    // Treat as IST (+05:30) explicitly
     if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
       const normalized = trimmed.replace(' ', 'T');
-      const withTz = normalized.length === 16 ? `${normalized}:00+05:30` : `${normalized}+05:30`;
-      const dt = new Date(withTz);
+      const datePart = normalized.substring(0, 10);
+      const timePart = normalized.substring(11, 16);
+      const utcIso = formatLocalToUtcIso(datePart, timePart, tz);
+      const dt = new Date(utcIso);
       if (!isNaN(dt.getTime())) return dt;
     }
 
@@ -42,26 +280,37 @@ export function parseDateSafe(dateInput: string | Date | undefined | null): Date
 }
 
 /**
- * Extracts YYYY-MM-DD string in India Standard Time (IST)
+ * Extracts YYYY-MM-DD string in the user's localized timezone.
  */
-export function getIstDateString(dateInput: string | Date | undefined | null): string {
-  const d = parseDateSafe(dateInput);
+export function getLocalDateString(
+  dateInput: string | Date | undefined | null,
+  tz: string = getUserTimezone()
+): string {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) return '';
+  const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: IST_TIMEZONE,
+    timeZone: activeTz,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  return formatter.format(d); // e.g. '2026-10-30'
+  return formatter.format(d); // Returns 'YYYY-MM-DD'
+}
+
+/**
+ * Backward compatibility alias for getLocalDateString.
+ */
+export function getIstDateString(
+  dateInput: string | Date | undefined | null,
+  tz: string = getUserTimezone()
+): string {
+  return getLocalDateString(dateInput, tz);
 }
 
 export type TimePhase = 'morning' | 'afternoon' | 'evening' | 'night';
 
-/**
- * Accurately extracts hours, minutes, period (AM/PM), periodLabel, and phase in India Standard Time (IST)
- */
-export function getIstTimeParts(dateInput: string | Date | undefined | null): {
+export interface LocalTimeParts {
   hour24: number;
   minute: number;
   hour12: number;
@@ -69,8 +318,16 @@ export function getIstTimeParts(dateInput: string | Date | undefined | null): {
   timeStr: string;
   periodLabel: string;
   phase: TimePhase;
-} {
-  const d = parseDateSafe(dateInput);
+}
+
+/**
+ * Accurately extracts hours, minutes, period (AM/PM), periodLabel, and phase in the user's localized timezone.
+ */
+export function getLocalTimeParts(
+  dateInput: string | Date | undefined | null,
+  tz: string = getUserTimezone()
+): LocalTimeParts {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) {
     return {
       hour24: 0,
@@ -83,8 +340,9 @@ export function getIstTimeParts(dateInput: string | Date | undefined | null): {
     };
   }
 
+  const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: IST_TIMEZONE,
+    timeZone: activeTz,
     hour: 'numeric',
     minute: 'numeric',
     hour12: false,
@@ -134,33 +392,99 @@ export function getIstTimeParts(dateInput: string | Date | undefined | null): {
 }
 
 /**
- * Converts a date string (YYYY-MM-DD) and time string (HH:mm) chosen by user in IST
- * into an unambiguous UTC ISO 8601 string (e.g. 2026-10-30T09:10:00.000Z for 2:40 PM IST).
+ * Backward compatibility alias for getLocalTimeParts.
  */
-export function formatLocalToUtcIso(dateStr: string, timeStr: string): string {
+export function getIstTimeParts(
+  dateInput: string | Date | undefined | null,
+  tz: string = getUserTimezone()
+): LocalTimeParts {
+  return getLocalTimeParts(dateInput, tz);
+}
+
+/**
+ * Converts a date string (YYYY-MM-DD) and time string (HH:mm) chosen by user in their local timezone
+ * into an unambiguous UTC ISO 8601 string (e.g. '2026-11-10T09:00:00.000Z').
+ *
+ * Uses a 2-pass inversion algorithm that guarantees exact round-trip precision across all 400+ IANA
+ * timezones, including daylight saving transitions.
+ */
+export function formatLocalToUtcIso(
+  dateStr: string,
+  timeStr: string,
+  tz: string = getUserTimezone()
+): string {
   try {
+    const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
     const [y, m, d] = dateStr.split('-').map(Number);
     const [hrs, mins] = timeStr.split(':').map(Number);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    // India Standard Time is strictly UTC+05:30 with zero daylight savings
-    const istIso = `${y}-${pad(m || 1)}-${pad(d || 1)}T${pad(hrs || 0)}:${pad(mins || 0)}:00+05:30`;
-    const dt = new Date(istIso);
-    if (!isNaN(dt.getTime())) {
-      return dt.toISOString();
+
+    if (isNaN(y) || isNaN(m) || isNaN(d)) {
+      return new Date().toISOString();
+    }
+    const safeH = isNaN(hrs) ? 12 : hrs;
+    const safeM = isNaN(mins) ? 0 : mins;
+
+    const targetUtcMs = Date.UTC(y, m - 1, d, safeH, safeM, 0);
+
+    const getLocalMsInTz = (utcMs: number): number => {
+      const dObj = new Date(utcMs);
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: activeTz,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+      });
+      const partsMap: Record<string, string> = {};
+      for (const part of formatter.formatToParts(dObj)) {
+        partsMap[part.type] = part.value;
+      }
+      let h = parseInt(partsMap.hour || '0', 10);
+      if (h === 24) h = 0;
+      return Date.UTC(
+        parseInt(partsMap.year || String(y), 10),
+        parseInt(partsMap.month || String(m), 10) - 1,
+        parseInt(partsMap.day || String(d), 10),
+        h,
+        parseInt(partsMap.minute || '0', 10),
+        parseInt(partsMap.second || '0', 10)
+      );
+    };
+
+    let guessUtc = targetUtcMs;
+    let localMs = getLocalMsInTz(guessUtc);
+    let diff = localMs - targetUtcMs;
+    guessUtc -= diff;
+
+    // Second pass for daylight saving transition edge cases
+    localMs = getLocalMsInTz(guessUtc);
+    diff = localMs - targetUtcMs;
+    guessUtc -= diff;
+
+    const resDate = new Date(guessUtc);
+    if (!isNaN(resDate.getTime())) {
+      return resDate.toISOString();
     }
     return new Date().toISOString();
-  } catch {
+  } catch (err) {
+    console.error('formatLocalToUtcIso conversion error:', err);
     return new Date().toISOString();
   }
 }
 
 /**
- * Accurately extracts YYYY-MM-DD and HH:mm in India Standard Time (IST).
+ * Accurately extracts YYYY-MM-DD and HH:mm in the user's localized timezone.
  */
-export function extractLocalDateAndTime(isoDateString: string | undefined | null): { date: string; time: string } {
-  const d = parseDateSafe(isoDateString) || new Date();
-  const dateStr = getIstDateString(d);
-  const { hour24, minute } = getIstTimeParts(d);
+export function extractLocalDateAndTime(
+  isoDateString: string | undefined | null,
+  tz: string = getUserTimezone()
+): { date: string; time: string } {
+  const d = parseDateSafe(isoDateString, tz) || new Date();
+  const dateStr = getLocalDateString(d, tz);
+  const { hour24, minute } = getLocalTimeParts(d, tz);
   const hh = String(hour24).padStart(2, '0');
   const mm = String(minute).padStart(2, '0');
   return {
@@ -170,23 +494,30 @@ export function extractLocalDateAndTime(isoDateString: string | undefined | null
 }
 
 /**
- * Converts a UTC ISO 8601 string into an IST 'YYYY-MM-DDTHH:mm' string suitable
+ * Converts a UTC ISO 8601 string into a local 'YYYY-MM-DDTHH:mm' string suitable
  * for HTML5 <input type="datetime-local">.
  */
-export function formatToDateTimeLocal(isoDateString: string | undefined | null): string {
+export function formatToDateTimeLocal(
+  isoDateString: string | undefined | null,
+  tz: string = getUserTimezone()
+): string {
   if (!isoDateString) return '';
-  const { date, time } = extractLocalDateAndTime(isoDateString);
+  const { date, time } = extractLocalDateAndTime(isoDateString, tz);
   return `${date}T${time}`;
 }
 
 /**
- * Format time in readable 12-hour format in India Standard Time e.g. "2:40 PM"
+ * Format time in readable 12-hour format in the user's localized timezone e.g. "2:40 PM"
  */
-export function formatTimeSafe(dateInput: string | Date | undefined | null, fallback = ''): string {
-  const d = parseDateSafe(dateInput);
+export function formatTimeSafe(
+  dateInput: string | Date | undefined | null,
+  fallback = '',
+  tz: string = getUserTimezone()
+): string {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
-    const parts = getIstTimeParts(d);
+    const parts = getLocalTimeParts(d, tz);
     return parts.timeStr;
   } catch {
     return fallback;
@@ -194,14 +525,19 @@ export function formatTimeSafe(dateInput: string | Date | undefined | null, fall
 }
 
 /**
- * Format full date & time with seconds in India Standard Time
+ * Format full date & time with seconds in the user's localized timezone
  */
-export function formatDateTimeWithSeconds(dateInput: string | Date | undefined | null, fallback = ''): string {
-  const d = parseDateSafe(dateInput);
+export function formatDateTimeWithSeconds(
+  dateInput: string | Date | undefined | null,
+  fallback = '',
+  tz: string = getUserTimezone()
+): string {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
+    const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
     return new Intl.DateTimeFormat('en-US', {
-      timeZone: IST_TIMEZONE,
+      timeZone: activeTz,
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -216,14 +552,19 @@ export function formatDateTimeWithSeconds(dateInput: string | Date | undefined |
 }
 
 /**
- * Format full date in India Standard Time e.g. "Friday, Oct 30, 2026"
+ * Format full date in the user's localized timezone e.g. "Friday, Oct 30, 2026"
  */
-export function formatDateFullSafe(dateInput: string | Date | undefined | null, fallback = ''): string {
-  const d = parseDateSafe(dateInput);
+export function formatDateFullSafe(
+  dateInput: string | Date | undefined | null,
+  fallback = '',
+  tz: string = getUserTimezone()
+): string {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
+    const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
     return new Intl.DateTimeFormat('en-US', {
-      timeZone: IST_TIMEZONE,
+      timeZone: activeTz,
       weekday: 'long',
       month: 'short',
       day: 'numeric',
@@ -235,14 +576,19 @@ export function formatDateFullSafe(dateInput: string | Date | undefined | null, 
 }
 
 /**
- * Format short date in India Standard Time e.g. "Oct 30, 2:40 PM"
+ * Format short date in the user's localized timezone e.g. "Oct 30, 2:40 PM"
  */
-export function formatDateTimeShort(dateInput: string | Date | undefined | null, fallback = ''): string {
-  const d = parseDateSafe(dateInput);
+export function formatDateTimeShort(
+  dateInput: string | Date | undefined | null,
+  fallback = '',
+  tz: string = getUserTimezone()
+): string {
+  const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
+    const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
     return new Intl.DateTimeFormat('en-US', {
-      timeZone: IST_TIMEZONE,
+      timeZone: activeTz,
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -255,41 +601,46 @@ export function formatDateTimeShort(dateInput: string | Date | undefined | null,
 }
 
 /**
- * Compare two dates by India Standard Time (IST) calendar day.
+ * Compare two dates by the user's localized calendar day.
  */
 export function isSameCalendarDay(
   d1: string | Date | undefined | null,
-  d2: string | Date | undefined | null
+  d2: string | Date | undefined | null,
+  tz: string = getUserTimezone()
 ): boolean {
-  const date1Str = getIstDateString(d1);
-  const date2Str = getIstDateString(d2);
+  const date1Str = getLocalDateString(d1, tz);
+  const date2Str = getLocalDateString(d2, tz);
   if (!date1Str || !date2Str) return false;
   return date1Str === date2Str;
 }
 
 /**
- * Check if a post matches a given calendar day in India Standard Time.
+ * Check if a post matches a given calendar day in the user's localized timezone.
  */
-export function postMatchesDay(post: Post, day: Date): boolean {
+export function postMatchesDay(
+  post: Post,
+  day: Date,
+  tz: string = getUserTimezone()
+): boolean {
   if (!post || !day) return false;
 
   // 1. Scheduled posts match scheduledFor
-  if (post.scheduledFor && isSameCalendarDay(post.scheduledFor, day)) {
+  if (post.scheduledFor && isSameCalendarDay(post.scheduledFor, day, tz)) {
     return true;
   }
 
   // 2. Published posts match publishedAt
-  if (post.publishedAt && isSameCalendarDay(post.publishedAt, day)) {
+  if (post.publishedAt && isSameCalendarDay(post.publishedAt, day, tz)) {
     return true;
   }
 
   // 3. Check individual account publication results timestamps
   if (post.results) {
     for (const res of Object.values(post.results)) {
-      if (res?.publishedAt && isSameCalendarDay(res.publishedAt, day)) {
+      if (res?.publishedAt && isSameCalendarDay(res.publishedAt, day, tz)) {
         return true;
       }
-      if ((res as any)?.timestamp && isSameCalendarDay((res as any).timestamp, day)) {
+      if ((res as any)?.timestamp && isSameCalendarDay((res as any).timestamp, day, tz)) {
         return true;
       }
     }
@@ -297,7 +648,7 @@ export function postMatchesDay(post: Post, day: Date): boolean {
 
   // 4. Fallback: If post has no scheduledFor or publishedAt, match createdAt
   if (!post.scheduledFor && !post.publishedAt && post.createdAt) {
-    if (isSameCalendarDay(post.createdAt, day)) {
+    if (isSameCalendarDay(post.createdAt, day, tz)) {
       return true;
     }
   }

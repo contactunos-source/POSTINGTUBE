@@ -1,6 +1,6 @@
 'use client';
 
-import { getIstDateString, formatLocalToUtcIso } from '@/lib/dateUtils';
+import { getLocalDateString, formatLocalToUtcIso } from '@/lib/dateUtils';
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
@@ -1071,15 +1071,15 @@ export default function DashboardPage() {
             onRefreshData={handleRefreshUserData}
             onCreateAtDate={(d) => {
               setPreviousTab('calendar');
-              const dayStr = getIstDateString(d);
+              const dayStr = getLocalDateString(d);
               const targetHour = typeof d.getHours === 'function' ? d.getHours() : 14;
               const targetMinute = typeof d.getMinutes === 'function' ? d.getMinutes() : 0;
               const hh = String(targetHour).padStart(2, '0');
               const mm = String(targetMinute).padStart(2, '0');
-              const istIso = formatLocalToUtcIso(dayStr, `${hh}:${mm}`);
+              const utcIso = formatLocalToUtcIso(dayStr, `${hh}:${mm}`);
 
               setEditingPost({
-                scheduledFor: istIso,
+                scheduledFor: utcIso,
                 targetAccountIds: accounts.map((a) => a.id),
                 content: '',
                 media: [],

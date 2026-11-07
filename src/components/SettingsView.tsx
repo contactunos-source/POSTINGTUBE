@@ -27,12 +27,15 @@ import {
   Calendar,
   ArrowRight,
   ShieldCheck,
+  Globe,
 } from 'lucide-react';
 import { supabase, signOutUser } from '@/lib/supabase';
 import { DeleteChannelModal } from '@/components/DeleteChannelModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
 import { PRICING_CONFIG } from '@/lib/pricing-config';
+import { useUserTimezone, formatTimeSafe, setUserTimezone } from '@/lib/dateUtils';
+import { TimezoneSelectorModal } from '@/components/TimezoneSelectorModal';
 
 interface SettingsViewProps {
   currentWorkspace: Workspace;
@@ -83,6 +86,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Settings Navigation Tab
   const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'billing'>('profile');
+
+  // Timezone and Regional Localization State
+  const { timeZone, info: tzInfo } = useUserTimezone();
+  const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState<boolean>(false);
 
   // Subscription & Billing States
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
@@ -1001,6 +1008,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {/* Divider */}
         <div className="border-t border-gray-200/80 pt-2" />
 
+        {/* Timezone & Regional Localization Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2">
+                <Globe className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-sm font-bold text-gray-900">Timezone & Regional Localization</h3>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Dates, hourly timeline columns, and scheduled publishing times are presented according to your local country time.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-gray-50 border border-gray-200/90 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-w-2xl shadow-2xs">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-gray-900">{tzInfo.label}</span>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                    tzInfo.isAutoDetected
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}
+                >
+                  {tzInfo.isAutoDetected ? 'Auto-detected' : 'Custom'}
+                </span>
+              </div>
+              <div className="text-[11px] text-gray-500 flex items-center space-x-2">
+                <span>Current Local Time:</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  {formatTimeSafe(new Date(), '', timeZone)}
+                </span>
+                <span>• Offset: {tzInfo.offsetStr}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              {!tzInfo.isAutoDetected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserTimezone('auto');
+                    showToast('Reset to browser device timezone.');
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shadow-2xs"
+                >
+                  Use Auto
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsTimezoneModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs flex items-center space-x-1.5"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Change Timezone</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-200/80 pt-2" />
+
         {/* Connected Social Channels Management Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -1222,6 +1294,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         currentPlan={isProPlan ? 'Pro' : 'Free'}
         channelsCount={subscriptionData?.channelsCount || 3}
         onPlanUpdated={loadBillingDetails}
+      />
+
+      {/* Global Timezone Switcher Modal */}
+      <TimezoneSelectorModal
+        isOpen={isTimezoneModalOpen}
+        onClose={() => setIsTimezoneModalOpen(false)}
+        onTimezoneChanged={(newTz) => {
+          showToast(`Timezone updated to ${newTz}`);
+        }}
       />
     </div>
   );
