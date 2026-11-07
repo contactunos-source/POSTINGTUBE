@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getAuthoritativeAvatar, mapDbAccountToAccount } from '@/lib/db';
+import { mirrorAvatarToPermanentStorage } from '@/lib/avatarStorage';
 
 export async function POST(req: NextRequest) {
   if (!supabase) {
@@ -110,25 +111,61 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. Instagram Live Profile Picture Fetch
-      if (platform === 'instagram' && pageId) {
+      if (platform === 'instagram') {
         const tokenToUse = accessToken || process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-        const cleanId = String(pageId).replace(/^ig_/, '');
-        if (tokenToUse && cleanId) {
+        const cleanId = String(pageId || row.id).replace(/^ig_/, '');
+        if (tokenToUse) {
           try {
-            const igRes = await fetch(
-              `https://graph.facebook.com/v20.0/${cleanId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
-                tokenToUse
-              )}`
-            );
-            if (igRes.ok) {
-              const igData = await igRes.json();
-              if (igData.profile_picture_url) {
-                freshAvatar = igData.profile_picture_url;
+            if (tokenToUse.startsWith('IGA') || tokenToUse.startsWith('IGQ')) {
+              // Instagram User Access Token
+              const igRes = await fetch(
+                `https://graph.instagram.com/me?fields=id,username,profile_picture_url&access_token=${encodeURIComponent(
+                  tokenToUse
+                )}`
+              );
+              if (igRes.ok) {
+                const igData = await igRes.json();
+                if (igData.profile_picture_url) {
+                  freshAvatar = igData.profile_picture_url;
+                }
+              }
+            } else if (cleanId) {
+              // Meta Page Access Token
+              const igRes = await fetch(
+                `https://graph.facebook.com/v20.0/${cleanId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
+                  tokenToUse
+                )}`
+              );
+              if (igRes.ok) {
+                const igData = await igRes.json();
+                if (igData.profile_picture_url) {
+                  freshAvatar = igData.profile_picture_url;
+                }
               }
             }
           } catch (e) {
             console.warn('[AvatarSync] Error querying Instagram Graph API for avatar:', e);
           }
+        }
+      }
+
+      // 4. Mirror remote avatars to permanent Supabase Storage
+      if (
+        freshAvatar &&
+        !freshAvatar.includes('supabase.co/storage') &&
+        (freshAvatar.includes('fbcdn.net') ||
+          freshAvatar.includes('cdninstagram.com') ||
+          freshAvatar.includes('facebook.com') ||
+          freshAvatar.includes('googleusercontent.com') ||
+          freshAvatar.includes('ggpht.com'))
+      ) {
+        try {
+          const permanentUrl = await mirrorAvatarToPermanentStorage(row.id, freshAvatar);
+          if (permanentUrl) {
+            freshAvatar = permanentUrl;
+          }
+        } catch (mErr) {
+          console.warn('[AvatarSync] Error mirroring to Supabase Storage:', mErr);
         }
       }
 

@@ -62,12 +62,15 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
 
   const username = activeAccount?.username || 'your_channel';
   const displayName = activeAccount?.displayName || 'Your Channel';
+  const cleanDisplayName = (displayName || 'Channel').replace(/^@/, '');
   const avatar =
     activeAccount?.avatarUrl && !activeAccount.avatarUrl.includes('unsplash.com')
       ? activeAccount.avatarUrl
+      : activeAccount?.id
+      ? `/api/accounts/avatar/${encodeURIComponent(activeAccount.id)}`
       : activeAccount?.platform === 'facebook' && (activeAccount?.pageId || activeAccount?.id)
       ? `https://graph.facebook.com/${(activeAccount.pageId || activeAccount.id || '').replace(/^fb_/, '')}/picture?type=large`
-      : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=059669&color=fff&size=256&bold=true`;
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanDisplayName)}&background=059669&color=fff&size=256&bold=true`;
 
   const effectiveRatio = override?.aspectRatio || aspectRatio;
 

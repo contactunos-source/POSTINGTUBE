@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/db';
 import { SocialAccount } from '@/types/social';
+import { mirrorAvatarToPermanentStorage } from '@/lib/avatarStorage';
 
 /**
  * Dedicated Instagram OAuth Callback Route.
@@ -337,14 +338,21 @@ export async function GET(req: NextRequest) {
     // Persist discovered Instagram accounts directly to Supabase database
     for (const ch of detectedChannels) {
       const cleanUsername = (ch.name || 'instagram_account').replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const accountId = `ig_${ch.id}`;
+      let permAvatar = ch.avatarUrl;
+      if (permAvatar) {
+        try {
+          permAvatar = await mirrorAvatarToPermanentStorage(accountId, permAvatar);
+        } catch {}
+      }
       const igAcc: SocialAccount = {
-        id: `ig_${ch.id}`,
+        id: accountId,
         userId: userId || undefined,
         platform: 'instagram',
         username: cleanUsername,
         displayName: `@${cleanUsername}`,
         avatarUrl:
-          ch.avatarUrl ||
+          permAvatar ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanUsername || 'Instagram')}&background=E1306C&color=fff&size=256&bold=true`,
         accountType: 'business',
         status: 'connected',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/db';
 import { SocialAccount } from '@/types/social';
+import { mirrorAvatarToPermanentStorage } from '@/lib/avatarStorage';
 
 /**
  * Handles Pure Facebook OAuth 2.0 Callback.
@@ -199,13 +200,20 @@ export async function GET(req: NextRequest) {
     // 6. Direct Supabase Persistence: Guarantee all discovered Facebook pages are stored
     for (const ch of detectedChannels) {
       const cleanUsername = (ch.name || 'facebook_page').toLowerCase().replace(/\s+/g, '_');
-      const pageAvatar =
+      const accountId = `fb_${ch.id}`;
+      let pageAvatar =
         ch.avatarUrl ||
         `https://graph.facebook.com/${ch.id}/picture?type=large` ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(ch.name || 'Facebook Page')}&background=1877F2&color=fff&size=256&bold=true`;
 
+      if (pageAvatar) {
+        try {
+          pageAvatar = await mirrorAvatarToPermanentStorage(accountId, pageAvatar);
+        } catch {}
+      }
+
       const fbAcc: SocialAccount = {
-        id: `fb_${ch.id}`,
+        id: accountId,
         userId: userId || undefined,
         platform: 'facebook',
         username: cleanUsername,

@@ -115,9 +115,25 @@ export function getAuthoritativeAvatar(account: {
   id?: string | null;
 }): string {
   const current = account.avatarUrl;
-  // If valid non-unsplash image URL, keep it!
-  if (current && !current.includes('unsplash.com') && current.startsWith('http')) {
+  // If permanent Supabase Storage URL, keep it!
+  if (current && current.includes('supabase.co/storage')) {
     return current;
+  }
+
+  // If valid non-expiring image URL, keep it! (Exclude expiring Meta CDN links with oe=)
+  if (
+    current &&
+    !current.includes('unsplash.com') &&
+    current.startsWith('http') &&
+    !current.includes('&oe=') &&
+    !current.includes('?oe=')
+  ) {
+    return current;
+  }
+
+  // If account has an ID, route through the permanent avatar endpoint
+  if (account.id) {
+    return `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
   }
 
   // For Facebook Page, official graph.facebook.com provides direct high-res avatar
@@ -128,7 +144,7 @@ export function getAuthoritativeAvatar(account: {
     }
   }
 
-  const name = account.displayName || account.username || account.platform || 'Account';
+  const name = (account.displayName || account.username || account.platform || 'Account').replace(/^@/, '');
   const colorMap: Record<string, string> = {
     youtube: 'FF0000',
     facebook: '1877F2',

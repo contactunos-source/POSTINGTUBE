@@ -350,14 +350,22 @@ export const ConnectedAccountsView: React.FC<ConnectedAccountsViewProps> = ({
                           src={
                             acc.avatarUrl && !acc.avatarUrl.includes('unsplash.com')
                               ? acc.avatarUrl
-                              : `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`
+                              : acc.id
+                              ? `/api/accounts/avatar/${encodeURIComponent(acc.id)}`
+                              : `https://ui-avatars.com/api/?name=${encodeURIComponent((acc.displayName || acc.username || 'A').replace(/^@/, ''))}&background=059669&color=fff&size=128&bold=true`
                           }
                           alt={acc.displayName}
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
+                            if (!target.dataset.retried && acc.id) {
+                              target.dataset.retried = 'true';
+                              target.src = `/api/accounts/avatar/${encodeURIComponent(acc.id)}`;
+                              return;
+                            }
                             target.onerror = null;
-                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.displayName || acc.username)}&background=059669&color=fff&size=128&bold=true`;
+                            const cleanName = (acc.displayName || acc.username || 'A').replace(/^@/, '');
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=059669&color=fff&size=128&bold=true`;
                           }}
                           className="w-8 h-8 rounded-full object-cover border border-gray-200"
                         />

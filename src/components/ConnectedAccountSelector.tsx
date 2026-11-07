@@ -136,24 +136,25 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
                 </div>
 
                 {/* Profile Image Avatar */}
-                {account.avatarUrl ? (
-                  <img
-                    src={account.avatarUrl}
-                    alt={account.displayName}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full rounded-full object-cover bg-gray-100"
-                    onError={(e) => {
-                      // Fallback if image link fails or expired
-                      const target = e.target as HTMLImageElement;
-                      target.onerror = null;
-                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'A')}&background=059669&color=fff&size=128&bold=true`;
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xs uppercase shadow-inner">
-                    {(account.displayName || account.username || 'A').slice(0, 2)}
-                  </div>
-                )}
+                <img
+                  src={account.avatarUrl || `/api/accounts/avatar/${encodeURIComponent(account.id)}`}
+                  alt={account.displayName}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full rounded-full object-cover bg-gray-100"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.dataset.retried) {
+                      target.dataset.retried = 'true';
+                      target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
+                      return;
+                    }
+                    target.onerror = null;
+                    const cleanName = (account.displayName || account.username || 'Account').replace(/^@/, '');
+                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      cleanName
+                    )}&background=059669&color=fff&size=128&bold=true`;
+                  }}
+                />
               </button>
 
               {/* Exact Dark Tooltip on Hover */}

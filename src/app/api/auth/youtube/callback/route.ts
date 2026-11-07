@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/db';
 import { SocialAccount } from '@/types/social';
+import { mirrorAvatarToPermanentStorage } from '@/lib/avatarStorage';
 
 interface DiscoveredYouTubeChannel {
   id: string;
@@ -179,13 +180,20 @@ export async function GET(req: NextRequest) {
     // 4. Directly persist discovered channels to Supabase database
     for (const ch of discoveredChannels) {
       const cleanHandle = (ch.username || ch.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+      const accountId = `yt_${ch.id}`;
+      let channelAvatar = ch.avatarUrl;
+      if (channelAvatar) {
+        try {
+          channelAvatar = await mirrorAvatarToPermanentStorage(accountId, channelAvatar);
+        } catch {}
+      }
       const ytAcc: SocialAccount = {
-        id: `yt_${ch.id}`,
+        id: accountId,
         userId: userId || undefined,
         platform: 'youtube',
         username: cleanHandle,
         displayName: ch.name,
-        avatarUrl: ch.avatarUrl,
+        avatarUrl: channelAvatar,
         accountType: 'channel',
         status: 'connected',
         followersCount: ch.followersCount || 0,

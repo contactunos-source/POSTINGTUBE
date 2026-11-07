@@ -1056,9 +1056,15 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                   className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100 shadow-2xs"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
+                                    if (!target.dataset.retried && account.id) {
+                                      target.dataset.retried = 'true';
+                                      target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
+                                      return;
+                                    }
                                     target.onerror = null;
+                                    const cleanName = (account.displayName || 'A').replace(/^@/, '');
                                     target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                      account.displayName || 'A'
+                                      cleanName
                                     )}&background=059669&color=fff&size=80&bold=true`;
                                   }}
                                 />
