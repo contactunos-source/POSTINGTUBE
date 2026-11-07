@@ -34,11 +34,16 @@ export const facebookAdapter: PlatformAdapter = {
   },
   async publish(account, post, override) {
     const text = override?.caption || post.content;
-    const mediaUrls = (override?.media && override.media.length > 0)
-      ? override.media.map(m => m.url).filter(Boolean)
+    const rawMediaList = (override?.media && override.media.length > 0)
+      ? override.media
       : (post.media && post.media.length > 0)
-        ? post.media.map(m => m.url).filter(Boolean)
+        ? post.media
         : [];
+    const sortedMedia = [...rawMediaList].sort((a, b) => {
+      if (typeof a.order === 'number' && typeof b.order === 'number') return a.order - b.order;
+      return 0;
+    });
+    const mediaUrls = sortedMedia.map(m => m.url).filter(Boolean);
     const mediaUrl = mediaUrls[0];
     const isCarousel = post.postType === 'carousel' || mediaUrls.length > 1;
     
@@ -109,11 +114,16 @@ export const instagramAdapter: PlatformAdapter = {
   async publish(account, post, override) {
     const text = override?.caption || post.content;
     const isReel = post.postType === 'reel';
-    const mediaUrls = (override?.media && override.media.length > 0)
-      ? override.media.map(m => m.url).filter(Boolean)
+    const rawMediaList = (override?.media && override.media.length > 0)
+      ? override.media
       : (post.media && post.media.length > 0)
-        ? post.media.map(m => m.url).filter(Boolean)
+        ? post.media
         : [];
+    const sortedMedia = [...rawMediaList].sort((a, b) => {
+      if (typeof a.order === 'number' && typeof b.order === 'number') return a.order - b.order;
+      return 0;
+    });
+    const mediaUrls = sortedMedia.map(m => m.url).filter(Boolean);
     const mediaUrl = mediaUrls[0];
     const isCarousel = post.postType === 'carousel' || mediaUrls.length > 1;
 

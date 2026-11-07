@@ -16,21 +16,29 @@ export function mapDbPostToPost(row: any): Post {
     userId: row.user_id || undefined,
     workspaceId: (row.workspace_id && UUID_REGEX.test(row.workspace_id)) ? row.workspace_id : DEFAULT_WORKSPACE_ID,
     content: row.content || '',
-    media: (row.media || []).map((m: any) => {
-      let safeUrl = m.url || '';
-      let safeThumb = m.thumbnailUrl || '';
-      if (typeof safeUrl === 'string' && safeUrl.startsWith('blob:') && m.name) {
-        safeUrl = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
-      }
-      if (typeof safeThumb === 'string' && safeThumb.startsWith('blob:') && m.name) {
-        safeThumb = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
-      }
-      return {
-        ...m,
-        url: safeUrl,
-        thumbnailUrl: safeThumb || safeUrl,
-      };
-    }),
+    media: (Array.isArray(row.media) ? [...row.media] : [])
+      .sort((a: any, b: any) => {
+        if (typeof a.order === 'number' && typeof b.order === 'number') {
+          return a.order - b.order;
+        }
+        return 0;
+      })
+      .map((m: any, idx: number) => {
+        let safeUrl = m.url || '';
+        let safeThumb = m.thumbnailUrl || '';
+        if (typeof safeUrl === 'string' && safeUrl.startsWith('blob:') && m.name) {
+          safeUrl = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
+        }
+        if (typeof safeThumb === 'string' && safeThumb.startsWith('blob:') && m.name) {
+          safeThumb = `${supabasePublicBase}${encodeURIComponent(m.name)}`;
+        }
+        return {
+          ...m,
+          order: typeof m.order === 'number' ? m.order : idx,
+          url: safeUrl,
+          thumbnailUrl: safeThumb || safeUrl,
+        };
+      }),
     targetAccountIds: row.target_account_ids || [],
     postType: row.post_type || 'post',
     platformOverrides: row.platform_overrides || {},
@@ -74,8 +82,9 @@ export function mapPostToDbPost(post: Post, workspaceId: string = DEFAULT_WORKSP
     id: post.id,
     workspace_id: validWorkspaceId,
     content: post.content,
-    media: (post.media || []).map((m: any) => ({
+    media: (post.media || []).map((m: any, idx: number) => ({
       ...m,
+      order: typeof m.order === 'number' ? m.order : idx,
       thumbnailUrl: (m.thumbnailUrl && !m.thumbnailUrl.startsWith('blob:')) ? m.thumbnailUrl : m.url,
     })),
     target_account_ids: post.targetAccountIds || [],

@@ -65,6 +65,7 @@ export interface PostMedia {
   size?: number; // bytes
   aspectRatio?: string;
   duration?: number; // seconds
+  order?: number; // 0-based slide order for carousels
 }
 
 export interface PlatformPostMetrics {

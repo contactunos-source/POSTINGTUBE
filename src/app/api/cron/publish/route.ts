@@ -110,9 +110,13 @@ async function handlePublishCron(req: NextRequest) {
               post.platform_overrides?.[account.platform] ||
               {};
 
-            const effectiveMedia = accountOverride.media && accountOverride.media.length > 0
+            const rawMedia = accountOverride.media && accountOverride.media.length > 0
               ? accountOverride.media
               : (post.media || []);
+            const effectiveMedia = [...rawMedia].sort((a: any, b: any) => {
+              if (typeof a.order === 'number' && typeof b.order === 'number') return a.order - b.order;
+              return 0;
+            });
             const mediaUrls = effectiveMedia.map((m: any) => m.url).filter(Boolean);
             const overrideMediaUrl = mediaUrls[0] || mediaUrl;
             const isCarousel = post.post_type === 'carousel' || mediaUrls.length > 1;

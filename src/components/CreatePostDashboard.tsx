@@ -451,7 +451,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [collapsedPlatforms, setCollapsedPlatforms] = useState<Record<string, boolean>>({});
 
   // Media state
-  const [mediaList, setMediaList] = useState<PostMedia[]>(initialPost?.media || []);
+  const [mediaList, setMediaList] = useState<PostMedia[]>(() => {
+    const list = initialPost?.media ? [...initialPost.media] : [];
+    if (list.some((m) => typeof m.order === 'number')) {
+      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+    return list;
+  });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isReplacingRef = useRef(false);
@@ -468,7 +474,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   const handleRemoveMedia = (mediaId?: string) => {
     if (mediaId) {
-      setMediaList((prev) => prev.filter((m) => m.id !== mediaId));
+      setMediaList((prev) => {
+        const next = prev.filter((m) => m.id !== mediaId);
+        return next.map((item, idx) => ({ ...item, order: idx }));
+      });
     } else {
       setMediaList([]);
     }
@@ -503,6 +512,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     const temp = nextList[currentIdx];
     nextList[currentIdx] = nextList[currentIdx - 1];
     nextList[currentIdx - 1] = temp;
+    // Strict order re-indexing to ensure slide sequence is permanently preserved
+    nextList.forEach((item, idx) => {
+      item.order = idx;
+    });
 
     if (customizeMediaPerPlatform) {
       setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
@@ -520,6 +533,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     const temp = nextList[currentIdx];
     nextList[currentIdx] = nextList[currentIdx + 1];
     nextList[currentIdx + 1] = temp;
+    // Strict order re-indexing to ensure slide sequence is permanently preserved
+    nextList.forEach((item, idx) => {
+      item.order = idx;
+    });
 
     if (customizeMediaPerPlatform) {
       setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
@@ -532,6 +549,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handleCarouselRemoveSlide = (accId: string, slideIndex: number) => {
     const list = customizeMediaPerPlatform ? (platformMediaMap[accId] || mediaList) : mediaList;
     const nextList = list.filter((_, idx) => idx !== slideIndex);
+    // Strict order re-indexing to ensure slide sequence is permanently preserved
+    nextList.forEach((item, idx) => {
+      item.order = idx;
+    });
 
     if (customizeMediaPerPlatform) {
       setPlatformMediaMap((prev) => ({ ...prev, [accId]: nextList }));
@@ -566,6 +587,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         type: 'image',
         size: file.size,
         aspectRatio: '1:1',
+        order: index,
       };
       const updatedList = [...currentList];
       updatedList[index] = tempMedia;
@@ -652,6 +674,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     const filesToAdd = fileArray.slice(0, availableSlots);
     const newItems: PostMedia[] = filesToAdd.map((file, i) => {
       const blobUrl = URL.createObjectURL(file);
+      const slideIndex = currentList.length + i;
       return {
         id: `slide_${Date.now()}_${i}`,
         name: file.name,
@@ -660,10 +683,11 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         type: 'image',
         size: file.size,
         aspectRatio: '1:1',
+        order: slideIndex,
       };
     });
 
-    const combinedList = [...currentList, ...newItems];
+    const combinedList = [...currentList, ...newItems].map((item, idx) => ({ ...item, order: idx }));
     if (isPerPlatform) {
       setPlatformMediaMap((prev) => ({ ...prev, [accId]: combinedList }));
     } else {
@@ -863,33 +887,9 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   };
 
   // Per-platform media helpers
-  const getRawMediaForAccount = (accId: string): PostMedia[] => {
+  const getEffectiveMediaForAccount = (accId: string): PostMedia[] => {
     if (!customizeMediaPerPlatform) return mediaList;
     return platformMediaMap[accId] !== undefined ? platformMediaMap[accId] : mediaList;
-  };
-
-  const getEffectiveMediaForAccount = (accId: string): PostMedia[] => {
-    const acc = accounts.find((a) => a.id === accId);
-    const rawList = getRawMediaForAccount(accId);
-
-    // YouTube supports Shorts video only in PostingTube.
-    // NEVER take or attach image files to YouTube.
-    if (acc?.platform === 'youtube') {
-      return rawList.filter(
-        (m) => m.type === 'video' || /\.(mp4|mov|webm|m4v|avi|mpg|mpeg)$/i.test(m.name || '')
-      );
-    }
-
-    return rawList;
-  };
-
-  const hasYoutubeImageAttempt = (accId: string): boolean => {
-    const acc = accounts.find((a) => a.id === accId);
-    if (acc?.platform !== 'youtube') return false;
-    const raw = getRawMediaForAccount(accId);
-    return raw.some(
-      (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
-    );
   };
 
   const handlePlatformReplaceMedia = (accId: string) => {
@@ -912,17 +912,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handlePlatformFilesSelected = async (accId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    const acc = accounts.find((a) => a.id === accId);
-
-    // Explicitly block non-video media for YouTube
-    if (acc?.platform === 'youtube') {
-      const isVideo = file.type.startsWith('video') || /\.(mp4|mov|webm|m4v|avi|mpg|mpeg)$/i.test(file.name);
-      if (!isVideo) {
-        showToast('YouTube only supports vertical video for Shorts. Image files (PNG, JPG) cannot be uploaded to YouTube.');
-        return;
-      }
-    }
-
     let blobUrl = '';
     try {
       blobUrl = URL.createObjectURL(file);
@@ -1017,30 +1006,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
     setAccountFormats((prev) => ({ ...prev, [accId]: formatId }));
   };
-
-  // Automatically switch any account set to 'reel' back to 'post' whenever media is image-only (not video)
-  useEffect(() => {
-    const hasImage = mediaList.some(
-      (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
-    );
-    const hasVideo = mediaList.some(
-      (m) => m.type === 'video' || /\.(mp4|mov|webm|m4v|avi)$/i.test(m.name || '')
-    );
-
-    if ((hasImage && !hasVideo) || currentPostType === 'image') {
-      setAccountFormats((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        for (const [id, fmt] of Object.entries(next)) {
-          if (fmt === 'reel') {
-            next[id] = 'post';
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }
-  }, [mediaList, currentPostType]);
 
   // Keyboard Escape listener for modals and master caption
   useEffect(() => {
@@ -1166,6 +1131,137 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     });
     return Array.from(plats);
   }, [selectedAccountIds, accounts]);
+
+  // Media compatibility validation: blocks Schedule Post and Publish Live Now if any warning is active
+  const platformMediaWarnings = useMemo(() => {
+    const warnings: Array<{
+      accountId: string;
+      accountName: string;
+      platform: SocialPlatform;
+      issue: string;
+    }> = [];
+
+    selectedAccountIds.forEach((accId) => {
+      const acc = accounts.find((a) => a.id === accId);
+      if (!acc) return;
+
+      const effectiveMedia = customizeMediaPerPlatform
+        ? (platformMediaMap[acc.id] || mediaList)
+        : mediaList;
+      const hasMedia = effectiveMedia.length > 0;
+      const hasImage = hasMedia && effectiveMedia.some(
+        (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif|svg)$/i.test(m.name || '')
+      );
+      const hasVideo = hasMedia && effectiveMedia.some(
+        (m) => m.type === 'video' || /\.(mp4|mov|webm|avi|m4v)$/i.test(m.name || '')
+      );
+      const activeFormat =
+        accountFormats[acc.id] ||
+        (acc.platform === 'youtube'
+          ? 'short'
+          : currentPostType === 'video'
+          ? 'reel'
+          : 'post');
+
+      // 1. YouTube Compatibility: PostingTube only supports Shorts/video for YouTube. Images and Community posts are not publishable via API.
+      if (acc.platform === 'youtube') {
+        if (currentPostType === 'image' || hasImage) {
+          const ext = (hasMedia && effectiveMedia[0]?.name?.split('.').pop()?.toUpperCase()) || 'PNG';
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'youtube',
+            issue: `YouTube does not support image posts (${ext}). YouTube supports video Shorts only.`,
+          });
+        } else if (currentPostType === 'text') {
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'youtube',
+            issue: `YouTube does not support text-only posts. YouTube supports video Shorts only.`,
+          });
+        } else if (activeFormat === 'post') {
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'youtube',
+            issue: `YouTube Community Posts cannot be automated via API.`,
+          });
+        }
+      }
+
+      // 2. Instagram Compatibility: Requires media; Reels require video
+      if (acc.platform === 'instagram') {
+        if (currentPostType === 'text') {
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'instagram',
+            issue: `Instagram does not support text-only posts. Media (image or video) is required.`,
+          });
+        }
+        if (activeFormat === 'reel' && hasImage && !hasVideo) {
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'instagram',
+            issue: `Instagram Reels require video media. Remove images or switch format to Post.`,
+          });
+        }
+      }
+
+      // 3. Facebook Compatibility: Reels require video
+      if (acc.platform === 'facebook') {
+        if (activeFormat === 'reel' && hasImage && !hasVideo) {
+          warnings.push({
+            accountId: acc.id,
+            accountName: acc.displayName || acc.username,
+            platform: 'facebook',
+            issue: `Facebook Reels require video media. Remove images or switch format to Post.`,
+          });
+        }
+      }
+    });
+
+    return warnings;
+  }, [
+    selectedAccountIds,
+    accounts,
+    customizeMediaPerPlatform,
+    platformMediaMap,
+    mediaList,
+    accountFormats,
+    currentPostType,
+  ]);
+
+  const hasBlockingWarning = platformMediaWarnings.length > 0;
+
+  // Auto-switch Instagram and Facebook from 'reel' to 'post' if image media is attached
+  useEffect(() => {
+    setAccountFormats((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      accounts.forEach((acc) => {
+        if (acc.platform === 'instagram' || acc.platform === 'facebook') {
+          const effectiveMedia = customizeMediaPerPlatform
+            ? (platformMediaMap[acc.id] || mediaList)
+            : mediaList;
+          const hasImgs = effectiveMedia.some(
+            (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif|svg)$/i.test(m.name || '')
+          );
+          const hasVids = effectiveMedia.some(
+            (m) => m.type === 'video' || /\.(mp4|mov|webm|avi|m4v)$/i.test(m.name || '')
+          );
+          const isImageOnly = (effectiveMedia.length > 0 && hasImgs && !hasVids) || currentPostType === 'image';
+          if (isImageOnly && next[acc.id] === 'reel') {
+            next[acc.id] = 'post';
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [mediaList, platformMediaMap, customizeMediaPerPlatform, currentPostType, accounts]);
 
   // Active account for live preview
   const activeAccount = useMemo(() => {
@@ -1501,6 +1597,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           type: 'image',
           size: file.size,
           aspectRatio: '1:1',
+          order: idx,
         };
       });
 
@@ -1537,6 +1634,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               ...finalUploadedItems[i],
               url: uploadRes.url,
               thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
+              order: i,
             };
             setMediaList([...finalUploadedItems]);
           }
@@ -1578,6 +1676,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       type: isVideoFile ? 'video' : 'image',
       size: chosenFile.size,
       aspectRatio: isVideoFile ? '9:16' : '1:1',
+      order: 0,
     };
 
     setMediaList([tempMedia]);
@@ -1752,92 +1851,20 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     showToast(`Copied main caption to ${acc?.displayName || acc?.username || targetId}`);
   };
 
-  // Validation engine for blocking media/format issues
-  const getBlockingErrors = (): string[] => {
-    const errors: string[] = [];
-
-    if (selectedAccountIds.length === 0) {
-      errors.push('Please select at least one social account in the top bar.');
-      return errors;
-    }
-
-    for (const accId of selectedAccountIds) {
-      const acc = accounts.find((a) => a.id === accId);
-      if (!acc) continue;
-
-      const rawMedia = getRawMediaForAccount(accId);
-      const effectiveMedia = getEffectiveMediaForAccount(accId);
-      const activeFormat =
-        accountFormats[accId] ||
-        (acc.platform === 'youtube'
-          ? 'short'
-          : currentPostType === 'video'
-          ? 'reel'
-          : 'post');
-
-      const hasImageInRaw = rawMedia.some(
-        (m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || '')
-      );
-      const hasOnlyImage =
-        rawMedia.length > 0
-          ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
-          : currentPostType === 'image';
-
-      // 1. YouTube validation:
-      if (acc.platform === 'youtube') {
-        if (hasImageInRaw || currentPostType === 'image') {
-          errors.push(
-            `${acc.displayName || 'YouTube'}: Image files are not supported. YouTube supports Shorts video only. Please upload a vertical video or unselect YouTube.`
-          );
-        } else if (effectiveMedia.length === 0 && currentPostType === 'video') {
-          errors.push(
-            `${acc.displayName || 'YouTube'}: Please upload a vertical video (MP4/MOV) for YouTube Shorts.`
-          );
-        }
-      }
-
-      // 2. Reel format validation (Instagram / Facebook):
-      if (activeFormat === 'reel' && hasOnlyImage) {
-        errors.push(
-          `${acc.displayName || acc.platform}: Reels only support video files. Please switch format to Post or upload a video.`
-        );
-      }
-
-      // 3. Instagram text-only validation:
-      if (acc.platform === 'instagram' && currentPostType === 'text') {
-        errors.push(
-          `${acc.displayName || 'Instagram'}: Instagram requires image or video media (text-only posts are not supported).`
-        );
-      }
-
-      // 4. Character limit validation:
-      const config = getPlatformVisualConfig(acc.platform);
-      const accCaption = accountCaptions[accId]?.caption ?? '';
-      const effectiveCaption = accCaption.trim().length > 0 ? accCaption : mainCaption;
-      if (config.limit && effectiveCaption.length > config.limit) {
-        errors.push(
-          `${acc.displayName || acc.platform}: Caption exceeds maximum limit of ${config.limit.toLocaleString()} characters.`
-        );
-      }
-    }
-
-    return errors;
-  };
-
-  const blockingErrors = getBlockingErrors();
-  const hasBlockingErrors = blockingErrors.length > 0;
-
   // Handle Save / Publish execution
   const handleExecute = async (action: 'schedule' | 'publish-now' | 'draft') => {
     // Idempotency: prevent double-clicks or repeated submissions while in progress
     if (isSubmitting) return;
 
-    if (action !== 'draft') {
-      const blocking = getBlockingErrors();
-      if (blocking.length > 0) {
-        showToast(blocking[0]);
-        return;
-      }
+    if (action !== 'draft' && selectedAccountIds.length === 0) {
+      showToast('Please select at least one social platform to publish to.');
+      return;
+    }
+
+    // Media compatibility validation: block scheduling and instant publishing if any platform warning exists
+    if (action !== 'draft' && platformMediaWarnings.length > 0) {
+      showToast(`Cannot ${action === 'schedule' ? 'schedule' : 'publish'}: ${platformMediaWarnings[0].issue}`);
+      return;
     }
 
     // If media is still streaming to server, seamlessly await completion instead of blocking alerts
@@ -1927,6 +1954,12 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
         return;
       }
 
+      // Ensure strict slide order indexing on all carousel items
+      finalMediaList = finalMediaList.map((m, idx) => ({
+        ...m,
+        order: typeof m.order === 'number' ? m.order : idx,
+      }));
+
       const scheduledIso =
         action === 'schedule'
           ? formatLocalToUtcIso(scheduledDate, scheduledTime)
@@ -1969,7 +2002,10 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           privacyStatus: acc.platform === 'youtube' ? (youtubePrivacies[accId] || 'public') : undefined,
           isAiGenerated: isAi,
           collaborator: collab,
-          media: getEffectiveMediaForAccount(accId),
+          media: getEffectiveMediaForAccount(accId).map((m, idx) => ({
+            ...m,
+            order: typeof m.order === 'number' ? m.order : idx,
+          })),
           postType:
             acc.platform === 'youtube'
               ? 'short'
@@ -2577,26 +2613,48 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       {/* 2. PUBLISHING FORMAT SELECTORS (Post / Reel / Story - Premium Neutral Styling) */}
                       <div className={`flex items-center gap-2 ${config.supportedFormats.length === 1 ? 'justify-center' : ''}`}>
                         {config.supportedFormats.map((fmt) => {
-                          const isActive = activeFormat === fmt.id;
+                          const effectiveMedia = getEffectiveMediaForAccount(acc.id);
+                          const hasImgs = effectiveMedia.some((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif|svg)$/i.test(m.name || ''));
+                          const hasVids = effectiveMedia.some((m) => m.type === 'video' || /\.(mp4|mov|webm|avi|m4v)$/i.test(m.name || ''));
+                          const isImageOnly = (effectiveMedia.length > 0 && hasImgs && !hasVids) || currentPostType === 'image';
+                          const isReelDisabled = (acc.platform === 'instagram' || acc.platform === 'facebook') && fmt.id === 'reel' && isImageOnly;
+
+                          const isActive = activeFormat === fmt.id && !isReelDisabled;
                           const isSingle = config.supportedFormats.length === 1;
 
-                          // Check if Reel is blocked because media is image-only
-                          const rawMedia = getRawMediaForAccount(acc.id);
-                          const hasImageOnly = rawMedia.length > 0
-                            ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
-                            : currentPostType === 'image';
-                          const isReelBlocked = fmt.id === 'reel' && hasImageOnly;
+                          if (isReelDisabled) {
+                            return (
+                              <div
+                                key={fmt.id}
+                                className={`relative group ${isSingle ? 'w-auto mx-auto' : 'flex-1'}`}
+                              >
+                                <button
+                                  type="button"
+                                  disabled
+                                  className={`${
+                                    isSingle
+                                      ? 'py-1 px-5 rounded-full text-xs font-bold w-auto min-w-[100px] max-w-[140px] shadow-2xs'
+                                      : 'w-full py-1.5 px-3 rounded-xl text-xs font-semibold'
+                                  } bg-gray-100/60 text-gray-400 cursor-not-allowed opacity-50 border border-dashed border-gray-300/80 text-center select-none`}
+                                >
+                                  {fmt.label}
+                                </button>
+                                {/* Tooltip on hover */}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none w-56 animate-in fade-in duration-100">
+                                  <div className="bg-gray-900 text-white text-[10px] leading-tight font-medium rounded-lg p-2 shadow-lg text-center">
+                                    Reels require video media. Remove your images or carousel and upload a video to create a Reel.
+                                    <div className="w-2 h-2 bg-gray-900 rotate-45 mx-auto -mb-1 mt-1" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
 
                           return (
                             <button
                               key={fmt.id}
                               type="button"
-                              disabled={isReelBlocked}
                               onClick={() => {
-                                if (isReelBlocked) {
-                                  showToast('Reels require video files. Please upload a video or use Post format.');
-                                  return;
-                                }
                                 handleSelectFormat(acc.id, acc.platform, fmt.id);
                                 // Default aspect ratio based on selected format
                                 if (fmt.id === 'reel' || fmt.id === 'story' || fmt.id === 'short') {
@@ -2605,27 +2663,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                   setAccountAspectRatios(prev => ({ ...prev, [acc.id]: '16:9' }));
                                 }
                               }}
-                              title={
-                                isReelBlocked
-                                  ? 'Reels require video files. Switch format to Post or upload a video.'
-                                  : fmt.label
-                              }
                               className={`${
                                 isSingle
                                   ? 'py-1 px-5 rounded-full text-xs font-bold w-auto min-w-[100px] max-w-[140px] mx-auto shadow-2xs'
                                   : 'flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold'
-                              } transition-all text-center ${
-                                isReelBlocked
-                                  ? 'bg-gray-100 text-gray-300 border border-gray-200/50 cursor-not-allowed opacity-50'
-                                  : isActive
-                                  ? 'bg-gray-900 text-white shadow-xs cursor-pointer'
-                                  : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80 cursor-pointer'
+                              } transition-all cursor-pointer text-center ${
+                                isActive
+                                  ? 'bg-gray-900 text-white shadow-xs'
+                                  : 'bg-gray-100/80 text-gray-700 hover:bg-gray-200/80'
                               }`}
                             >
-                              <span>{fmt.label}</span>
-                              {isReelBlocked && (
-                                <span className="block text-[8px] font-medium text-gray-400 -mt-0.5">Video only</span>
-                              )}
+                              {fmt.label}
                             </button>
                           );
                         })}
@@ -2672,41 +2720,56 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         );
                       })()}
 
-                      {/* Incompatible Media / Format Warning Banners */}
+                      {/* YouTube Image Warning matching reference image media_1793768290589_7a75e9ea.png */}
                       {(() => {
-                        const isYt = acc.platform === 'youtube';
-                        const hasImageAttempt = hasYoutubeImageAttempt(acc.id);
-                        const rawMedia = getRawMediaForAccount(acc.id);
+                        const effectiveMedia = getEffectiveMediaForAccount(acc.id);
+                        const isImage = effectiveMedia.length > 0 && (effectiveMedia[0].type === 'image' || /\.(png|jpe?g|webp)$/i.test(effectiveMedia[0].name || ''));
+                        const isVideoFormat = activeFormat === 'video' || activeFormat === 'short';
+                        const isCommunityFormat = activeFormat === 'post';
 
-                        // 1. YouTube Image Warning
-                        if (isYt && hasImageAttempt) {
-                          const firstImage = rawMedia.find(m => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''));
-                          const ext = firstImage?.name?.split('.').pop()?.toUpperCase() || 'PNG';
+                        if (acc.platform === 'youtube' && (isVideoFormat || currentPostType === 'image') && isImage && !dismissedYoutubeWarnings[acc.id]) {
+                          const ext = effectiveMedia[0].name?.split('.').pop()?.toUpperCase() || 'PNG';
                           return (
-                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start space-x-2.5 text-xs shadow-xs animate-in fade-in">
-                              <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
-                              <div className="space-y-0.5 min-w-0">
-                                <span className="font-bold text-white block">We can&apos;t use that type of file ({ext})</span>
-                                <span className="leading-snug text-[#fca5a5]/90 block">
-                                  YouTube only supports vertical video for Shorts (MOV, MP4, M4V, MPG, MPEG, AVI, WEBM). Image files cannot be used on YouTube and have been blocked. Please upload a video or unselect YouTube.
-                                </span>
+                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+                              <div className="flex items-start space-x-2.5 min-w-0">
+                                <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
+                                <div className="space-y-1.5 min-w-0">
+                                  <span className="leading-snug block">
+                                    We can&apos;t quite use that type of file ({ext}). Could you try one of the following instead: MOV, MP4, M4V, MPG, MPEG, AVI, WEBM? Or switch to <strong>Community Post</strong>.
+                                  </span>
+                                  <div className="flex items-center gap-2 pt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleAccount(acc.id)}
+                                      className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[10px] font-bold border border-rose-500/30 transition-colors cursor-pointer"
+                                    >
+                                      Unselect YouTube
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => setDismissedYoutubeWarnings((prev) => ({ ...prev, [acc.id]: true }))}
+                                className="text-[#fca5a5]/70 hover:text-white shrink-0 p-0.5 transition-colors cursor-pointer"
+                                title="Dismiss warning"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             </div>
                           );
                         }
 
-                        // 2. Reel format with image warning
-                        const hasImageOnly = rawMedia.length > 0
-                          ? rawMedia.every((m) => m.type === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(m.name || ''))
-                          : currentPostType === 'image';
-
-                        if (activeFormat === 'reel' && hasImageOnly) {
+                        if (acc.platform === 'youtube' && isCommunityFormat) {
                           return (
-                            <div className="bg-[#3f2525] border border-[#613333] text-[#fca5a5] rounded-2xl p-3.5 flex items-start space-x-2.5 text-xs shadow-xs animate-in fade-in">
-                              <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0 mt-0.5" />
-                              <span className="leading-snug">
-                                Reels only support video files. Please switch format to <strong>Post</strong> or upload an MP4/MOV video.
-                              </span>
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 rounded-2xl p-3 flex items-start space-x-2 text-xs animate-in fade-in">
+                              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5 min-w-0">
+                                <span className="font-semibold block text-amber-950">YouTube Community Post Workflow</span>
+                                <span className="text-[11px] text-amber-800 leading-tight block">
+                                  YouTube Data API v3 does not permit 3rd-party automated Community Post image posting. We save your draft and provide a 1-Click launcher to publish on your Community tab.
+                                </span>
+                              </div>
                             </div>
                           );
                         }
@@ -2718,7 +2781,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       <input
                         type="file"
                         ref={(el) => { platformFileInputRefs.current[accId] = el; }}
-                        accept={acc.platform === 'youtube' ? 'video/*' : currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
+                        accept={currentPostType === 'video' ? 'video/*' : 'image/*,video/*'}
                         className="hidden"
                         onChange={(e) => {
                           handlePlatformFilesSelected(accId, e.target.files);
@@ -2731,7 +2794,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         const effectiveMedia = getEffectiveMediaForAccount(accId);
                         const isUploading = uploadState.isUploading && !customizeMediaPerPlatform;
                         const isYouTube = acc.platform === 'youtube';
-                        const hasImageAttempt = hasYoutubeImageAttempt(accId);
                         const isCarousel = effectiveMedia.length > 1;
                         const activeSlide = Math.min(activeSlideIndices[accId] ?? activeSlideIndices['global'] ?? 0, Math.max(0, effectiveMedia.length - 1));
                         const currentMedia = effectiveMedia[activeSlide] || effectiveMedia[0];
@@ -2742,25 +2804,17 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                               /* Soft Grey Dropzone */
                               <div
                                 onClick={customizeMediaPerPlatform ? () => handlePlatformReplaceMedia(accId) : triggerUploadPicker}
-                                className={`bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border transition-all group ${
-                                  isYouTube && hasImageAttempt
-                                    ? 'border-red-300 bg-red-50/40 hover:border-red-400'
-                                    : 'border-transparent hover:border-gray-300'
-                                }`}
+                                className="bg-[#f0f1f3]/90 rounded-2xl p-6 min-h-[200px] flex flex-col items-center justify-center text-center cursor-pointer border border-transparent hover:border-gray-300 transition-all group"
                               >
-                                <div className={`w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center mb-3 group-hover:scale-105 transition-transform ${
-                                  isYouTube && hasImageAttempt ? 'text-red-500' : 'text-gray-700'
-                                }`}>
-                                  <UploadCloud className="w-6 h-6" />
+                                <div className="w-13 h-13 rounded-2xl bg-white shadow-xs flex items-center justify-center text-gray-700 mb-3 group-hover:scale-105 transition-transform">
+                                  <UploadCloud className="w-6 h-6 text-gray-700" />
                                 </div>
                                 <h4 className="text-xs font-bold text-gray-900">
-                                  {isYouTube && hasImageAttempt
-                                    ? 'Image blocked: Drop vertical video for YouTube Shorts'
-                                    : 'Drop your files here or browse'}
+                                  Drop your files here or browse
                                 </h4>
                                 <p className="text-[11px] text-gray-400 mt-1">
                                   {isYouTube
-                                    ? 'Upload vertical video for YouTube Shorts (MP4, MOV up to 500 MB)'
+                                    ? 'Upload vertical video for YouTube Shorts (up to 500 MB)'
                                     : 'Upload images, video, or select multiple for carousel'}
                                 </p>
                               </div>
@@ -4054,7 +4108,38 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               </div>
 
               {scheduleMode === 'schedule' ? (
-                <div className="space-y-5">
+                <div className="space-y-4">
+                  {/* Media Compatibility Warning Banner for Schedule Mode */}
+                  {hasBlockingWarning && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-xs animate-in fade-in">
+                      <div className="flex items-center space-x-2 text-rose-800 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Scheduling Blocked</span>
+                      </div>
+                      <div className="space-y-1.5 text-rose-700 text-[11px] leading-snug">
+                        {platformMediaWarnings.map((w, idx) => (
+                          <div key={idx} className="flex items-start justify-between gap-2 bg-white/80 p-2 rounded-xl border border-rose-100">
+                            <div className="min-w-0">
+                              <span className="font-bold text-rose-900 block">{w.accountName}:</span>
+                              <span className="text-rose-700">{w.issue}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAccount(w.accountId)}
+                              className="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-bold transition-colors cursor-pointer shrink-0"
+                              title={`Unselect ${w.accountName}`}
+                            >
+                              Unselect
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-rose-600 font-medium pt-0.5">
+                        Unselect the unsupported platform above or replace media to enable scheduling.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Professional Date & Time Picker */}
                   <ScheduleDatePicker
                     scheduledDate={scheduledDate}
@@ -4064,37 +4149,13 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                     onValidationChange={(valid) => setIsScheduleValid(valid)}
                   />
 
-                  {/* Action Required / Blocking Issues Banner */}
-                  {hasBlockingErrors && (
-                    <div className="bg-red-50 border border-red-200/90 rounded-2xl p-3.5 space-y-1.5 text-xs text-red-900 shadow-2xs animate-in fade-in">
-                      <div className="flex items-center space-x-2 font-bold text-red-700">
-                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                        <span>Action Required Before Scheduling</span>
-                      </div>
-                      <ul className="list-disc list-inside space-y-1 text-red-800 text-[11px] font-medium pl-1">
-                        {blockingErrors.map((err, idx) => (
-                          <li key={idx} className="leading-tight">{err}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
                   {/* Schedule Post Action Button */}
                   <button
                     type="button"
-                    disabled={isSubmitting || !isScheduleValid || hasBlockingErrors}
-                    onClick={() => {
-                      if (hasBlockingErrors) {
-                        showToast(blockingErrors[0]);
-                        return;
-                      }
-                      handleExecute('schedule');
-                    }}
-                    className={`w-full py-3.5 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 text-sm shadow-md transition-all ${
-                      hasBlockingErrors
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
-                        : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white cursor-pointer'
-                    }`}
+                    disabled={isSubmitting || !isScheduleValid || hasBlockingWarning}
+                    onClick={() => handleExecute('schedule')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={hasBlockingWarning ? platformMediaWarnings[0]?.issue : undefined}
                   >
                     {submittingAction === 'schedule' ? (
                       <>
@@ -4116,36 +4177,43 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               ) : (
                 /* Instant Live Dispatch Mode */
                 <div className="space-y-4">
-                  {/* Action Required / Blocking Issues Banner */}
-                  {hasBlockingErrors && (
-                    <div className="bg-red-50 border border-red-200/90 rounded-2xl p-3.5 space-y-1.5 text-xs text-red-900 shadow-2xs animate-in fade-in">
-                      <div className="flex items-center space-x-2 font-bold text-red-700">
-                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                        <span>Action Required Before Publishing</span>
+                  {/* Media Compatibility Warning Banner for Instant Mode */}
+                  {hasBlockingWarning && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-xs animate-in fade-in">
+                      <div className="flex items-center space-x-2 text-rose-800 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Publishing Blocked</span>
                       </div>
-                      <ul className="list-disc list-inside space-y-1 text-red-800 text-[11px] font-medium pl-1">
-                        {blockingErrors.map((err, idx) => (
-                          <li key={idx} className="leading-tight">{err}</li>
+                      <div className="space-y-1.5 text-rose-700 text-[11px] leading-snug">
+                        {platformMediaWarnings.map((w, idx) => (
+                          <div key={idx} className="flex items-start justify-between gap-2 bg-white/80 p-2 rounded-xl border border-rose-100">
+                            <div className="min-w-0">
+                              <span className="font-bold text-rose-900 block">{w.accountName}:</span>
+                              <span className="text-rose-700">{w.issue}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAccount(w.accountId)}
+                              className="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-bold transition-colors cursor-pointer shrink-0"
+                              title={`Unselect ${w.accountName}`}
+                            >
+                              Unselect
+                            </button>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                      <p className="text-[10px] text-rose-600 font-medium pt-0.5">
+                        Unselect the unsupported platform above or replace media to enable publishing.
+                      </p>
                     </div>
                   )}
 
                   <button
                     type="button"
-                    disabled={isSubmitting || hasBlockingErrors}
-                    onClick={() => {
-                      if (hasBlockingErrors) {
-                        showToast(blockingErrors[0]);
-                        return;
-                      }
-                      handleExecute('publish-now');
-                    }}
-                    className={`w-full py-3.5 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 text-sm shadow-md transition-all ${
-                      hasBlockingErrors
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
-                        : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white cursor-pointer'
-                    }`}
+                    disabled={isSubmitting || hasBlockingWarning}
+                    onClick={() => handleExecute('publish-now')}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={hasBlockingWarning ? platformMediaWarnings[0]?.issue : undefined}
                   >
                     {submittingAction === 'publish-now' ? (
                       <>
