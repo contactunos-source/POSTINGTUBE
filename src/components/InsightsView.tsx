@@ -45,6 +45,7 @@ import {
   formatTimeSafe,
   formatDateTimeWithSeconds,
 } from '@/lib/dateUtils';
+import { PostPlatformCaptionsView } from './PostPlatformCaptionsView';
 
 interface InsightsViewProps {
   posts: Post[];
@@ -1225,15 +1226,11 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
               );
             })()}
 
-            {/* Caption Content */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                Caption
-              </span>
-              <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-800 leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
-                {inspectedPost.content || '(No caption provided)'}
-              </div>
-            </div>
+            {/* Platform-Specific Captions & AI Features */}
+            <PostPlatformCaptionsView
+              post={inspectedPost}
+              accounts={accounts}
+            />
 
             {/* Platform Analytics Breakdown */}
             <div className="space-y-2">

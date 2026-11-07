@@ -3908,16 +3908,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               ) : (
                 /* Instant Live Dispatch Mode */
                 <div className="space-y-4">
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start space-x-2">
-                    <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="block font-semibold">Immediate Live Dispatch</strong>
-                      <span>
-                        Your post will be published immediately to all {visibleAccountIds.length} selected accounts using official APIs.
-                      </span>
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     disabled={isSubmitting}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { supabase } from '@/lib/supabase';
 
 /**
  * YouTube Video Publishing Endpoint using YouTube Data API v3
@@ -339,21 +340,70 @@ export async function POST(req: NextRequest) {
     // Attempt upload with current token
     let result = await executeUpload(currentToken);
 
-    // If 401 Unauthorized and we have a refresh_token, refresh and retry once!
-    if (!result.ok && result.status === 401 && currentRefreshToken) {
-      console.log('[YouTube Publish] Token expired, attempting automatic refresh...');
-      const newToken = await refreshGoogleAccessToken(currentRefreshToken);
-      if (newToken) {
-        currentToken = newToken;
-        result = await executeUpload(newToken);
+    // If 401 Unauthorized, look up database for refresh_token and attempt automatic refresh
+    if (!result.ok && result.status === 401) {
+      console.log('[YouTube Publish] Token expired (401), attempting automatic refresh...');
+      
+      if (!currentRefreshToken && supabase && channelId) {
+        try {
+          const { data: dbAcc } = await supabase
+            .from('connected_accounts')
+            .select('*')
+            .or(`id.eq.${channelId},external_id.eq.${channelId},page_id.eq.${channelId}`)
+            .maybeSingle();
+
+          if (dbAcc?.refresh_token) {
+            currentRefreshToken = dbAcc.refresh_token;
+          } else if (dbAcc?.access_token && dbAcc.access_token.includes('refresh_token')) {
+            try {
+              const parsed = JSON.parse(dbAcc.access_token);
+              currentRefreshToken = parsed.refresh_token;
+            } catch {}
+          }
+        } catch (dbErr) {
+          console.warn('[YouTube Publish] Failed to fetch refresh token from DB:', dbErr);
+        }
+      }
+
+      if (currentRefreshToken) {
+        const newToken = await refreshGoogleAccessToken(currentRefreshToken);
+        if (newToken) {
+          currentToken = newToken;
+          result = await executeUpload(newToken);
+
+          // Persist fresh access token to Supabase connected_accounts
+          if (supabase && channelId) {
+            try {
+              await supabase
+                .from('connected_accounts')
+                .update({
+                  access_token: newToken,
+                  token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+                })
+                .or(`id.eq.${channelId},external_id.eq.${channelId},page_id.eq.${channelId}`);
+            } catch (saveErr) {
+              console.warn('[YouTube Publish] Failed to persist refreshed token:', saveErr);
+            }
+          }
+        }
       }
     }
 
     if (!result.ok) {
+      let friendlyError = result.error || 'Failed to publish video to YouTube.';
+      if (
+        result.status === 401 ||
+        friendlyError.includes('invalid authentication credentials') ||
+        friendlyError.includes('OAuth 2')
+      ) {
+        friendlyError =
+          'YouTube session expired or missing valid authorization. Please reconnect your YouTube channel in Channels / Connections to refresh permissions.';
+      }
+
       return NextResponse.json(
         {
           success: false,
-          error: result.error || 'Failed to publish video to YouTube.',
+          error: friendlyError,
         },
         { status: 400 }
       );

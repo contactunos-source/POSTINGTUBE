@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds } from '@/lib/dateUtils';
+import { PostPlatformCaptionsView } from './PostPlatformCaptionsView';
 
 interface PostsManagerProps {
   posts: Post[];
@@ -1513,15 +1514,11 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 </div>
               )}
 
-              {/* Caption */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Post Caption
-                </label>
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs md:text-sm text-gray-800 leading-relaxed whitespace-pre-line font-normal">
-                  {selectedPostForDetails.content}
-                </div>
-              </div>
+              {/* Platform-Specific Captions & AI Features */}
+              <PostPlatformCaptionsView
+                post={selectedPostForDetails}
+                accounts={accounts}
+              />
 
               {/* Timing & Creation Metadata Section (Creation Time kept strictly separate from scheduled & published) */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">

@@ -413,7 +413,9 @@ export async function POST(req: NextRequest) {
     if (isVideo) {
       let isReady = false;
       let attempts = 0;
-      while (!isReady && attempts < 15) {
+      const maxPollingAttempts = 35; // Allow up to 70 seconds for high-res video encoding
+
+      while (!isReady && attempts < maxPollingAttempts) {
         await new Promise((r) => setTimeout(r, 2000));
         attempts++;
 
@@ -422,10 +424,12 @@ export async function POST(req: NextRequest) {
             cleanToken
           )}`
         );
-        const statusData = await statusRes.json();
+        const statusData = await statusRes.json().catch(() => ({}));
 
         if (statusData.status_code === 'FINISHED') {
           isReady = true;
+          // Meta replication delay: wait 3 seconds after FINISHED so media ID is fully available
+          await new Promise((r) => setTimeout(r, 3000));
         } else if (statusData.status_code === 'ERROR' || statusData.status_code === 'EXPIRED') {
           return NextResponse.json(
             {
@@ -437,21 +441,56 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+
+      if (!isReady) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Instagram video processing is taking longer than expected on Meta servers. Please wait a minute and retry publishing.',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // =========================================================================
-    // STEP 3: PUBLISH MEDIA CONTAINER LIVE
+    // STEP 3: PUBLISH MEDIA CONTAINER LIVE (WITH REPLICATION LAG RETRY)
     // =========================================================================
     const publishUrl = `${apiHost}/${encodeURIComponent(cleanIgUserId)}/media_publish`;
     const publishParams = new URLSearchParams();
     publishParams.append('creation_id', creationId);
     publishParams.append('access_token', cleanToken);
 
-    const publishRes = await fetch(publishUrl, {
-      method: 'POST',
-      body: publishParams,
-    });
-    const publishData = await publishRes.json();
+    let publishData: any = null;
+    let publishAttempts = 0;
+    const maxPublishAttempts = 4;
+
+    while (publishAttempts < maxPublishAttempts) {
+      publishAttempts++;
+      const publishRes = await fetch(publishUrl, {
+        method: 'POST',
+        body: publishParams,
+      });
+      publishData = await publishRes.json().catch(() => ({}));
+
+      if (!publishData.error && publishData.id) {
+        break; // Successfully published!
+      }
+
+      // Check if error is transient "Media ID is not available" (Code 9007 / Subcode 2207027)
+      const errMsg = publishData.error?.message || '';
+      const isReplicationLag =
+        errMsg.toLowerCase().includes('media id is not available') ||
+        publishData.error?.code === 9007 ||
+        publishData.error?.error_subcode === 2207027;
+
+      if (isReplicationLag && publishAttempts < maxPublishAttempts) {
+        console.warn(`[Instagram Publish] Media ID replication delay on Meta servers (attempt ${publishAttempts}/${maxPublishAttempts}). Waiting 4s before retrying...`);
+        await new Promise((r) => setTimeout(r, 4000));
+      } else {
+        break;
+      }
+    }
 
     if (publishData.error) {
       return NextResponse.json(

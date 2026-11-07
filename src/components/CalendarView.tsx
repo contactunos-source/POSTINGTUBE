@@ -65,6 +65,7 @@ import {
   useUserTimezone,
 } from '@/lib/dateUtils';
 import { TimezoneSelectorModal } from './TimezoneSelectorModal';
+import { PostPlatformCaptionsView } from './PostPlatformCaptionsView';
 
 interface CalendarViewProps {
   posts: Post[];
@@ -1605,15 +1606,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               );
             })()}
 
-            {/* Caption Content */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                Caption
-              </span>
-              <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-800 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap">
-                {inspectedPost.content || '(No caption provided)'}
-              </div>
-            </div>
+            {/* Platform-Specific Captions & AI Features */}
+            <PostPlatformCaptionsView
+              post={inspectedPost}
+              accounts={accounts}
+            />
 
             {/* Quick Reschedule (for scheduled / draft posts) */}
             {inspectedPost.status !== 'published' && onReschedulePost && (
