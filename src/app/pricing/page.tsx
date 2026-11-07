@@ -251,7 +251,7 @@ export default function PricingPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 space-y-10">
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 space-y-10">
         {/* Title & Benefit-focused Headline */}
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
@@ -352,7 +352,7 @@ export default function PricingPage() {
                     : isGrowth
                     ? 'border-2 border-blue-500 shadow-xl ring-4 ring-blue-500/10 scale-[1.01] z-10'
                     : 'border border-gray-200/90 shadow-xs hover:shadow-md hover:border-gray-300'
-                } p-7`}
+                } p-5 sm:p-6 lg:p-5 xl:p-6`}
               >
                 {/* Badges */}
                 {isPro && (
@@ -410,16 +410,32 @@ export default function PricingPage() {
                   </div>
 
                   {/* Core Capacity Highlights */}
-                  <div className="bg-gray-50/80 rounded-2xl p-3.5 border border-gray-100 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-semibold">Connected Channels:</span>
-                      <span className="font-bold text-gray-950">{plan.channelsLimit} channels</span>
+                  <div className="bg-gray-50/90 rounded-2xl p-3.5 border border-gray-150 space-y-2.5">
+                    <div>
+                      <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                        Connected Channels
+                      </div>
+                      <div className="text-sm font-black text-gray-950 mt-0.5">
+                        {plan.channelsLimit} Channels
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600 font-semibold">Monthly Posts:</span>
-                      <span className={`font-bold ${plan.id === 'free' ? 'text-gray-950' : 'text-emerald-700'}`}>
-                        {plan.id === 'free' ? '15 total/month (5/channel)' : 'Unlimited posts'}
-                      </span>
+
+                    <div className="pt-2 border-t border-gray-200/70">
+                      <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                        Monthly Posts
+                      </div>
+                      <div className="mt-0.5">
+                        <div
+                          className={`text-sm font-black ${
+                            plan.id === 'free' ? 'text-gray-950' : 'text-emerald-700 font-extrabold'
+                          }`}
+                        >
+                          {plan.id === 'free' ? '15 posts / month' : 'Unlimited posts'}
+                        </div>
+                        <div className="text-[11px] font-medium text-gray-500 mt-0.5">
+                          {plan.id === 'free' ? '5 posts per channel' : 'No scheduling caps'}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
