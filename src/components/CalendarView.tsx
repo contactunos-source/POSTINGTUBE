@@ -57,7 +57,6 @@ import {
   postMatchesDay,
   formatTimeSafe,
   formatDateFullSafe,
-  formatToDateTimeLocal,
   formatDateTimeWithSeconds,
   getLocalTimeParts,
   getLocalDateString,
@@ -132,8 +131,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Modal helpers with Browser History & Escape Key support
   const openPostModal = (post: Post) => {
     setInspectedPost(post);
-    setRescheduleDateInput(formatToDateTimeLocal(post.scheduledFor));
-    setRescheduleSuccessMsg(null);
     if (typeof window !== 'undefined') {
       window.history.pushState({ calendarModal: 'post' }, '');
     }
@@ -211,10 +208,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
   const [dragOverDayIso, setDragOverDayIso] = useState<string | null>(null);
   const [isRescheduling, setIsRescheduling] = useState(false);
-
-  // Quick Reschedule state inside post modal
-  const [rescheduleDateInput, setRescheduleDateInput] = useState<string>('');
-  const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
 
   // Dynamic User Timezone (Auto-detected from browser or user configured)
   const { timeZone, info: tzInfo } = useUserTimezone();
@@ -1490,7 +1483,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: Inspected Post Details & Quick Reschedule */}
+      {/* MODAL: Inspected Post Details */}
       {/* ========================================================================= */}
       {inspectedPost && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -1611,43 +1604,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               post={inspectedPost}
               accounts={accounts}
             />
-
-            {/* Quick Reschedule (for scheduled / draft posts) */}
-            {inspectedPost.status !== 'published' && onReschedulePost && (
-              <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-xl space-y-2">
-                <span className="text-xs font-bold text-sky-950 block">
-                  Quick Reschedule
-                </span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="datetime-local"
-                    value={rescheduleDateInput}
-                    onChange={(e) => setRescheduleDateInput(e.target.value)}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-sky-200 bg-white text-gray-900 focus:outline-hidden focus:border-sky-500 flex-1"
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!rescheduleDateInput) return;
-                      const [datePart, timePart] = rescheduleDateInput.split('T');
-                      const newIso = formatLocalToUtcIso(datePart, timePart || '12:00', timeZone);
-                      const ok = await onReschedulePost(inspectedPost.id, newIso);
-                      if (ok) {
-                        setRescheduleSuccessMsg(`Successfully rescheduled in ${tzInfo.abbr}!`);
-                        setTimeout(() => setRescheduleSuccessMsg(null), 3000);
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Save Time
-                  </button>
-                </div>
-                {rescheduleSuccessMsg && (
-                  <span className="text-xs text-emerald-600 font-bold block">
-                    {rescheduleSuccessMsg}
-                  </span>
-                )}
-              </div>
-            )}
 
             {/* Footer Actions */}
             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
