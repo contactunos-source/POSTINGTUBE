@@ -507,23 +507,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           e.stopPropagation();
           openPostModal(post);
         }}
-        className={`group/card bg-white border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
+        className={`group/card bg-white dark:bg-[#151a28] border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
           post.status === 'published'
-            ? 'border-emerald-200/90 hover:border-emerald-400'
+            ? 'border-emerald-200/90 dark:border-emerald-900/60 hover:border-emerald-400'
             : post.status === 'scheduled'
-            ? 'border-gray-200/90 hover:border-emerald-500'
+            ? 'border-gray-200/90 dark:border-gray-700/80 hover:border-emerald-500'
             : post.status === 'draft'
-            ? 'border-amber-200/90 hover:border-amber-400'
+            ? 'border-amber-200/90 dark:border-amber-900/60 hover:border-amber-400'
             : post.status === 'partially_published'
-            ? 'border-amber-300 hover:border-amber-500 bg-amber-50/15'
-            : 'border-rose-200/90 hover:border-rose-400 bg-rose-50/15'
+            ? 'border-amber-300 dark:border-amber-800/80 hover:border-amber-500 bg-amber-50/15'
+            : 'border-rose-200/90 dark:border-rose-900/60 hover:border-rose-400 bg-rose-50/15'
         }`}
       >
         {/* Top Header: Time on left, Account Badges with Red Icon for Failed Accounts on right */}
         <div className="flex items-center justify-between mb-1.5 gap-1.5 min-w-0">
           {/* Exact Time Display with Period Phase */}
           <div className="flex items-center space-x-1 shrink-0">
-            <span className="text-[11px] font-bold text-gray-900 tracking-tight">
+            <span className="text-[11px] font-bold text-gray-900 dark:text-gray-100 tracking-tight">
               {timeStr}
             </span>
             <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
@@ -947,7 +947,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* VIEW 1: WEEK VIEW (High-Precision User Local Time Timeline Grid) */}
       {/* ========================================================================= */}
       {viewMode === 'week' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-[#111625] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <div className="min-w-[840px] max-h-[800px] overflow-y-auto">
               {/* Single Unified CSS Grid for Header and all 24 Hour Rows — Guaranteed Pixel-Perfect Column Alignment */}
@@ -1109,7 +1109,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* VIEW 2: DAY VIEW (Expanded High-Resolution Timeline) */}
       {/* ========================================================================= */}
       {viewMode === 'day' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-[#111625] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs overflow-hidden">
           {/* Day View Header */}
           <div className="p-4 border-b border-gray-200 bg-gray-50/80 flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -1203,7 +1203,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* VIEW 3: MONTH VIEW (Full 7x5 Calendar Grid Matrix) */}
       {/* ========================================================================= */}
       {viewMode === 'month' && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-[#111625] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <div className="min-w-[620px]">
               {/* Days of week header */}
@@ -1508,10 +1508,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div
             ref={postModalRef}
-            className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-gray-200 space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-[#111625] text-gray-900 dark:text-gray-100 rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-4 max-h-[90vh] overflow-y-auto"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
               <div className="flex items-center space-x-2">
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${

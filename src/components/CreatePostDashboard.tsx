@@ -2170,7 +2170,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const mainHashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
 
   return (
-    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-3 sm:p-6 md:p-8 font-sans">
+    <div className="min-h-full bg-[#f8fafc] dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 p-3 sm:p-6 md:p-8 font-sans transition-colors duration-200">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs z-50 animate-fade-in border border-white/10">

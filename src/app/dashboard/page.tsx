@@ -941,7 +941,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
+    <div className="flex h-screen bg-[#F9FAFB] dark:bg-[#0b0f19] overflow-hidden font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
       {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
       <Sidebar
         activeTab={activeTab}

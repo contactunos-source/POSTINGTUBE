@@ -799,7 +799,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                 {/* Posts Timeline Items */}
                 {viewMode === 'list' ? (
                   /* Compact Table / List Row View */
-                  <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden shadow-2xs divide-y divide-gray-100">
+                  <div className="bg-white dark:bg-[#111625] border border-gray-200/90 dark:border-gray-800 rounded-2xl overflow-hidden shadow-2xs divide-y divide-gray-100 dark:divide-gray-800">
                     {groupedPosts[dateKey].map((post) => {
                       const postAccounts = getPostAccounts(post);
                       const timeStr = formatTimeSafe(post.scheduledFor || post.publishedAt || post.createdAt, '12:00 PM');
@@ -808,7 +808,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                       const analytics = getAggregatedMetrics(post);
 
                       return (
-                        <div key={post.id} className="p-3.5 sm:p-4 hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div key={post.id} className="p-3.5 sm:p-4 hover:bg-gray-50/80 dark:hover:bg-gray-800/50 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                           {/* Left: Thumbnail & Caption snippet */}
                           <div className="flex items-center space-x-3 min-w-0 flex-1">
                             {mediaItem ? (
@@ -963,7 +963,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
                           </div>
 
                           {/* Right Modern Post Card */}
-                          <div className="flex-1 min-w-0 bg-white border border-gray-200/90 hover:border-gray-300 rounded-3xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4">
+                          <div className="flex-1 min-w-0 bg-white dark:bg-[#111625] border border-gray-200/90 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 rounded-3xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4">
                             {/* 1. Header Section: Status Badge & Target Accounts & Actions */}
                             <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-gray-100">
                               {/* Left: Prominent Status Badge */}
