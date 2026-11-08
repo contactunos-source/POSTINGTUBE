@@ -15,7 +15,6 @@ import {
   AlertCircle,
   X,
   Play,
-  FileEdit,
   ExternalLink,
   ImageIcon,
   Eye,
@@ -1606,22 +1605,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             />
 
             {/* Footer Actions */}
-            <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  const postToEdit = inspectedPost;
-                  closePostModal();
-                  onSelectPost(postToEdit);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors flex items-center space-x-1.5 cursor-pointer"
-              >
-                <FileEdit className="w-3.5 h-3.5" />
-                <span>Edit in Composer</span>
-              </button>
-
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-end">
               <button
                 onClick={() => closePostModal()}
-                className="text-xs text-gray-500 hover:text-gray-800 font-medium cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
               >
                 Close
               </button>
