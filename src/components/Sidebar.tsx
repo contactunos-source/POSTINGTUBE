@@ -167,12 +167,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white dark:bg-[#0f1422] border-r border-gray-200 dark:border-gray-800 flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white border-r border-gray-200 flex flex-col h-screen select-none shrink-0 font-sans transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-gray-100 dark:border-gray-800/80 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <PostingTubeLogo
             size="md"
             href="/dashboard"
@@ -334,12 +334,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Profile & Organization Footer */}
-        <div className="p-3 border-t border-gray-100 dark:border-gray-800/80 relative">
+        <div className="p-3 border-t border-gray-100 relative">
           {/* Smooth Profile Popover Menu */}
           {isProfileMenuOpen && (
             <div
               ref={profileMenuRef}
-              className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-[#151a28] border border-gray-200/90 dark:border-gray-800 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] p-4 text-gray-900 dark:text-gray-100 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 font-sans select-none"
+              className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-gray-200/90 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] p-4 text-gray-900 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 font-sans select-none"
             >
               {/* User Profile Picture, Name, and Gmail */}
               <div className="flex items-center space-x-3 pb-3 border-b border-gray-100">

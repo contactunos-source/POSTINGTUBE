@@ -1,18 +1,9 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
-
 :root {
   --background: #ffffff;
   --foreground: #111827;
   color-scheme: light;
-}
-
-.dark,
-[data-theme="dark"] {
-  --background: #0b0f19;
-  --foreground: #f3f4f6;
-  color-scheme: dark;
 }
 
 @theme inline {
@@ -20,18 +11,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: var(--font-geist-mono);
-}
-
-/* Butter-smooth transitions when toggling Light / Dark / System */
-html.theme-transition,
-html.theme-transition *,
-html.theme-transition *::before,
-html.theme-transition *::after {
-  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  transition-delay: 0s !important;
 }
 
 html,
@@ -47,27 +26,4 @@ body {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-wrap: break-word;
   word-break: normal;
-}
-
-/* Touch targets and mobile scrollbars */
-@layer utilities {
-  .touch-pan-y {
-    touch-action: pan-y;
-  }
-  .tap-highlight-transparent {
-    -webkit-tap-highlight-color: transparent;
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  /* Prevent awkward word splits like Whats-App while allowing URL / hash wrapping */
-  .safe-wrap {
-    overflow-wrap: break-word;
-    word-break: normal;
-    hyphens: manual;
-  }
 }

@@ -38,22 +38,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('postingtube_theme') || 'system';
-                  var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  if (isDark) {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.setAttribute('data-theme', 'light');
-                  }
+                  localStorage.removeItem('postingtube_theme');
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.removeAttribute('data-theme');
                 } catch (e) {}
               })();
             `,
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans transition-colors duration-200">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
   );
 }
