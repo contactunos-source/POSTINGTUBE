@@ -29,12 +29,7 @@ import {
   ShieldCheck,
   Globe,
   ChevronDown,
-  Sun,
-  Moon,
-  Monitor,
 } from 'lucide-react';
-import { useTheme, ThemeMode } from '@/lib/theme';
-import { useClickOutside } from '@/hooks/useClickOutside';
 import { supabase, signOutUser } from '@/lib/supabase';
 import { DeleteChannelModal } from '@/components/DeleteChannelModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
@@ -92,12 +87,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Settings Navigation Tab
   const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'billing'>('profile');
-
-  // Appearance & Theme State
-  const { theme, setTheme } = useTheme();
-  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState<boolean>(false);
-  const themeMenuRef = useRef<HTMLDivElement>(null);
-  useClickOutside(themeMenuRef, () => setIsThemeMenuOpen(false), { enabled: isThemeMenuOpen });
 
   // Timezone and Regional Localization State
   const { timeZone, info: tzInfo } = useUserTimezone();
@@ -776,7 +765,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* TAB 2: GENERAL PROFILE (ORIGINAL SETTINGS CONTENT) */}
       {activeSettingsTab === 'profile' && (
       /* Main Settings Card */
-      <div className="bg-white dark:bg-[#111625] rounded-2xl border border-gray-200/90 dark:border-gray-800 shadow-xs p-4 sm:p-8 space-y-8 animate-in fade-in duration-150">
+      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-xs p-4 sm:p-8 space-y-8 animate-in fade-in duration-150">
         {/* Photo Section */}
         <div className="flex items-center space-x-4 sm:space-x-5">
           <div
@@ -1021,102 +1010,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {/* Divider */}
         <div className="border-t border-gray-200/80 pt-2" />
 
-        {/* Appearance & Theme Section */}
-        <div className="space-y-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200/90 dark:border-gray-700/80 rounded-xl flex items-center justify-between gap-4 max-w-2xl shadow-2xs">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-gray-900 dark:text-gray-100 block">Appearance</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 block">
-                Customize the look and feel of PostingTube on this device.
-              </span>
-            </div>
-
-            {/* Custom Theme Dropdown */}
-            <div className="relative shrink-0" ref={themeMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-                className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer shadow-2xs select-none"
-              >
-                {theme === 'light' && <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                {theme === 'dark' && <Moon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
-                {theme === 'system' && <Monitor className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 shrink-0" />}
-                <span className="capitalize">{theme}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0 ml-0.5" />
-              </button>
-
-              {isThemeMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-36 bg-[#18191e] text-white border border-gray-700/80 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  {(
-                    [
-                      { id: 'light', label: 'Light', icon: Sun },
-                      { id: 'dark', label: 'Dark', icon: Moon },
-                      { id: 'system', label: 'System', icon: Monitor },
-                    ] as const
-                  ).map((item) => {
-                    const isSelected = theme === item.id;
-                    const IconComponent = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setTheme(item.id);
-                          setIsThemeMenuOpen(false);
-                          showToast(`Appearance set to ${item.label}`);
-                        }}
-                        className={`w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-medium hover:bg-gray-800/90 transition-colors cursor-pointer text-left ${
-                          isSelected ? 'text-white font-bold bg-gray-800/60' : 'text-gray-300'
-                        }`}
-                      >
-                        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
-                          {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                        </span>
-                        <IconComponent className="w-3.5 h-3.5 shrink-0 text-gray-300" />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-200/80 dark:border-gray-800 pt-2" />
-
         {/* Timezone & Regional Localization Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-2">
                 <Globe className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Timezone & Regional Localization</h3>
+                <h3 className="text-sm font-bold text-gray-900">Timezone & Regional Localization</h3>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p className="text-xs text-gray-500 mt-0.5">
                 Dates, hourly timeline columns, and scheduled publishing times are presented according to your local country time.
               </p>
             </div>
           </div>
 
-          <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200/90 dark:border-gray-700/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-w-2xl shadow-2xs">
+          <div className="p-4 bg-gray-50 border border-gray-200/90 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 max-w-2xl shadow-2xs">
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{tzInfo.label}</span>
+                <span className="text-xs font-bold text-gray-900">{tzInfo.label}</span>
                 <span
                   className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
                     tzInfo.isAutoDetected
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-blue-100 text-blue-800'
                   }`}
                 >
                   {tzInfo.isAutoDetected ? 'Auto-detected' : 'Custom'}
                 </span>
               </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center space-x-2">
+              <div className="text-[11px] text-gray-500 flex items-center space-x-2">
                 <span>Current Local Time:</span>
-                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                <span className="font-mono font-bold text-emerald-700">
                   {formatTimeSafe(new Date(), '', timeZone)}
                 </span>
                 <span>• Offset: {tzInfo.offsetStr}</span>
@@ -1131,7 +1055,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setUserTimezone('auto');
                     showToast('Reset to browser device timezone.');
                   }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer shadow-2xs"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shadow-2xs"
                 >
                   Use Auto
                 </button>
@@ -1148,10 +1072,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           {/* Time Format Selector */}
-          <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200/90 dark:border-gray-700/80 rounded-xl flex items-center justify-between gap-4 max-w-2xl shadow-2xs">
+          <div className="p-4 bg-gray-50 border border-gray-200/90 rounded-xl flex items-center justify-between gap-4 max-w-2xl shadow-2xs">
             <div className="space-y-0.5">
-              <span className="text-xs font-bold text-gray-900 dark:text-gray-100 block">Time Format</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 block">
+              <span className="text-xs font-bold text-gray-900 block">Time Format</span>
+              <span className="text-xs text-gray-500 block">
                 Set the time format for the Calendar and Queue.
               </span>
             </div>
@@ -1163,7 +1087,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   setTimeFormat(val);
                   showToast(`Time format updated to ${val}`);
                 }}
-                className="appearance-none bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-900 dark:text-gray-100 text-xs font-semibold rounded-xl py-2 pl-3.5 pr-8 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs transition-colors"
+                className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-900 text-xs font-semibold rounded-xl py-2 pl-3.5 pr-8 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs transition-colors"
               >
                 <option value="12-hour">12-hour</option>
                 <option value="24-hour">24-hour</option>

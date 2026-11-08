@@ -68,7 +68,9 @@ import {
   Music2,
   ShoppingBag,
   Layers,
+  Pencil,
 } from 'lucide-react';
+import { EditMediaStudio } from './EditMediaStudio';
 import { format } from 'date-fns';
 import { parseDateSafe, formatLocalToUtcIso, extractLocalDateAndTime, getLocalDateString } from '@/lib/dateUtils';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
@@ -372,6 +374,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     resetsAt?: string;
   } | null>(null);
   const [subscriptionData, setSubscriptionData] = useState<{ planId: string; channelsCount: number } | null>(null);
+
+  // Dedicated Edit Media Studio Full-Page State
+  const [isEditMediaStudioOpen, setIsEditMediaStudioOpen] = useState(false);
+  const [editingMediaTarget, setEditingMediaTarget] = useState<{ accId?: string; isPerPlatform?: boolean } | null>(null);
+
+  const handleSaveEditedMedia = async (updatedMedia: PostMedia[]) => {
+    if (editingMediaTarget?.isPerPlatform && editingMediaTarget.accId) {
+      setPlatformMediaMap((prev) => ({
+        ...prev,
+        [editingMediaTarget.accId!]: updatedMedia,
+      }));
+    } else {
+      setMediaList(updatedMedia);
+    }
+    setIsEditMediaStudioOpen(false);
+    setEditingMediaTarget(null);
+    showToast('Edited media applied successfully!');
+  };
 
   const isFreePlan = !subscriptionData || subscriptionData.planId === 'free';
   const monthlyUsage: MonthlyUsageSummary = SubscriptionService.calculateMonthlyUsage(
@@ -1001,6 +1021,20 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [customTopicInput, setCustomTopicInput] = useState<Record<string, string>>({});
   const [newProductName, setNewProductName] = useState<Record<string, string>>({});
   const [newProductSku, setNewProductSku] = useState<Record<string, string>>({});
+
+  const studioMediaList = useMemo(() => {
+    if (editingMediaTarget?.isPerPlatform && editingMediaTarget.accId) {
+      return platformMediaMap[editingMediaTarget.accId] || mediaList;
+    }
+    return mediaList;
+  }, [editingMediaTarget, platformMediaMap, mediaList]);
+
+  const studioActiveIndex = useMemo(() => {
+    if (editingMediaTarget?.accId) {
+      return activeSlideIndices[editingMediaTarget.accId] ?? 0;
+    }
+    return activeSlideIndices['global'] ?? 0;
+  }, [editingMediaTarget, activeSlideIndices]);
 
   // Strictly independent format selection per account - never mutates other accounts
   const handleSelectFormat = (accId: string, platform: SocialPlatform, formatId: string) => {
@@ -2170,7 +2204,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const mainHashtagsCount = (mainCaption.match(/#[a-zA-Z0-9_]+/g) || []).length;
 
   return (
-    <div className="min-h-full bg-[#f8fafc] dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 p-3 sm:p-6 md:p-8 font-sans transition-colors duration-200">
+    <div className="min-h-full bg-[#f8fafc] text-gray-900 p-3 sm:p-6 md:p-8 font-sans">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs z-50 animate-fade-in border border-white/10">
@@ -2659,43 +2693,41 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         })}
                       </div>
 
-                      {/* Aspect Ratio Selector for this platform & format */}
+                      {/* Professional Edit Media Button (Replaces old aspect-ratio controls) */}
                       {(() => {
-                        const availableRatios: ('1:1' | '4:5' | '9:16' | '16:9')[] =
-                          activeFormat === 'reel' || activeFormat === 'story' || activeFormat === 'short'
-                            ? ['9:16']
-                            : activeFormat === 'video'
-                            ? ['16:9', '1:1']
-                            : ['1:1', '4:5', '16:9'];
-                        const currentRatio =
-                          accountAspectRatios[acc.id] ||
-                          (activeFormat === 'reel' || activeFormat === 'story' || activeFormat === 'short'
-                            ? '9:16'
-                            : activeFormat === 'video'
-                            ? '16:9'
-                            : '1:1');
+                        const effectiveMedia = getEffectiveMediaForAccount(acc.id);
+                        const hasImages =
+                          effectiveMedia.length > 0 &&
+                          effectiveMedia.some(
+                            (m) =>
+                              m.type === 'image' ||
+                              /\.(png|jpe?g|webp|gif|svg)$/i.test(m.url || m.name || '')
+                          );
+                        const hasVideos = effectiveMedia.some(
+                          (m) =>
+                            m.type === 'video' ||
+                            /\.(mp4|mov|webm|avi|m4v)$/i.test(m.url || m.name || '')
+                        );
+
+                        if (!hasImages || hasVideos) return null;
 
                         return (
-                          <div className="flex items-center justify-between px-1 py-0.5">
+                          <div className="flex items-center justify-between px-1 py-1">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Aspect Ratio
+                              Media Editing
                             </span>
-                            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl border border-gray-200/60">
-                              {availableRatios.map((r) => (
-                                <button
-                                  key={r}
-                                  type="button"
-                                  onClick={() => setAccountAspectRatios((prev) => ({ ...prev, [acc.id]: r }))}
-                                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                                    currentRatio === r
-                                      ? 'bg-gray-900 text-white shadow-xs'
-                                      : 'text-gray-600 hover:text-gray-900'
-                                  }`}
-                                >
-                                  {r}
-                                </button>
-                              ))}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMediaTarget({ accId: acc.id, isPerPlatform: customizeMediaPerPlatform });
+                                setIsEditMediaStudioOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border border-emerald-200/90 text-xs font-bold transition-all flex items-center space-x-1.5 shadow-2xs cursor-pointer group"
+                              title="Open Edit Media studio"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                              <span>Edit Media</span>
+                            </button>
                           </div>
                         );
                       })()}
@@ -2988,8 +3020,24 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       </div>
                                     </div>
 
-                                    {/* Bottom Row: Actions (Replace, Remove, + Add Slide) */}
+                                    {/* Bottom Row: Actions (Edit Media, Replace, Remove, + Add Slide) */}
                                     <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
+                                      {/* Edit Media Slide */}
+                                      {currentMedia?.type !== 'video' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingMediaTarget({ accId, isPerPlatform: customizeMediaPerPlatform });
+                                            setIsEditMediaStudioOpen(true);
+                                          }}
+                                          className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                          title="Open Edit Media editor"
+                                        >
+                                          <Pencil className="w-3 h-3 text-emerald-600" />
+                                          <span>Edit Media</span>
+                                        </button>
+                                      )}
+
                                       {/* Replace Slide */}
                                       <button
                                         type="button"
@@ -3041,6 +3089,21 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       )}
                                     </div>
                                     <div className="flex items-center space-x-1.5 shrink-0">
+                                      {/* Edit Media button (Images only) */}
+                                      {currentMedia?.type !== 'video' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingMediaTarget({ accId, isPerPlatform: customizeMediaPerPlatform });
+                                            setIsEditMediaStudioOpen(true);
+                                          }}
+                                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                          title="Open Edit Media studio"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Edit Media</span>
+                                        </button>
+                                      )}
                                       {/* Create Carousel button (Only for images on non-YouTube accounts) */}
                                       {currentMedia?.type !== 'video' && !isYouTube && (
                                         <button
@@ -4438,6 +4501,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             )}
           </div>
         </div>
+      )}
+      {/* Dedicated Edit Media Studio Full-Page Screen */}
+      {isEditMediaStudioOpen && (
+        <EditMediaStudio
+          isOpen={isEditMediaStudioOpen}
+          mediaList={studioMediaList}
+          initialIndex={studioActiveIndex}
+          onSave={handleSaveEditedMedia}
+          onCancel={() => {
+            setIsEditMediaStudioOpen(false);
+            setEditingMediaTarget(null);
+          }}
+        />
       )}
     </div>
   );

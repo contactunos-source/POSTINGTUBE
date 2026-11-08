@@ -56,6 +56,16 @@ export interface PlatformCaptionOverride {
   videoLocation?: string;
 }
 
+export interface ImageEditMetadata {
+  aspectRatio: 'freeform' | 'original' | '3:4' | '4:5' | '1:1' | '9:16' | '1.91:1';
+  rotation: number; // 0, 90, 180, 270
+  flipH: boolean;
+  flipV: boolean;
+  straighten: number; // -45 to +45
+  zoom: number;
+  cropRect?: { x: number; y: number; width: number; height: number };
+}
+
 export interface PostMedia {
   id: string;
   url: string;
@@ -66,6 +76,8 @@ export interface PostMedia {
   aspectRatio?: string;
   duration?: number; // seconds
   order?: number; // 0-based slide order for carousels
+  originalUrl?: string; // pristine unedited image source URL
+  editMetadata?: ImageEditMetadata;
 }
 
 export interface PlatformPostMetrics {
