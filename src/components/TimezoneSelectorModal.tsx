@@ -16,6 +16,7 @@ import {
   getUserTimezoneInfo,
   POPULAR_TIMEZONES,
   formatTimeSafe,
+  useUserTimeFormat,
 } from '@/lib/dateUtils';
 
 interface TimezoneSelectorModalProps {
@@ -30,6 +31,7 @@ export const TimezoneSelectorModal: React.FC<TimezoneSelectorModalProps> = ({
   onTimezoneChanged,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { timeFormat } = useUserTimeFormat();
   const activeTz = getUserTimezone();
   const activeTzInfo = useMemo(() => getUserTimezoneInfo(activeTz), [activeTz]);
 

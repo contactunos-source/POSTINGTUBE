@@ -7,6 +7,74 @@ import { useState, useEffect } from 'react';
 export const USER_TZ_STORAGE_KEY = 'postingtube_user_tz';
 
 /**
+ * Time format setting: '12-hour' (e.g. 2:30 PM) or '24-hour' (e.g. 14:30)
+ */
+export type TimeFormat = '12-hour' | '24-hour';
+export const USER_TIME_FORMAT_KEY = 'postingtube_time_format';
+
+/**
+ * Dynamically retrieves user's preferred time format:
+ * 1. Checks localStorage ('postingtube_time_format').
+ * 2. Defaults to '12-hour'.
+ */
+export function getUserTimeFormat(): TimeFormat {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(USER_TIME_FORMAT_KEY);
+      if (saved === '12-hour' || saved === '24-hour') {
+        return saved;
+      }
+    } catch {}
+  }
+  return '12-hour';
+}
+
+/**
+ * Sets user's preferred time format and broadcasts change to all components.
+ */
+export function setUserTimeFormat(fmt: TimeFormat): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(USER_TIME_FORMAT_KEY, fmt);
+      window.dispatchEvent(
+        new CustomEvent('postingtube:time-format-changed', {
+          detail: { timeFormat: fmt },
+        })
+      );
+    } catch (e) {
+      console.warn('Failed to persist user time format:', e);
+    }
+  }
+}
+
+/**
+ * React hook to reactively subscribe to user time format preference.
+ */
+export function useUserTimeFormat() {
+  const [timeFormat, setTimeFormatState] = useState<TimeFormat>(() => getUserTimeFormat());
+
+  useEffect(() => {
+    const update = () => {
+      setTimeFormatState(getUserTimeFormat());
+    };
+    update();
+    window.addEventListener('postingtube:time-format-changed', update);
+    window.addEventListener('storage', update);
+    return () => {
+      window.removeEventListener('postingtube:time-format-changed', update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
+
+  const changeFormat = (newFmt: TimeFormat) => {
+    setUserTimeFormat(newFmt);
+    setTimeFormatState(newFmt);
+  };
+
+  return { timeFormat, setTimeFormat: changeFormat, is24Hour: timeFormat === '24-hour' };
+}
+
+/**
  * Legacy constant preserved for backward compatibility
  * @deprecated Use getUserTimezone() instead.
  */
@@ -321,12 +389,15 @@ export interface LocalTimeParts {
 }
 
 /**
- * Accurately extracts hours, minutes, period (AM/PM), periodLabel, and phase in the user's localized timezone.
+ * Accurately extracts hours, minutes, period (AM/PM), periodLabel, and phase in the user's localized timezone
+ * respecting the user's chosen time format ('12-hour' or '24-hour').
  */
 export function getLocalTimeParts(
   dateInput: string | Date | undefined | null,
-  tz: string = getUserTimezone()
+  tz: string = getUserTimezone(),
+  formatInput?: TimeFormat
 ): LocalTimeParts {
+  const activeFormat = formatInput || getUserTimeFormat();
   const d = parseDateSafe(dateInput, tz);
   if (!d) {
     return {
@@ -334,7 +405,7 @@ export function getLocalTimeParts(
       minute: 0,
       hour12: 12,
       period: 'AM',
-      timeStr: '12:00 AM',
+      timeStr: activeFormat === '24-hour' ? '00:00' : '12:00 AM',
       periodLabel: 'Midnight',
       phase: 'night',
     };
@@ -357,7 +428,9 @@ export function getLocalTimeParts(
   let h12 = h24 % 12;
   if (h12 === 0) h12 = 12;
   const period: 'AM' | 'PM' = isPm ? 'PM' : 'AM';
-  const timeStr = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  const hh24Str = String(h24).padStart(2, '0');
+  const mmStr = String(m).padStart(2, '0');
+  const timeStr = activeFormat === '24-hour' ? `${hh24Str}:${mmStr}` : `${h12}:${mmStr} ${period}`;
 
   let periodLabel = 'Night';
   let phase: TimePhase = 'night';
@@ -507,17 +580,18 @@ export function formatToDateTimeLocal(
 }
 
 /**
- * Format time in readable 12-hour format in the user's localized timezone e.g. "2:40 PM"
+ * Format time in readable format in the user's localized timezone e.g. "2:40 PM" or "14:40"
  */
 export function formatTimeSafe(
   dateInput: string | Date | undefined | null,
   fallback = '',
-  tz: string = getUserTimezone()
+  tz: string = getUserTimezone(),
+  formatInput?: TimeFormat
 ): string {
   const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
-    const parts = getLocalTimeParts(d, tz);
+    const parts = getLocalTimeParts(d, tz, formatInput);
     return parts.timeStr;
   } catch {
     return fallback;
@@ -530,21 +604,23 @@ export function formatTimeSafe(
 export function formatDateTimeWithSeconds(
   dateInput: string | Date | undefined | null,
   fallback = '',
-  tz: string = getUserTimezone()
+  tz: string = getUserTimezone(),
+  formatInput?: TimeFormat
 ): string {
   const d = parseDateSafe(dateInput, tz);
   if (!d) return fallback;
   try {
     const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
+    const activeFormat = formatInput || getUserTimeFormat();
     return new Intl.DateTimeFormat('en-US', {
       timeZone: activeTz,
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-      hour: 'numeric',
+      hour: activeFormat === '24-hour' ? '2-digit' : 'numeric',
       minute: '2-digit',
       second: '2-digit',
-      hour12: true,
+      hour12: activeFormat !== '24-hour',
     }).format(d);
   } catch {
     return fallback;

@@ -43,7 +43,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds } from '@/lib/dateUtils';
+import { parseDateSafe, isSameCalendarDay, formatTimeSafe, formatDateFullSafe, formatDateTimeWithSeconds, useUserTimeFormat } from '@/lib/dateUtils';
 import { PostPlatformCaptionsView } from './PostPlatformCaptionsView';
 
 interface PostsManagerProps {
@@ -254,6 +254,7 @@ export const PostsManager: React.FC<PostsManagerProps> = ({
   const [selectedPostForDetails, setSelectedPostForDetails] = useState<Post | null>(null);
   const [menuOpenPostId, setMenuOpenPostId] = useState<string | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<string, boolean>>({});
+  const { timeFormat } = useUserTimeFormat();
 
   // Analytics Refresh States
   const [refreshingPostId, setRefreshingPostId] = useState<string | null>(null);

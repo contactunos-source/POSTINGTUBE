@@ -61,6 +61,7 @@ import {
   getLocalDateString,
   formatLocalToUtcIso,
   useUserTimezone,
+  useUserTimeFormat,
 } from '@/lib/dateUtils';
 import { TimezoneSelectorModal } from './TimezoneSelectorModal';
 import { PostPlatformCaptionsView } from './PostPlatformCaptionsView';
@@ -210,6 +211,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Dynamic User Timezone (Auto-detected from browser or user configured)
   const { timeZone, info: tzInfo } = useUserTimezone();
+  const { timeFormat, is24Hour } = useUserTimeFormat();
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
 
   // Navigation handlers
@@ -405,33 +407,49 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Complete 24-Hour Timeline Slots covering the entire day (12 AM Midnight through 11 PM Night)
-  const timeSlots = [
-    { hour: 0, label: '12 AM', periodLabel: 'Midnight', phase: 'night' as const },
-    { hour: 1, label: '1 AM', periodLabel: 'Late Night', phase: 'night' as const },
-    { hour: 2, label: '2 AM', periodLabel: 'Late Night', phase: 'night' as const },
-    { hour: 3, label: '3 AM', periodLabel: 'Late Night', phase: 'night' as const },
-    { hour: 4, label: '4 AM', periodLabel: 'Early Morning', phase: 'morning' as const },
-    { hour: 5, label: '5 AM', periodLabel: 'Early Morning', phase: 'morning' as const },
-    { hour: 6, label: '6 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 7, label: '7 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 8, label: '8 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 9, label: '9 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 10, label: '10 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 11, label: '11 AM', periodLabel: 'Morning', phase: 'morning' as const },
-    { hour: 12, label: '12 PM', periodLabel: 'Noon', phase: 'afternoon' as const },
-    { hour: 13, label: '1 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
-    { hour: 14, label: '2 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
-    { hour: 15, label: '3 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
-    { hour: 16, label: '4 PM', periodLabel: 'Afternoon', phase: 'afternoon' as const },
-    { hour: 17, label: '5 PM', periodLabel: 'Evening', phase: 'evening' as const },
-    { hour: 18, label: '6 PM', periodLabel: 'Evening', phase: 'evening' as const },
-    { hour: 19, label: '7 PM', periodLabel: 'Evening', phase: 'evening' as const },
-    { hour: 20, label: '8 PM', periodLabel: 'Night', phase: 'night' as const },
-    { hour: 21, label: '9 PM', periodLabel: 'Night', phase: 'night' as const },
-    { hour: 22, label: '10 PM', periodLabel: 'Night', phase: 'night' as const },
-    { hour: 23, label: '11 PM', periodLabel: 'Night', phase: 'night' as const },
-  ];
+  // Complete 24-Hour Timeline Slots covering the entire day (12-hour AM/PM or 24-hour 00:00 - 23:00)
+  const timeSlots = useMemo(() => {
+    return Array.from({ length: 24 }).map((_, hour) => {
+      const isPm = hour >= 12;
+      let h12 = hour % 12;
+      if (h12 === 0) h12 = 12;
+      const period = isPm ? 'PM' : 'AM';
+      const label = is24Hour
+        ? `${String(hour).padStart(2, '0')}:00`
+        : `${h12} ${period}`;
+
+      let periodLabel = 'Night';
+      let phase: 'night' | 'morning' | 'afternoon' | 'evening' = 'night';
+
+      if (hour === 0) {
+        periodLabel = 'Midnight';
+        phase = 'night';
+      } else if (hour < 4) {
+        periodLabel = 'Late Night';
+        phase = 'night';
+      } else if (hour < 6) {
+        periodLabel = 'Early Morning';
+        phase = 'morning';
+      } else if (hour < 12) {
+        periodLabel = 'Morning';
+        phase = 'morning';
+      } else if (hour === 12) {
+        periodLabel = 'Noon';
+        phase = 'afternoon';
+      } else if (hour < 17) {
+        periodLabel = 'Afternoon';
+        phase = 'afternoon';
+      } else if (hour < 21) {
+        periodLabel = 'Evening';
+        phase = 'evening';
+      } else {
+        periodLabel = 'Night';
+        phase = 'night';
+      }
+
+      return { hour, label, periodLabel, phase };
+    });
+  }, [is24Hour]);
 
   // Helper to determine per-account publish status for a post
   const getAccountPublishStatus = (postItem: Post, account: SocialAccount) => {
@@ -1127,7 +1145,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               let h12 = hour % 12;
               if (h12 === 0) h12 = 12;
               const period = isPm ? 'PM' : 'AM';
-              const label = `${h12} ${period}`;
+              const label = is24Hour
+                ? `${String(hour).padStart(2, '0')}:00`
+                : `${h12} ${period}`;
 
               let periodLabel = 'Night';
               if (hour === 0) periodLabel = 'Midnight';
@@ -1505,7 +1525,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {inspectedPost.status}
                 </span>
                 <span className="text-xs text-gray-500 font-medium">
-                  {formatDateFullSafe(inspectedPost.scheduledFor || inspectedPost.publishedAt)}
+                  {formatDateFullSafe(inspectedPost.scheduledFor || inspectedPost.publishedAt, '', timeZone)} · {formatTimeSafe(inspectedPost.scheduledFor || inspectedPost.publishedAt, '', timeZone)}
                 </span>
               </div>
               <button

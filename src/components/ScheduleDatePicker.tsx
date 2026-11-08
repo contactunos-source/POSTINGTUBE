@@ -5,6 +5,7 @@ import {
   formatDateFullSafe,
   formatLocalToUtcIso,
   useUserTimezone,
+  useUserTimeFormat,
 } from '@/lib/dateUtils';
 import { TimezoneSelectorModal } from './TimezoneSelectorModal';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -79,6 +80,7 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
 
   // Dynamic User Timezone (Auto-detected from browser or user configured)
   const { timeZone, info: tzInfo } = useUserTimezone();
+  const { timeFormat } = useUserTimeFormat();
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
 
   // Parse 24-hr scheduledTime into 12-hr format
@@ -146,7 +148,7 @@ export const ScheduleDatePicker: React.FC<ScheduleDatePickerProps> = ({
     } catch {
       return `${scheduledDate} · ${scheduledTime} ${tzInfo.abbr}`;
     }
-  }, [scheduledDate, scheduledTime, timeZone, tzInfo.abbr]);
+  }, [scheduledDate, scheduledTime, timeZone, tzInfo.abbr, timeFormat]);
 
   // Calendar calculations
   const monthNames = [

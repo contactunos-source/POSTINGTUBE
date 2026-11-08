@@ -28,13 +28,14 @@ import {
   ArrowRight,
   ShieldCheck,
   Globe,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase, signOutUser } from '@/lib/supabase';
 import { DeleteChannelModal } from '@/components/DeleteChannelModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { UpgradePlanModal } from '@/components/UpgradePlanModal';
 import { PRICING_CONFIG } from '@/lib/pricing-config';
-import { useUserTimezone, formatTimeSafe, setUserTimezone } from '@/lib/dateUtils';
+import { useUserTimezone, formatTimeSafe, setUserTimezone, useUserTimeFormat, TimeFormat } from '@/lib/dateUtils';
 import { TimezoneSelectorModal } from '@/components/TimezoneSelectorModal';
 
 interface SettingsViewProps {
@@ -89,6 +90,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Timezone and Regional Localization State
   const { timeZone, info: tzInfo } = useUserTimezone();
+  const { timeFormat, setTimeFormat } = useUserTimeFormat();
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState<boolean>(false);
 
   // Subscription & Billing States
@@ -1066,6 +1068,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <Globe className="w-3.5 h-3.5" />
                 <span>Change Timezone</span>
               </button>
+            </div>
+          </div>
+
+          {/* Time Format Selector */}
+          <div className="p-4 bg-gray-50 border border-gray-200/90 rounded-xl flex items-center justify-between gap-4 max-w-2xl shadow-2xs">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-gray-900 block">Time Format</span>
+              <span className="text-xs text-gray-500 block">
+                Set the time format for the Calendar and Queue.
+              </span>
+            </div>
+            <div className="relative shrink-0">
+              <select
+                value={timeFormat}
+                onChange={(e) => {
+                  const val = e.target.value as TimeFormat;
+                  setTimeFormat(val);
+                  showToast(`Time format updated to ${val}`);
+                }}
+                className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-900 text-xs font-semibold rounded-xl py-2 pl-3.5 pr-8 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer shadow-2xs transition-colors"
+              >
+                <option value="12-hour">12-hour</option>
+                <option value="24-hour">24-hour</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
         </div>
