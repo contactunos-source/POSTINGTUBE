@@ -46,11 +46,11 @@ interface AspectRatioConfig {
 }
 
 const ASPECT_RATIO_OPTIONS: AspectRatioConfig[] = [
-  { id: 'freeform', title: 'Freeform', subtitle: 'Any size', ratio: null },
   { id: 'original', title: 'Original', subtitle: 'Full image', ratio: null },
-  { id: '3:4', title: '3:4', subtitle: 'Portrait', ratio: 3 / 4 },
-  { id: '4:5', title: '4:5', subtitle: 'Portrait', ratio: 4 / 5 },
+  { id: 'freeform', title: 'Freeform', subtitle: 'Any custom size', ratio: null },
   { id: '1:1', title: '1:1', subtitle: 'Square', ratio: 1 / 1 },
+  { id: '4:5', title: '4:5', subtitle: 'Social Portrait', ratio: 4 / 5 },
+  { id: '3:4', title: '3:4', subtitle: 'Portrait', ratio: 3 / 4 },
   { id: '9:16', title: '9:16', subtitle: 'Stories / Reels', ratio: 9 / 16 },
   { id: '1.91:1', title: '1.91:1', subtitle: 'Landscape', ratio: 1.91 / 1 },
 ];
@@ -77,6 +77,66 @@ const DEFAULT_ITEM_STATE: ItemEditState = {
   pan: { x: 0, y: 0 },
   cropNorm: { x: 0, y: 0, width: 1, height: 1 },
   isModified: false,
+};
+
+/**
+ * Visual SVG Wireframe Aspect Ratio Icon
+ */
+const RatioWireframeIcon: React.FC<{ id: AspectRatioOption; isSelected: boolean }> = ({
+  id,
+  isSelected,
+}) => {
+  const stroke = isSelected ? '#059669' : '#6b7280';
+  const fill = isSelected ? '#ecfdf5' : '#f9fafb';
+
+  switch (id) {
+    case 'freeform':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="3" y="3" width="16" height="16" rx="2" stroke={stroke} strokeWidth="1.5" strokeDasharray="2 2" fill={fill} />
+          <path d="M7 3V6M15 3V6M7 16V19M15 16V19M3 7H6M3 15H6M16 7H19M16 15H19" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'original':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="2.5" y="3.5" width="17" height="15" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+          <path d="M6 7H9M6 7V10M16 15H13M16 15V12" stroke={stroke} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case '1:1':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="3.5" y="3.5" width="15" height="15" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+        </svg>
+      );
+    case '4:5':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="4.5" y="2.5" width="13" height="17" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+        </svg>
+      );
+    case '3:4':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="5" y="2.5" width="12" height="17" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+        </svg>
+      );
+    case '9:16':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="6" y="2" width="10" height="18" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+        </svg>
+      );
+    case '1.91:1':
+      return (
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="shrink-0">
+          <rect x="2" y="6" width="18" height="10" rx="2" stroke={stroke} strokeWidth="1.5" fill={fill} />
+        </svg>
+      );
+    default:
+      return null;
+  }
 };
 
 export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
@@ -118,92 +178,29 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
   // Canvas viewport container ref
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({
-    width: 600,
-    height: 600,
-  });
 
-  // Dragging / Pan state inside canvas
-  const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef<{ mouseX: number; mouseY: number; startPanX: number; startPanY: number }>({
-    mouseX: 0,
-    mouseY: 0,
-    startPanX: 0,
-    startPanY: 0,
-  });
-
-  // Freeform Crop handle dragging state
+  // Mouse drag interaction state (pan or freeform crop)
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
   const dragHandleStartRef = useRef<{
     mouseX: number;
     mouseY: number;
     initialCrop: { x: number; y: number; width: number; height: number };
-  }>({
-    mouseX: 0,
-    mouseY: 0,
-    initialCrop: { x: 0, y: 0, width: 1, height: 1 },
-  });
+  } | null>(null);
 
-  // Initialize or load edit states for all media items
-  useEffect(() => {
-    if (!isOpen) return;
-
-    setEditsMap((prev) => {
-      const next = { ...prev };
-      imageMediaList.forEach((media) => {
-        if (!next[media.id]) {
-          const meta = media.editMetadata;
-          next[media.id] = {
-            aspectRatio: (meta?.aspectRatio as AspectRatioOption) || 'original',
-            rotation: meta?.rotation || 0,
-            flipH: Boolean(meta?.flipH),
-            flipV: Boolean(meta?.flipV),
-            straighten: meta?.straighten || 0,
-            zoom: meta?.zoom || 1,
-            pan: { x: 0, y: 0 },
-            cropNorm: meta?.cropRect || { x: 0, y: 0, width: 1, height: 1 },
-            isModified: false,
-          };
-        }
-      });
-      return next;
-    });
-
-    if (initialIndex >= 0 && initialIndex < imageMediaList.length) {
-      setActiveIndex(initialIndex);
-    }
-  }, [isOpen, imageMediaList, initialIndex]);
-
-  // Measure natural dimensions of active image
+  // Measure natural dimensions of the active image
   useEffect(() => {
     if (!activeMediaUrl) return;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    img.src = activeMediaUrl;
     img.onload = () => {
       setNaturalDimensions({
         width: img.naturalWidth || 800,
         height: img.naturalHeight || 800,
       });
     };
-    img.src = activeMediaUrl;
   }, [activeMediaUrl]);
-
-  // Measure canvas viewport size on resize
-  useEffect(() => {
-    if (!isOpen) return;
-    const updateSize = () => {
-      if (viewportRef.current) {
-        const rect = viewportRef.current.getBoundingClientRect();
-        setViewportSize({
-          width: Math.max(300, rect.width),
-          height: Math.max(300, rect.height),
-        });
-      }
-    };
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
-  }, [isOpen]);
 
   // Current active item's edit state
   const currentEdit = useMemo<ItemEditState>(() => {
@@ -211,17 +208,17 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     return editsMap[activeMediaId] || DEFAULT_ITEM_STATE;
   }, [editsMap, activeMediaId]);
 
-  // Helper to mutate active item's edit state
+  // Helper to mutate active item edit state
   const updateCurrentEdit = useCallback(
-    (updater: (prev: ItemEditState) => ItemEditState) => {
+    (updater: Partial<ItemEditState> | ((prev: ItemEditState) => ItemEditState)) => {
       if (!activeMediaId) return;
       setEditsMap((prev) => {
-        const oldState = prev[activeMediaId] || DEFAULT_ITEM_STATE;
-        const nextState = updater(oldState);
+        const existing = prev[activeMediaId] || DEFAULT_ITEM_STATE;
+        const next = typeof updater === 'function' ? updater(existing) : { ...existing, ...updater };
         return {
           ...prev,
           [activeMediaId]: {
-            ...nextState,
+            ...next,
             isModified: true,
           },
         };
@@ -230,271 +227,208 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     [activeMediaId]
   );
 
-  // Total modified count across all images
+  // Count total modified items across carousel
   const modifiedCount = useMemo(() => {
     return Object.values(editsMap).filter((e) => e.isModified).length;
   }, [editsMap]);
 
-  const hasAnyChanges = modifiedCount > 0;
-
-  // Handle Aspect Ratio Selection
+  // Aspect ratio switch handler
   const handleSelectAspectRatio = (ratioId: AspectRatioOption) => {
     updateCurrentEdit((prev) => {
-      let targetRatio: number | null = null;
-      if (ratioId === 'original') {
-        targetRatio = naturalDimensions.width / naturalDimensions.height;
-      } else {
-        const cfg = ASPECT_RATIO_OPTIONS.find((o) => o.id === ratioId);
-        targetRatio = cfg?.ratio ?? null;
-      }
-
-      let nextCrop = { x: 0, y: 0, width: 1, height: 1 };
-      if (targetRatio !== null && targetRatio > 0) {
-        // Compute centered crop box inside normalized 0..1 bounding box
-        const naturalRatio = naturalDimensions.width / naturalDimensions.height;
-        if (targetRatio > naturalRatio) {
-          // target is wider than natural image
-          const h = naturalRatio / targetRatio;
-          nextCrop = {
-            x: 0,
-            y: (1 - h) / 2,
-            width: 1,
-            height: Math.min(1, Math.max(0.1, h)),
-          };
-        } else {
-          // target is taller than natural image
-          const w = targetRatio / naturalRatio;
-          nextCrop = {
-            x: (1 - w) / 2,
-            y: 0,
-            width: Math.min(1, Math.max(0.1, w)),
-            height: 1,
-          };
-        }
-      }
-
       return {
         ...prev,
         aspectRatio: ratioId,
-        cropNorm: nextCrop,
+        // Reset pan & zoom to optimal centered position on ratio change
         pan: { x: 0, y: 0 },
+        zoom: 1,
+        cropNorm: { x: 0, y: 0, width: 1, height: 1 },
       };
     });
   };
 
-  // Rotation: 90 deg steps
+  // 90-degree Rotation handlers
   const handleRotateLeft = () => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      rotation: (prev.rotation - 90 + 360) % 360,
-    }));
+    updateCurrentEdit((prev) => {
+      const nextRot = (prev.rotation - 90 + 360) % 360;
+      return { ...prev, rotation: nextRot };
+    });
   };
 
   const handleRotateRight = () => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      rotation: (prev.rotation + 90) % 360,
-    }));
+    updateCurrentEdit((prev) => {
+      const nextRot = (prev.rotation + 90) % 360;
+      return { ...prev, rotation: nextRot };
+    });
   };
 
-  // Flip Horizontal & Vertical
+  // Flip handlers
   const handleFlipHorizontal = () => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      flipH: !prev.flipH,
-    }));
+    updateCurrentEdit((prev) => ({ ...prev, flipH: !prev.flipH }));
   };
 
   const handleFlipVertical = () => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      flipV: !prev.flipV,
-    }));
+    updateCurrentEdit((prev) => ({ ...prev, flipV: !prev.flipV }));
   };
 
-  // Straighten: angle slider
+  // Straighten angle slider handler (-45 to 45 degrees)
   const handleStraightenChange = (val: number) => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      straighten: val,
-    }));
+    const clamped = Math.max(-45, Math.min(45, val));
+    updateCurrentEdit((prev) => ({ ...prev, straighten: clamped }));
   };
 
-  // Center: Reset pan & zoom
+  // Center image in canvas
   const handleCenter = () => {
     updateCurrentEdit((prev) => ({
       ...prev,
       pan: { x: 0, y: 0 },
-      zoom: 1,
     }));
   };
 
-  // Reset to Original
+  // Reset to original uploaded state
   const handleResetToOriginal = () => {
     if (!activeMediaId) return;
     setEditsMap((prev) => ({
       ...prev,
       [activeMediaId]: {
         ...DEFAULT_ITEM_STATE,
-        isModified: true,
+        isModified: false,
       },
     }));
   };
 
-  // Zoom controls
-  const handleZoom = (delta: number) => {
-    updateCurrentEdit((prev) => {
-      const nextZoom = Math.min(3, Math.max(1, prev.zoom + delta));
-      return { ...prev, zoom: Number(nextZoom.toFixed(2)) };
-    });
-  };
-
-  // Mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    handleZoom(delta);
-  };
-
-  // Pan interaction handling
+  // Mouse pan handlers inside canvas
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Only pan with primary mouse button if not clicking a crop handle
-    if (e.button !== 0 || activeHandle) return;
-    setIsPanning(true);
-    panStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      startPanX: currentEdit.pan.x,
-      startPanY: currentEdit.pan.y,
-    };
+    if (activeHandle) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - currentEdit.pan.x, y: e.clientY - currentEdit.pan.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      const dx = e.clientX - panStartRef.current.mouseX;
-      const dy = e.clientY - panStartRef.current.mouseY;
-      updateCurrentEdit((prev) => ({
-        ...prev,
-        pan: {
-          x: panStartRef.current.startPanX + dx,
-          y: panStartRef.current.startPanY + dy,
-        },
-      }));
-    } else if (activeHandle && currentEdit.aspectRatio === 'freeform') {
-      const dxNorm = (e.clientX - dragHandleStartRef.current.mouseX) / (viewportSize.width * 0.7);
-      const dyNorm = (e.clientY - dragHandleStartRef.current.mouseY) / (viewportSize.height * 0.7);
+    if (activeHandle && dragHandleStartRef.current) {
+      // Freeform crop resize logic
+      const dx = (e.clientX - dragHandleStartRef.current.mouseX) / 400;
+      const dy = (e.clientY - dragHandleStartRef.current.mouseY) / 400;
       const init = dragHandleStartRef.current.initialCrop;
 
-      let nextX = init.x;
-      let nextY = init.y;
-      let nextW = init.width;
-      let nextH = init.height;
+      let newWidth = init.width;
+      let newHeight = init.height;
+      let newX = init.x;
+      let newY = init.y;
 
-      if (activeHandle.includes('e')) nextW = Math.min(1 - init.x, Math.max(0.15, init.width + dxNorm));
-      if (activeHandle.includes('s')) nextH = Math.min(1 - init.y, Math.max(0.15, init.height + dyNorm));
+      if (activeHandle.includes('e')) newWidth = Math.max(0.2, Math.min(1 - init.x, init.width + dx));
       if (activeHandle.includes('w')) {
-        const potentialW = Math.max(0.15, init.width - dxNorm);
-        nextX = Math.max(0, init.x + (init.width - potentialW));
-        nextW = potentialW;
+        const potentialW = init.width - dx;
+        if (potentialW >= 0.2 && init.x + dx >= 0) {
+          newWidth = potentialW;
+          newX = init.x + dx;
+        }
       }
+      if (activeHandle.includes('s')) newHeight = Math.max(0.2, Math.min(1 - init.y, init.height + dy));
       if (activeHandle.includes('n')) {
-        const potentialH = Math.max(0.15, init.height - dyNorm);
-        nextY = Math.max(0, init.y + (init.height - potentialH));
-        nextH = potentialH;
+        const potentialH = init.height - dy;
+        if (potentialH >= 0.2 && init.y + dy >= 0) {
+          newHeight = potentialH;
+          newY = init.y + dy;
+        }
       }
 
-      updateCurrentEdit((prev) => ({
-        ...prev,
-        cropNorm: { x: nextX, y: nextY, width: nextW, height: nextH },
-      }));
+      updateCurrentEdit({
+        cropNorm: { x: newX, y: newY, width: newWidth, height: newHeight },
+      });
+      return;
     }
+
+    if (!isDragging) return;
+    const nextPanX = e.clientX - dragStart.x;
+    const nextPanY = e.clientY - dragStart.y;
+    updateCurrentEdit({ pan: { x: nextPanX, y: nextPanY } });
   };
 
   const handleMouseUp = () => {
-    setIsPanning(false);
+    setIsDragging(false);
     setActiveHandle(null);
+    dragHandleStartRef.current = null;
   };
 
-  // Keyboard Escape handler with Discard modal
+  // Zoom handlers (mouse wheel + buttons)
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    const nextZoom = Math.max(0.5, Math.min(3, currentEdit.zoom + delta));
+    updateCurrentEdit({ zoom: parseFloat(nextZoom.toFixed(2)) });
+  };
+
+  const handleZoom = (delta: number) => {
+    const nextZoom = Math.max(0.5, Math.min(3, currentEdit.zoom + delta));
+    updateCurrentEdit({ zoom: parseFloat(nextZoom.toFixed(2)) });
+  };
+
+  // Keyboard navigation & Esc guard
   useEffect(() => {
-    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
       if (e.key === 'Escape') {
-        e.preventDefault();
-        if (hasAnyChanges) {
-          setShowDiscardModal(true);
-        } else {
-          onCancel();
-        }
+        handleAttemptCancel();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasAnyChanges, onCancel]);
+  }, [isOpen, modifiedCount]);
 
-  // Attempt cancel
+  // Handle Cancel attempt (prompt if unsaved changes exist)
   const handleAttemptCancel = () => {
-    if (hasAnyChanges) {
+    if (modifiedCount > 0) {
       setShowDiscardModal(true);
     } else {
       onCancel();
     }
   };
 
-  // Export & Apply Changes Logic
+  // Save changes & offscreen export
   const handleApplyChanges = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    setSaveProgress(10);
-
     try {
+      setIsSaving(true);
+      setSaveProgress(15);
+
       const updatedMediaList: PostMedia[] = [];
 
       for (let i = 0; i < imageMediaList.length; i++) {
-        const media = imageMediaList[i];
-        const editState = editsMap[media.id] || DEFAULT_ITEM_STATE;
+        const item = imageMediaList[i];
+        const editState = editsMap[item.id];
 
-        setSaveProgress(Math.round(((i + 1) / imageMediaList.length) * 80));
-
-        // If not modified, keep existing media unchanged
-        if (!editState.isModified) {
-          updatedMediaList.push(media);
+        if (!editState || !editState.isModified) {
+          updatedMediaList.push(item);
           continue;
         }
 
-        // Render edited image to canvas and export Blob
-        const blob = await renderTransformedImageBlob(
-          media.originalUrl || media.url,
-          editState
-        );
+        setSaveProgress(Math.round(20 + (i / imageMediaList.length) * 50));
 
-        if (!blob) {
-          updatedMediaList.push(media);
-          continue;
+        const sourceUrl = item.originalUrl || item.url;
+        const renderedBlob = await renderTransformedImageBlob(sourceUrl, editState);
+
+        let finalUrl = item.url;
+        if (renderedBlob) {
+          const formData = new FormData();
+          const cleanFileName = (item.name || 'image.jpg').replace(/\.[^.]+$/, '') + '-edited.jpg';
+          formData.append('file', renderedBlob, cleanFileName);
+
+          const uploadRes = await fetch('/api/media/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (uploadRes.ok) {
+            const data = await uploadRes.json();
+            if (data.file?.url) {
+              finalUrl = data.file.url;
+            }
+          }
         }
-
-        // Upload transformed blob to Supabase Storage via /api/media/upload
-        const cleanName = media.name.replace(/\.[^/.]+$/, '');
-        const filename = `${cleanName}_edited_${Date.now()}.jpg`;
-        const file = new File([blob], filename, { type: 'image/jpeg' });
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const res = await fetch('/api/media/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const uploadData = await res.json();
-        const finalUrl = uploadData.success && uploadData.url ? uploadData.url : media.url;
 
         const updatedItem: PostMedia = {
-          ...media,
+          ...item,
           url: finalUrl,
-          thumbnailUrl: finalUrl,
-          originalUrl: media.originalUrl || media.url, // preserve pristine source!
-          aspectRatio: editState.aspectRatio,
+          originalUrl: item.originalUrl || item.url,
           editMetadata: {
             aspectRatio: editState.aspectRatio,
             rotation: editState.rotation,
@@ -550,22 +484,27 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-white flex flex-col select-none overflow-hidden animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-white flex flex-col select-none overflow-hidden animate-in fade-in duration-150 font-sans"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* 1. TOP HEADER (Premium White Theme with subtle border) */}
+      {/* 1. TOP HEADER (White Theme with subtle border) */}
       <header className="h-16 px-6 border-b border-gray-200/90 flex items-center justify-between shrink-0 bg-white shadow-2xs z-30">
         <div className="flex items-center space-x-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700 shadow-2xs">
             <Pencil className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-base font-extrabold text-gray-900 tracking-tight">Edit Media</h1>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-base font-extrabold text-gray-900 tracking-tight">Edit Media</h1>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                Studio
+              </span>
+            </div>
             <p className="text-[11px] text-gray-500 font-medium">
               {isMultiple
                 ? `Slide ${activeIndex + 1} of ${imageMediaList.length} · ${activeMedia?.name || 'Image'}`
-                : activeMedia?.name || 'Adjust crop, aspect ratio and transformation'}
+                : activeMedia?.name || 'Adjust crop, aspect ratio and orientation'}
             </p>
           </div>
         </div>
@@ -582,7 +521,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
       </header>
 
       {/* 2. MAIN WORKSPACE: CANVAS + RIGHT EDIT PANEL */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative bg-gray-50/60">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative bg-gray-50/70">
         {/* LEFT / CENTER: INTERACTIVE EDITING CANVAS */}
         <main
           ref={viewportRef}
@@ -592,7 +531,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           style={{ minHeight: '380px' }}
         >
           {/* Zoom floating controls bar */}
-          <div className="absolute top-4 left-4 z-20 flex items-center bg-white/95 backdrop-blur-md rounded-xl border border-gray-200/80 shadow-md p-1 gap-1">
+          <div className="absolute top-4 left-4 z-20 flex items-center bg-white/95 backdrop-blur-md rounded-xl border border-gray-200/90 shadow-md p-1 gap-1">
             <button
               type="button"
               onClick={() => handleZoom(-0.2)}
@@ -601,7 +540,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="text-[11px] font-mono font-bold text-gray-700 px-1 min-w-[42px] text-center">
+            <span className="text-[11px] font-mono font-bold text-gray-700 px-1.5 min-w-[44px] text-center">
               {Math.round(currentEdit.zoom * 100)}%
             </span>
             <button
@@ -611,6 +550,15 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
               title="Zoom In"
             >
               <ZoomIn className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+            <button
+              type="button"
+              onClick={() => updateCurrentEdit({ zoom: 1, pan: { x: 0, y: 0 } })}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors cursor-pointer text-[10px] font-semibold px-2"
+              title="Fit to Screen"
+            >
+              Fit
             </button>
           </div>
 
@@ -642,14 +590,14 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
               {/* Rule of Thirds Guide Lines Overlay (3x3 Grid) */}
               <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 z-10">
-                <div className="border-r border-b border-white/25" />
-                <div className="border-r border-b border-white/25" />
-                <div className="border-b border-white/25" />
-                <div className="border-r border-b border-white/25" />
-                <div className="border-r border-b border-white/25" />
-                <div className="border-b border-white/25" />
-                <div className="border-r border-white/25" />
-                <div className="border-r border-white/25" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
+                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
                 <div className="" />
               </div>
 
@@ -711,7 +659,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
           {/* Bottom Carousel Thumbnail Strip (Multiple images only) */}
           {isMultiple && (
-            <div className="absolute bottom-3 inset-x-0 z-20 flex items-center justify-center pointer-events-auto">
+            <div className="absolute bottom-4 inset-x-0 z-20 flex items-center justify-center pointer-events-auto">
               <div className="bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-gray-200/90 shadow-lg flex items-center gap-2 max-w-[90vw] overflow-x-auto">
                 {imageMediaList.map((media, idx) => {
                   const isCur = idx === activeIndex;
@@ -739,7 +687,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                         {idx + 1}
                       </span>
                       {hasEdits && (
-                        <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                        <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1.5 ring-white" />
                       )}
                     </button>
                   );
@@ -754,20 +702,20 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           <div className="p-5 space-y-6">
             {/* Header: Edit tab indicator (Explicitly excluding Appearance, Alt Text, Tag People per instructions) */}
             <div className="border-b border-gray-200/80 pb-3">
-              <div className="flex items-center space-x-2 pb-2">
+              <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
                   Edit
                 </span>
-                <span className="text-xs text-gray-400 font-medium">· Crop & Transform</span>
+                <span className="text-xs text-gray-500 font-medium">Crop & Transform</span>
               </div>
             </div>
 
             {/* A. CROP & TRANSFORM SECTION */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center space-x-1.5">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center space-x-1.5">
                   <CropIcon className="w-3.5 h-3.5 text-gray-500" />
-                  <span>Crop & Transform</span>
+                  <span>Aspect Ratio</span>
                 </h3>
               </div>
 
@@ -786,26 +734,18 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/80 text-gray-700'
                       }`}
                     >
-                      <div className="flex items-center space-x-2.5">
-                        <div
-                          className={`w-5 h-5 rounded-md border flex items-center justify-center text-[9px] font-bold ${
-                            isSelected
-                              ? 'border-emerald-600 bg-white text-emerald-700'
-                              : 'border-gray-300 bg-gray-50 text-gray-500'
-                          }`}
-                        >
-                          {opt.id === '1:1' ? '1:1' : opt.id === 'original' ? 'orig' : '▪'}
-                        </div>
+                      <div className="flex items-center space-x-3">
+                        <RatioWireframeIcon id={opt.id} isSelected={isSelected} />
                         <div className="text-left">
                           <span className="font-bold block leading-tight">{opt.title}</span>
-                          <span className="text-[10px] text-gray-400 block leading-tight">
+                          <span className="text-[10px] text-gray-400 block leading-tight mt-0.5">
                             {opt.subtitle}
                           </span>
                         </div>
                       </div>
 
                       {isSelected && (
-                        <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                           <Check className="w-2.5 h-2.5 stroke-[3]" />
                         </div>
                       )}
@@ -816,7 +756,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             </div>
 
             {/* B. ROTATE & FLIP SECTION */}
-            <div className="space-y-2.5 pt-2 border-t border-gray-100">
+            <div className="space-y-2.5 pt-3 border-t border-gray-100">
               <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
                 Rotate & Flip
               </span>
@@ -869,7 +809,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             </div>
 
             {/* C. STRAIGHTEN SECTION */}
-            <div className="space-y-2 pt-2 border-t border-gray-100">
+            <div className="space-y-2 pt-3 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block">
                   Straighten
@@ -903,7 +843,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             </div>
 
             {/* D. CENTER AND RESET ACTIONS */}
-            <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-2">
+            <div className="pt-3 border-t border-gray-100 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleCenter}
@@ -925,7 +865,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             </div>
           </div>
 
-          {/* 3. RIGHT BOTTOM ACTION BUTTONS (As strictly shown in user screenshot media_1794157435349_e297c2a0) */}
+          {/* 3. RIGHT BOTTOM ACTION BUTTONS */}
           <div className="p-5 border-t border-gray-200/90 bg-white space-y-3 shrink-0">
             {isSaving && (
               <div className="space-y-1 animate-in fade-in">
@@ -948,12 +888,12 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                 type="button"
                 disabled={isSaving}
                 onClick={handleAttemptCancel}
-                className="px-4 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-100 active:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
 
-              {/* Apply Changes to X Item(s) Button (Reference Image 2) */}
+              {/* Apply Changes to X Item(s) Button */}
               <button
                 type="button"
                 disabled={isSaving}
@@ -1052,7 +992,7 @@ async function renderTransformedImageBlob(
         cropW = Math.max(20, Math.min(nw - cropX, cropW));
         cropH = Math.max(20, Math.min(nh - cropY, cropH));
 
-        // Output canvas max resolution (capped at 2048px for crisp quality and fast uploads)
+        // Output canvas max resolution (capped at 1920px for crisp quality and fast uploads)
         const maxDimension = 1920;
         let outW = cropW;
         let outH = cropH;

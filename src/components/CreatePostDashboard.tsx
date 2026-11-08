@@ -2714,7 +2714,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                         return (
                           <div className="flex items-center justify-between px-1 py-1">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Media Editing
+                              Media Formatting
                             </span>
                             <button
                               type="button"
@@ -3089,22 +3089,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                       )}
                                     </div>
                                     <div className="flex items-center space-x-1.5 shrink-0">
-                                      {/* Edit Media button (Images only) */}
-                                      {currentMedia?.type !== 'video' && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditingMediaTarget({ accId, isPerPlatform: customizeMediaPerPlatform });
-                                            setIsEditMediaStudioOpen(true);
-                                          }}
-                                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-200/80 shadow-2xs"
-                                          title="Open Edit Media studio"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5 text-emerald-600" />
-                                          <span>Edit Media</span>
-                                        </button>
-                                      )}
-                                      {/* Create Carousel button (Only for images on non-YouTube accounts) */}
+                                                                            {/* Create Carousel button (Only for images on non-YouTube accounts) */}
                                       {currentMedia?.type !== 'video' && !isYouTube && (
                                         <button
                                           type="button"
