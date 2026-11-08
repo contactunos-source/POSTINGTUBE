@@ -3022,22 +3022,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                                     {/* Bottom Row: Actions (Edit Media, Replace, Remove, + Add Slide) */}
                                     <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
-                                      {/* Edit Media Slide */}
-                                      {currentMedia?.type !== 'video' && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditingMediaTarget({ accId, isPerPlatform: customizeMediaPerPlatform });
-                                            setIsEditMediaStudioOpen(true);
-                                          }}
-                                          className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-emerald-200/80 shadow-2xs"
-                                          title="Open Edit Media editor"
-                                        >
-                                          <Pencil className="w-3 h-3 text-emerald-600" />
-                                          <span>Edit Media</span>
-                                        </button>
-                                      )}
-
+                                      
                                       {/* Replace Slide */}
                                       <button
                                         type="button"
