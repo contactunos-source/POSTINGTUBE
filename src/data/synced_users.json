@@ -57,10 +57,10 @@
     "updated_at": "2026-10-30T13:19:29.759Z"
   },
   {
-    "id": "1d607f7d-d5f1-465d-a0c8-de6b16ccf896",
+    "id": "b81806fc-a12d-4f7f-9aca-31e9e5c9758c",
     "email": "onmansonu@gmail.com",
-    "full_name": "SMARTY Sonu",
-    "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKoY_BtijiuvJQmQWwlL7aVtUzh-qLE078GqEpb8k48SUw6Ls8=s96-c",
+    "full_name": "sonu",
+    "avatar_url": "",
     "role": "customer",
     "status": "active",
     "plan": "free",
@@ -72,8 +72,8 @@
     "browser": "Chrome",
     "os": "Windows",
     "created_at": "2026-10-30T11:51:01.261576Z",
-    "last_active_at": "2026-11-09T09:19:09.794Z",
-    "updated_at": "2026-11-09T09:19:09.794Z"
+    "last_active_at": "2026-11-09T10:33:44.759Z",
+    "updated_at": "2026-11-09T10:33:44.759Z"
   },
   {
     "id": "0afc088a-e7b3-43a3-9506-f6e34630b0f1",
