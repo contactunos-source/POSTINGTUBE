@@ -1300,6 +1300,45 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   const hasBlockingWarning = platformMediaWarnings.length > 0;
 
+  // Media presence validation: blocks Schedule Post and Publish Live Now if media is empty / missing
+  const isMediaMissing = useMemo(() => {
+    // Pure text post allowed only if explicitly in text mode, not editing an existing media post, and targeting channels that support text
+    const isPureTextPost =
+      currentPostType === 'text' &&
+      (!initialPost?.media || initialPost.media.length === 0) &&
+      !selectedAccountIds.some((id) => {
+        const acc = accounts.find((a) => a.id === id);
+        return acc?.platform === 'instagram' || acc?.platform === 'youtube';
+      });
+
+    if (isPureTextPost) {
+      return false;
+    }
+
+    // Shared media mode: mediaList must contain at least one media item with a valid url or file
+    if (!customizeMediaPerPlatform) {
+      return !mediaList || mediaList.length === 0 || !mediaList.some((m) => !!(m.url || (m as any).file));
+    }
+
+    // Per-platform customization mode: every targeted account must have at least one media item
+    if (selectedAccountIds.length === 0) {
+      return !mediaList || mediaList.length === 0 || !mediaList.some((m) => !!(m.url || (m as any).file));
+    }
+
+    return selectedAccountIds.some((accId) => {
+      const accMedia = getEffectiveMediaForAccount(accId);
+      return !accMedia || accMedia.length === 0 || !accMedia.some((m) => !!(m.url || (m as any).file));
+    });
+  }, [
+    currentPostType,
+    initialPost,
+    customizeMediaPerPlatform,
+    mediaList,
+    selectedAccountIds,
+    platformMediaMap,
+    accounts,
+  ]);
+
   // Auto-switch Instagram and Facebook from 'reel' to 'post' if image media is attached
   useEffect(() => {
     setAccountFormats((prev) => {
@@ -1928,6 +1967,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     // Media compatibility validation: block scheduling and instant publishing if any platform warning exists
     if (action !== 'draft' && platformMediaWarnings.length > 0) {
       showToast(`Cannot ${action === 'schedule' ? 'schedule' : 'publish'}: ${platformMediaWarnings[0].issue}`);
+      return;
+    }
+
+    // Media presence validation: block scheduling and instant publishing if media is empty / missing
+    if (action !== 'draft' && isMediaMissing) {
+      showToast(
+        `Cannot ${action === 'schedule' ? 'schedule' : 'publish'}: Please attach at least one media item (image, video, or carousel) to proceed.`
+      );
       return;
     }
 
@@ -4163,6 +4210,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               </div>
 
+              {/* Media Missing Alert Banner */}
+              {isMediaMissing && (
+                <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5 shadow-2xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <span className="font-bold">Media Required:</span> Please attach an image, video, or carousel slide to enable scheduling or publishing.
+                  </div>
+                </div>
+              )}
+
               {scheduleMode === 'schedule' ? (
                 <div className="space-y-4">
                   {/* Professional Date & Time Picker */}
@@ -4177,10 +4234,18 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   {/* Schedule Post Action Button */}
                   <button
                     type="button"
-                    disabled={isSubmitting || !isScheduleValid || hasBlockingWarning}
+                    disabled={isSubmitting || !isScheduleValid || hasBlockingWarning || isMediaMissing}
                     onClick={() => handleExecute('schedule')}
                     className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={hasBlockingWarning ? platformMediaWarnings[0]?.issue : undefined}
+                    title={
+                      hasBlockingWarning
+                        ? platformMediaWarnings[0]?.issue
+                        : isMediaMissing
+                        ? 'Please attach media (image, video, or carousel) to schedule this post.'
+                        : !isScheduleValid
+                        ? 'Please select a valid future date and time.'
+                        : undefined
+                    }
                   >
                     {submittingAction === 'schedule' ? (
                       <>
@@ -4204,10 +4269,16 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <div className="space-y-4">
                   <button
                     type="button"
-                    disabled={isSubmitting || hasBlockingWarning}
+                    disabled={isSubmitting || hasBlockingWarning || isMediaMissing}
                     onClick={() => handleExecute('publish-now')}
                     className="w-full py-3.5 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={hasBlockingWarning ? platformMediaWarnings[0]?.issue : undefined}
+                    title={
+                      hasBlockingWarning
+                        ? platformMediaWarnings[0]?.issue
+                        : isMediaMissing
+                        ? 'Please attach media (image, video, or carousel) to publish live.'
+                        : undefined
+                    }
                   >
                     {submittingAction === 'publish-now' ? (
                       <>
