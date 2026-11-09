@@ -387,7 +387,34 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       }));
     } else {
       setMediaList(updatedMedia);
+      if (editingMediaTarget?.accId) {
+        setPlatformMediaMap((prev) => ({
+          ...prev,
+          [editingMediaTarget.accId!]: updatedMedia,
+        }));
+      }
     }
+
+    // Synchronize aspect ratio state for live previews
+    const primaryRatio = updatedMedia[0]?.editMetadata?.aspectRatio;
+    if (primaryRatio && primaryRatio !== 'freeform' && primaryRatio !== 'original') {
+      const validRatio = primaryRatio as '1:1' | '4:5' | '9:16' | '16:9';
+      if (editingMediaTarget?.accId) {
+        setAccountAspectRatios((prev) => ({
+          ...prev,
+          [editingMediaTarget.accId!]: validRatio,
+        }));
+      } else {
+        setAccountAspectRatios((prev) => {
+          const next = { ...prev };
+          selectedAccountIds.forEach((id) => {
+            next[id] = validRatio;
+          });
+          return next;
+        });
+      }
+    }
+
     setIsEditMediaStudioOpen(false);
     setEditingMediaTarget(null);
     showToast('Edited media applied successfully!');

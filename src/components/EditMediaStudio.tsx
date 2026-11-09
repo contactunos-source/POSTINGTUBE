@@ -30,11 +30,11 @@ export interface EditMediaStudioProps {
 }
 
 export type AspectRatioOption =
-  | 'freeform'
   | 'original'
-  | '3:4'
-  | '4:5'
+  | 'freeform'
   | '1:1'
+  | '4:5'
+  | '3:4'
   | '9:16'
   | '1.91:1';
 
@@ -46,38 +46,77 @@ interface AspectRatioConfig {
 }
 
 const ASPECT_RATIO_OPTIONS: AspectRatioConfig[] = [
-  { id: 'original', title: 'Original', subtitle: 'Full image', ratio: null },
-  { id: 'freeform', title: 'Freeform', subtitle: 'Any custom size', ratio: null },
-  { id: '1:1', title: '1:1', subtitle: 'Square', ratio: 1 / 1 },
-  { id: '4:5', title: '4:5', subtitle: 'Social Portrait', ratio: 4 / 5 },
-  { id: '3:4', title: '3:4', subtitle: 'Portrait', ratio: 3 / 4 },
-  { id: '9:16', title: '9:16', subtitle: 'Stories / Reels', ratio: 9 / 16 },
-  { id: '1.91:1', title: '1.91:1', subtitle: 'Landscape', ratio: 1.91 / 1 },
+  { id: 'original', title: 'Original', subtitle: 'Full image area', ratio: null },
+  { id: 'freeform', title: 'Freeform', subtitle: 'Custom crop boundary', ratio: null },
+  { id: '1:1', title: '1:1', subtitle: 'Square (Instagram Post)', ratio: 1 / 1 },
+  { id: '4:5', title: '4:5', subtitle: 'Portrait (Instagram Feed)', ratio: 4 / 5 },
+  { id: '3:4', title: '3:4', subtitle: 'Portrait (Standard)', ratio: 3 / 4 },
+  { id: '9:16', title: '9:16', subtitle: 'Vertical (Stories & Reels)', ratio: 9 / 16 },
+  { id: '1.91:1', title: '1.91:1', subtitle: 'Landscape (Facebook/Feed)', ratio: 1.91 / 1 },
 ];
+
+export interface CropRect {
+  x: number; // 0..1 (fraction of image width)
+  y: number; // 0..1 (fraction of image height)
+  width: number; // 0..1 (fraction of image width)
+  height: number; // 0..1 (fraction of image height)
+}
 
 export interface ItemEditState {
   aspectRatio: AspectRatioOption;
+  cropNorm: CropRect;
   rotation: number; // 0, 90, 180, 270
   flipH: boolean;
   flipV: boolean;
   straighten: number; // -45 to 45
   zoom: number; // 1 to 3
-  pan: { x: number; y: number };
-  cropNorm: { x: number; y: number; width: number; height: number }; // normalized 0..1 in canvas space
   isModified: boolean;
 }
 
 const DEFAULT_ITEM_STATE: ItemEditState = {
   aspectRatio: 'original',
+  cropNorm: { x: 0, y: 0, width: 1, height: 1 },
   rotation: 0,
   flipH: false,
   flipV: false,
   straighten: 0,
   zoom: 1,
-  pan: { x: 0, y: 0 },
-  cropNorm: { x: 0, y: 0, width: 1, height: 1 },
   isModified: false,
 };
+
+/**
+ * Calculates a mathematically centered crop box for a given target aspect ratio (width / height)
+ * within an image of natural dimensions (nw, nh).
+ */
+function computeCenteredCrop(nw: number, nh: number, targetRatio: number | null): CropRect {
+  if (!targetRatio || targetRatio <= 0 || nw <= 0 || nh <= 0) {
+    return { x: 0, y: 0, width: 1, height: 1 };
+  }
+
+  const imgRatio = nw / nh;
+
+  if (imgRatio > targetRatio) {
+    // Image is wider than target ratio: crop horizontally
+    const normWidth = Math.min(1, Math.max(0.05, targetRatio / imgRatio));
+    const normX = (1 - normWidth) / 2;
+    return {
+      x: Math.max(0, parseFloat(normX.toFixed(4))),
+      y: 0,
+      width: Math.min(1, parseFloat(normWidth.toFixed(4))),
+      height: 1,
+    };
+  } else {
+    // Image is taller than target ratio: crop vertically
+    const normHeight = Math.min(1, Math.max(0.05, imgRatio / targetRatio));
+    const normY = (1 - normHeight) / 2;
+    return {
+      x: 0,
+      y: Math.max(0, parseFloat(normY.toFixed(4))),
+      width: 1,
+      height: Math.min(1, parseFloat(normHeight.toFixed(4))),
+    };
+  }
+}
 
 /**
  * Visual SVG Wireframe Aspect Ratio Icon
@@ -146,7 +185,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
   onSave,
   onCancel,
 }) => {
-  // Filter for images only (defensive check)
+  // Filter for images only
   const imageMediaList = useMemo(() => {
     return mediaList.filter(
       (m) =>
@@ -166,7 +205,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
   const [saveProgress, setSaveProgress] = useState<number>(0);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
-  // Active Image DOM element and dimensions
+  // Active Image reference
   const activeMedia = imageMediaList[activeIndex];
   const activeMediaId = activeMedia?.id;
   const activeMediaUrl = activeMedia?.originalUrl || activeMedia?.url;
@@ -176,17 +215,18 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     height: 800,
   });
 
-  // Canvas viewport container ref
-  const viewportRef = useRef<HTMLDivElement>(null);
+  // Image wrapper element ref (to calculate pixel coordinates for drag/resize)
+  const imageWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Mouse drag interaction state (pan or freeform crop)
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [activeHandle, setActiveHandle] = useState<string | null>(null);
-  const dragHandleStartRef = useRef<{
-    mouseX: number;
-    mouseY: number;
-    initialCrop: { x: number; y: number; width: number; height: number };
+  // Active drag interaction state
+  const [dragInteraction, setDragInteraction] = useState<{
+    type: 'move' | 'handle';
+    handle?: string;
+    startX: number;
+    startY: number;
+    initialCrop: CropRect;
+    containerWidth: number;
+    containerHeight: number;
   } | null>(null);
 
   // Measure natural dimensions of the active image
@@ -195,10 +235,9 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     const img = new Image();
     img.src = activeMediaUrl;
     img.onload = () => {
-      setNaturalDimensions({
-        width: img.naturalWidth || 800,
-        height: img.naturalHeight || 800,
-      });
+      const nw = img.naturalWidth || 800;
+      const nh = img.naturalHeight || 800;
+      setNaturalDimensions({ width: nw, height: nh });
     };
   }, [activeMediaUrl]);
 
@@ -234,16 +273,27 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
   // Aspect ratio switch handler
   const handleSelectAspectRatio = (ratioId: AspectRatioOption) => {
-    updateCurrentEdit((prev) => {
-      return {
-        ...prev,
-        aspectRatio: ratioId,
-        // Reset pan & zoom to optimal centered position on ratio change
-        pan: { x: 0, y: 0 },
-        zoom: 1,
+    const config = ASPECT_RATIO_OPTIONS.find((o) => o.id === ratioId);
+    const nw = naturalDimensions.width || 800;
+    const nh = naturalDimensions.height || 800;
+
+    if (ratioId === 'original') {
+      updateCurrentEdit({
+        aspectRatio: 'original',
         cropNorm: { x: 0, y: 0, width: 1, height: 1 },
-      };
-    });
+      });
+    } else if (ratioId === 'freeform') {
+      updateCurrentEdit((prev) => ({
+        ...prev,
+        aspectRatio: 'freeform',
+      }));
+    } else if (config?.ratio) {
+      const newCrop = computeCenteredCrop(nw, nh, config.ratio);
+      updateCurrentEdit({
+        aspectRatio: ratioId,
+        cropNorm: newCrop,
+      });
+    }
   };
 
   // 90-degree Rotation handlers
@@ -276,12 +326,21 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     updateCurrentEdit((prev) => ({ ...prev, straighten: clamped }));
   };
 
-  // Center image in canvas
+  // Center image crop box
   const handleCenter = () => {
-    updateCurrentEdit((prev) => ({
-      ...prev,
-      pan: { x: 0, y: 0 },
-    }));
+    updateCurrentEdit((prev) => {
+      const w = prev.cropNorm.width;
+      const h = prev.cropNorm.height;
+      return {
+        ...prev,
+        cropNorm: {
+          x: Math.max(0, (1 - w) / 2),
+          y: Math.max(0, (1 - h) / 2),
+          width: w,
+          height: h,
+        },
+      };
+    });
   };
 
   // Reset to original uploaded state
@@ -296,72 +355,191 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     }));
   };
 
-  // Mouse pan handlers inside canvas
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (activeHandle) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - currentEdit.pan.x, y: e.clientY - currentEdit.pan.y });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (activeHandle && dragHandleStartRef.current) {
-      // Freeform crop resize logic
-      const dx = (e.clientX - dragHandleStartRef.current.mouseX) / 400;
-      const dy = (e.clientY - dragHandleStartRef.current.mouseY) / 400;
-      const init = dragHandleStartRef.current.initialCrop;
-
-      let newWidth = init.width;
-      let newHeight = init.height;
-      let newX = init.x;
-      let newY = init.y;
-
-      if (activeHandle.includes('e')) newWidth = Math.max(0.2, Math.min(1 - init.x, init.width + dx));
-      if (activeHandle.includes('w')) {
-        const potentialW = init.width - dx;
-        if (potentialW >= 0.2 && init.x + dx >= 0) {
-          newWidth = potentialW;
-          newX = init.x + dx;
-        }
-      }
-      if (activeHandle.includes('s')) newHeight = Math.max(0.2, Math.min(1 - init.y, init.height + dy));
-      if (activeHandle.includes('n')) {
-        const potentialH = init.height - dy;
-        if (potentialH >= 0.2 && init.y + dy >= 0) {
-          newHeight = potentialH;
-          newY = init.y + dy;
-        }
-      }
-
-      updateCurrentEdit({
-        cropNorm: { x: newX, y: newY, width: newWidth, height: newHeight },
-      });
-      return;
-    }
-
-    if (!isDragging) return;
-    const nextPanX = e.clientX - dragStart.x;
-    const nextPanY = e.clientY - dragStart.y;
-    updateCurrentEdit({ pan: { x: nextPanX, y: nextPanY } });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setActiveHandle(null);
-    dragHandleStartRef.current = null;
-  };
-
   // Zoom handlers (mouse wheel + buttons)
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    const nextZoom = Math.max(0.5, Math.min(3, currentEdit.zoom + delta));
-    updateCurrentEdit({ zoom: parseFloat(nextZoom.toFixed(2)) });
-  };
-
   const handleZoom = (delta: number) => {
     const nextZoom = Math.max(0.5, Math.min(3, currentEdit.zoom + delta));
     updateCurrentEdit({ zoom: parseFloat(nextZoom.toFixed(2)) });
   };
+
+  // -------------------------------------------------------------
+  // INTERACTIVE CROP BOX: DRAG TO MOVE & DRAG HANDLES TO RESIZE
+  // -------------------------------------------------------------
+  const startDragMove = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!imageWrapperRef.current) return;
+    const rect = imageWrapperRef.current.getBoundingClientRect();
+
+    setDragInteraction({
+      type: 'move',
+      startX: e.clientX,
+      startY: e.clientY,
+      initialCrop: { ...currentEdit.cropNorm },
+      containerWidth: rect.width,
+      containerHeight: rect.height,
+    });
+  };
+
+  const startDragHandle = (e: React.MouseEvent, handle: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!imageWrapperRef.current) return;
+    const rect = imageWrapperRef.current.getBoundingClientRect();
+
+    setDragInteraction({
+      type: 'handle',
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialCrop: { ...currentEdit.cropNorm },
+      containerWidth: rect.width,
+      containerHeight: rect.height,
+    });
+  };
+
+  // Window-level mousemove & mouseup listeners for butter-smooth dragging
+  useEffect(() => {
+    if (!dragInteraction) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const { type, handle, startX, startY, initialCrop, containerWidth, containerHeight } =
+        dragInteraction;
+      if (containerWidth <= 0 || containerHeight <= 0) return;
+
+      const deltaX = (e.clientX - startX) / containerWidth;
+      const deltaY = (e.clientY - startY) / containerHeight;
+
+      if (type === 'move') {
+        const maxX = 1 - initialCrop.width;
+        const maxY = 1 - initialCrop.height;
+        const nextX = Math.max(0, Math.min(maxX, initialCrop.x + deltaX));
+        const nextY = Math.max(0, Math.min(maxY, initialCrop.y + deltaY));
+
+        updateCurrentEdit({
+          cropNorm: {
+            x: parseFloat(nextX.toFixed(4)),
+            y: parseFloat(nextY.toFixed(4)),
+            width: initialCrop.width,
+            height: initialCrop.height,
+          },
+        });
+      } else if (type === 'handle' && handle) {
+        let newX = initialCrop.x;
+        let newY = initialCrop.y;
+        let newW = initialCrop.width;
+        let newH = initialCrop.height;
+
+        const isFreeform = currentEdit.aspectRatio === 'freeform' || currentEdit.aspectRatio === 'original';
+
+        if (isFreeform) {
+          // Freeform resize
+          if (handle.includes('e')) {
+            newW = Math.max(0.08, Math.min(1 - initialCrop.x, initialCrop.width + deltaX));
+          }
+          if (handle.includes('s')) {
+            newH = Math.max(0.08, Math.min(1 - initialCrop.y, initialCrop.height + deltaY));
+          }
+          if (handle.includes('w')) {
+            const potentialW = initialCrop.width - deltaX;
+            if (potentialW >= 0.08 && initialCrop.x + deltaX >= 0) {
+              newX = initialCrop.x + deltaX;
+              newW = potentialW;
+            }
+          }
+          if (handle.includes('n')) {
+            const potentialH = initialCrop.height - deltaY;
+            if (potentialH >= 0.08 && initialCrop.y + deltaY >= 0) {
+              newY = initialCrop.y + deltaY;
+              newH = potentialH;
+            }
+          }
+        } else {
+          // Fixed ratio resize: preserve exact aspect ratio!
+          const activeCfg = ASPECT_RATIO_OPTIONS.find((o) => o.id === currentEdit.aspectRatio);
+          const targetRatio = activeCfg?.ratio || 1;
+          const nw = naturalDimensions.width || 800;
+          const nh = naturalDimensions.height || 800;
+          // Ratio factor: normHeight = normWidth * (nw / (nh * targetRatio))
+          const ratioFactor = nw / (nh * targetRatio);
+
+          if (handle === 'se') {
+            newW = Math.max(0.08, Math.min(1 - initialCrop.x, initialCrop.width + deltaX));
+            newH = newW * ratioFactor;
+            if (initialCrop.y + newH > 1) {
+              newH = 1 - initialCrop.y;
+              newW = newH / ratioFactor;
+            }
+          } else if (handle === 'sw') {
+            const potentialW = initialCrop.width - deltaX;
+            if (potentialW >= 0.08 && initialCrop.x + deltaX >= 0) {
+              newW = potentialW;
+              newX = initialCrop.x + deltaX;
+              newH = newW * ratioFactor;
+              if (initialCrop.y + newH > 1) {
+                newH = 1 - initialCrop.y;
+                newW = newH / ratioFactor;
+                newX = initialCrop.x + (initialCrop.width - newW);
+              }
+            }
+          } else if (handle === 'ne') {
+            newW = Math.max(0.08, Math.min(1 - initialCrop.x, initialCrop.width + deltaX));
+            newH = newW * ratioFactor;
+            const potentialY = initialCrop.y + (initialCrop.height - newH);
+            if (potentialY >= 0) {
+              newY = potentialY;
+            } else {
+              newY = 0;
+              newH = initialCrop.y + initialCrop.height;
+              newW = newH / ratioFactor;
+            }
+          } else if (handle === 'nw') {
+            const potentialW = initialCrop.width - deltaX;
+            if (potentialW >= 0.08 && initialCrop.x + deltaX >= 0) {
+              newW = potentialW;
+              newH = newW * ratioFactor;
+              const potentialY = initialCrop.y + (initialCrop.height - newH);
+              if (potentialY >= 0) {
+                newX = initialCrop.x + deltaX;
+                newY = potentialY;
+              }
+            }
+          } else if (handle === 'e' || handle === 'w') {
+            newW = Math.max(0.08, Math.min(1 - initialCrop.x, initialCrop.width + (handle === 'e' ? deltaX : -deltaX)));
+            newH = newW * ratioFactor;
+            if (initialCrop.y + newH <= 1) {
+              if (handle === 'w') newX = Math.max(0, initialCrop.x + deltaX);
+            }
+          } else if (handle === 'n' || handle === 's') {
+            newH = Math.max(0.08, Math.min(1 - initialCrop.y, initialCrop.height + (handle === 's' ? deltaY : -deltaY)));
+            newW = newH / ratioFactor;
+            if (initialCrop.x + newW <= 1) {
+              if (handle === 'n') newY = Math.max(0, initialCrop.y + deltaY);
+            }
+          }
+        }
+
+        updateCurrentEdit({
+          cropNorm: {
+            x: Math.max(0, Math.min(1 - newW, parseFloat(newX.toFixed(4)))),
+            y: Math.max(0, Math.min(1 - newH, parseFloat(newY.toFixed(4)))),
+            width: Math.min(1, Math.max(0.05, parseFloat(newW.toFixed(4)))),
+            height: Math.min(1, Math.max(0.05, parseFloat(newH.toFixed(4)))),
+          },
+        });
+      }
+    };
+
+    const onMouseUp = () => {
+      setDragInteraction(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [dragInteraction, currentEdit.aspectRatio, naturalDimensions, updateCurrentEdit]);
 
   // Keyboard navigation & Esc guard
   useEffect(() => {
@@ -375,7 +553,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, modifiedCount]);
 
-  // Handle Cancel attempt (prompt if unsaved changes exist)
+  // Handle Cancel attempt
   const handleAttemptCancel = () => {
     if (modifiedCount > 0) {
       setShowDiscardModal(true);
@@ -419,8 +597,9 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
           if (uploadRes.ok) {
             const data = await uploadRes.json();
-            if (data.file?.url) {
-              finalUrl = data.file.url;
+            const returnedUrl = data.url || data.file?.url;
+            if (returnedUrl) {
+              finalUrl = returnedUrl;
             }
           }
         }
@@ -429,6 +608,8 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           ...item,
           url: finalUrl,
           originalUrl: item.originalUrl || item.url,
+          thumbnailUrl: finalUrl,
+          aspectRatio: editState.aspectRatio,
           editMetadata: {
             aspectRatio: editState.aspectRatio,
             rotation: editState.rotation,
@@ -461,34 +642,11 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
   const scaleX = (currentEdit.flipH ? -1 : 1) * currentEdit.zoom;
   const scaleY = (currentEdit.flipV ? -1 : 1) * currentEdit.zoom;
 
-  // Calculate crop box aspect ratio style
-  let cropBoxAspect = '1 / 1';
-  if (currentEdit.aspectRatio === 'original') {
-    cropBoxAspect = `${naturalDimensions.width} / ${naturalDimensions.height}`;
-  } else if (currentEdit.aspectRatio === '3:4') {
-    cropBoxAspect = '3 / 4';
-  } else if (currentEdit.aspectRatio === '4:5') {
-    cropBoxAspect = '4 / 5';
-  } else if (currentEdit.aspectRatio === '1:1') {
-    cropBoxAspect = '1 / 1';
-  } else if (currentEdit.aspectRatio === '9:16') {
-    cropBoxAspect = '9 / 16';
-  } else if (currentEdit.aspectRatio === '1.91:1') {
-    cropBoxAspect = '1.91 / 1';
-  } else {
-    // freeform
-    cropBoxAspect = `${Math.max(0.1, currentEdit.cropNorm.width)} / ${Math.max(0.1, currentEdit.cropNorm.height)}`;
-  }
-
   const isMultiple = imageMediaList.length > 1;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-white flex flex-col select-none overflow-hidden animate-in fade-in duration-150 font-sans"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-    >
-      {/* 1. TOP HEADER (White Theme with subtle border) */}
+    <div className="fixed inset-0 z-50 bg-white flex flex-col select-none overflow-hidden animate-in fade-in duration-150 font-sans">
+      {/* 1. TOP HEADER */}
       <header className="h-16 px-6 border-b border-gray-200/90 flex items-center justify-between shrink-0 bg-white shadow-2xs z-30">
         <div className="flex items-center space-x-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700 shadow-2xs">
@@ -524,10 +682,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative bg-gray-50/70">
         {/* LEFT / CENTER: INTERACTIVE EDITING CANVAS */}
         <main
-          ref={viewportRef}
-          onMouseDown={handleMouseDown}
-          onWheel={handleWheel}
-          className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden cursor-grab active:cursor-grabbing"
+          className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden"
           style={{ minHeight: '380px' }}
         >
           {/* Zoom floating controls bar */}
@@ -554,106 +709,105 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             <div className="w-px h-4 bg-gray-200 mx-0.5" />
             <button
               type="button"
-              onClick={() => updateCurrentEdit({ zoom: 1, pan: { x: 0, y: 0 } })}
+              onClick={() => updateCurrentEdit({ zoom: 1 })}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors cursor-pointer text-[10px] font-semibold px-2"
-              title="Fit to Screen"
+              title="Reset Zoom"
             >
-              Fit
+              100%
             </button>
           </div>
 
           {/* Canvas Viewport Frame */}
-          <div className="relative w-full h-full flex items-center justify-center max-w-[820px] max-h-[640px]">
-            {/* The Crop Mask Box with Rule-of-Thirds Grid */}
+          <div className="relative w-full h-full flex items-center justify-center max-w-[840px] max-h-[640px] p-4">
+            {/* The Image Container with Crop Mask and Interactive Selection Box */}
             <div
-              className="relative shadow-2xl overflow-hidden rounded-lg bg-gray-900 border-2 border-white ring-1 ring-black/10 flex items-center justify-center"
+              ref={imageWrapperRef}
+              className="relative inline-block select-none shadow-2xl rounded-sm overflow-hidden"
               style={{
-                aspectRatio: cropBoxAspect,
                 maxWidth: '100%',
                 maxHeight: '100%',
-                width: 'auto',
-                height: 'auto',
               }}
             >
-              {/* Transformed Image Element */}
+              {/* Displayed Image with live zoom and orientation transform */}
               <img
                 src={activeMediaUrl}
                 alt={activeMedia?.name || 'Editable media'}
                 draggable={false}
-                className="max-w-none transition-transform select-none pointer-events-none"
+                className="max-h-[520px] max-w-[760px] w-auto h-auto object-contain block pointer-events-none select-none transition-transform duration-75"
                 style={{
-                  transform: `translate(${currentEdit.pan.x}px, ${currentEdit.pan.y}px) rotate(${totalRotation}deg) scale(${scaleX}, ${scaleY})`,
-                  maxHeight: '520px',
-                  objectFit: 'contain',
+                  transform: `rotate(${totalRotation}deg) scale(${scaleX}, ${scaleY})`,
                 }}
               />
 
-              {/* Rule of Thirds Guide Lines Overlay (3x3 Grid) */}
-              <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 z-10">
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.5)]" />
-                <div className="" />
-              </div>
+              {/* Interactive Crop Selection Box with Outside Shadow Dimming */}
+              <div
+                onMouseDown={startDragMove}
+                className="absolute z-20 cursor-move border-2 border-white ring-1 ring-black/40 shadow-xs"
+                style={{
+                  left: `${currentEdit.cropNorm.x * 100}%`,
+                  top: `${currentEdit.cropNorm.y * 100}%`,
+                  width: `${currentEdit.cropNorm.width * 100}%`,
+                  height: `${currentEdit.cropNorm.height * 100}%`,
+                  boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.52)',
+                }}
+              >
+                {/* Rule of Thirds Guide Lines Overlay (3x3 Grid) */}
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 z-10">
+                  <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-r border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-b border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-r border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div className="border-r border-white/40 shadow-[0_0_1px_rgba(0,0,0,0.6)]" />
+                  <div />
+                </div>
 
-              {/* Freeform Interactive Corner Handles */}
-              {currentEdit.aspectRatio === 'freeform' && (
-                <>
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setActiveHandle('nw');
-                      dragHandleStartRef.current = {
-                        mouseX: e.clientX,
-                        mouseY: e.clientY,
-                        initialCrop: { ...currentEdit.cropNorm },
-                      };
-                    }}
-                    className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-emerald-500 bg-white shadow-xs cursor-nwse-resize z-20"
-                  />
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setActiveHandle('ne');
-                      dragHandleStartRef.current = {
-                        mouseX: e.clientX,
-                        mouseY: e.clientY,
-                        initialCrop: { ...currentEdit.cropNorm },
-                      };
-                    }}
-                    className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-emerald-500 bg-white shadow-xs cursor-nesw-resize z-20"
-                  />
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setActiveHandle('sw');
-                      dragHandleStartRef.current = {
-                        mouseX: e.clientX,
-                        mouseY: e.clientY,
-                        initialCrop: { ...currentEdit.cropNorm },
-                      };
-                    }}
-                    className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-emerald-500 bg-white shadow-xs cursor-nesw-resize z-20"
-                  />
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setActiveHandle('se');
-                      dragHandleStartRef.current = {
-                        mouseX: e.clientX,
-                        mouseY: e.clientY,
-                        initialCrop: { ...currentEdit.cropNorm },
-                      };
-                    }}
-                    className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-emerald-500 bg-white shadow-xs cursor-nwse-resize z-20"
-                  />
-                </>
-              )}
+                {/* 4 Corner Drag Handles (Matching user reference media_1794194006051_fac3dff8.png) */}
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'nw')}
+                  className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border border-gray-900 shadow-md cursor-nwse-resize z-20 rounded-xs"
+                  title="Resize top-left"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'ne')}
+                  className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border border-gray-900 shadow-md cursor-nesw-resize z-20 rounded-xs"
+                  title="Resize top-right"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'sw')}
+                  className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border border-gray-900 shadow-md cursor-nesw-resize z-20 rounded-xs"
+                  title="Resize bottom-left"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'se')}
+                  className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border border-gray-900 shadow-md cursor-nwse-resize z-20 rounded-xs"
+                  title="Resize bottom-right"
+                />
+
+                {/* 4 Edge Drag Handles */}
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'n')}
+                  className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-6 h-2 bg-white border border-gray-900 shadow-md cursor-ns-resize z-20 rounded-xs"
+                  title="Resize top"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 's')}
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-2 bg-white border border-gray-900 shadow-md cursor-ns-resize z-20 rounded-xs"
+                  title="Resize bottom"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'w')}
+                  className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-2 h-6 bg-white border border-gray-900 shadow-md cursor-ew-resize z-20 rounded-xs"
+                  title="Resize left"
+                />
+                <div
+                  onMouseDown={(e) => startDragHandle(e, 'e')}
+                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2 h-6 bg-white border border-gray-900 shadow-md cursor-ew-resize z-20 rounded-xs"
+                  title="Resize right"
+                />
+              </div>
             </div>
           </div>
 
@@ -697,10 +851,10 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           )}
         </main>
 
-        {/* RIGHT EDITING PANEL (Matching reference layout with PostingTube white theme) */}
+        {/* RIGHT EDITING PANEL */}
         <aside className="w-full lg:w-[360px] bg-white border-t lg:border-t-0 lg:border-l border-gray-200/90 flex flex-col justify-between shrink-0 shadow-xs z-20 overflow-y-auto">
           <div className="p-5 space-y-6">
-            {/* Header: Edit tab indicator (Explicitly excluding Appearance, Alt Text, Tag People per instructions) */}
+            {/* Header: Edit tab indicator */}
             <div className="border-b border-gray-200/80 pb-3">
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
@@ -848,7 +1002,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                 type="button"
                 onClick={handleCenter}
                 className="py-2 px-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs"
-                title="Center image in canvas"
+                title="Center crop box"
               >
                 <Move className="w-3.5 h-3.5 text-gray-500" />
                 <span>Center</span>
@@ -923,7 +1077,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
         </aside>
       </div>
 
-      {/* 4. UNSAVED CHANGES GUARD MODAL (Discard Changes vs Keep Editing) */}
+      {/* 4. UNSAVED CHANGES GUARD MODAL */}
       {showDiscardModal && (
         <div className="fixed inset-0 z-60 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-100">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-sm w-full shadow-2xl space-y-4">
@@ -964,8 +1118,8 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
 /**
  * Offscreen Canvas Image Rendering Engine
- * Applies cropping, aspect-ratio constraint, rotation, flipping, and straightening in memory.
- * Exports a high-quality JPEG Blob for durable Supabase Storage persistence.
+ * Accurately extracts the pixel crop from source image, applies transformations,
+ * and exports a high-quality JPEG Blob for durable Supabase Storage persistence.
  */
 async function renderTransformedImageBlob(
   imageUrl: string,
@@ -980,85 +1134,78 @@ async function renderTransformedImageBlob(
         const nw = img.naturalWidth || 800;
         const nh = img.naturalHeight || 800;
 
-        // Determine target crop dimensions
-        let cropW = nw * state.cropNorm.width;
-        let cropH = nh * state.cropNorm.height;
-        let cropX = nw * state.cropNorm.x;
-        let cropY = nh * state.cropNorm.y;
+        // 1. Calculate pixel crop coordinates and dimensions on source image
+        const cropX = Math.max(0, Math.min(nw - 10, Math.round(state.cropNorm.x * nw)));
+        const cropY = Math.max(0, Math.min(nh - 10, Math.round(state.cropNorm.y * nh)));
+        const cropW = Math.max(10, Math.min(nw - cropX, Math.round(state.cropNorm.width * nw)));
+        const cropH = Math.max(10, Math.min(nh - cropY, Math.round(state.cropNorm.height * nh)));
 
-        // Defensive bounding
-        cropX = Math.max(0, Math.min(nw - 10, cropX));
-        cropY = Math.max(0, Math.min(nh - 10, cropY));
-        cropW = Math.max(20, Math.min(nw - cropX, cropW));
-        cropH = Math.max(20, Math.min(nh - cropY, cropH));
-
-        // Output canvas max resolution (capped at 1920px for crisp quality and fast uploads)
-        const maxDimension = 1920;
-        let outW = cropW;
-        let outH = cropH;
-
-        if (outW > maxDimension || outH > maxDimension) {
-          const ratio = Math.min(maxDimension / outW, maxDimension / outH);
-          outW = Math.round(outW * ratio);
-          outH = Math.round(outH * ratio);
+        // 2. Intermediate canvas to extract cropped source region
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
+        const cropCtx = cropCanvas.getContext('2d');
+        if (!cropCtx) {
+          resolve(null);
+          return;
         }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(outW);
-        canvas.height = Math.round(outH);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+        cropCtx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+        // 3. Final canvas for rotation, flip, and straighten
+        const totalRot = (state.rotation + state.straighten) % 360;
+        const isOrthogonal = totalRot === 90 || totalRot === 270 || totalRot === -90 || totalRot === -270;
+
+        const outCanvas = document.createElement('canvas');
+        if (isOrthogonal && state.straighten === 0) {
+          outCanvas.width = cropH;
+          outCanvas.height = cropW;
+        } else {
+          outCanvas.width = cropW;
+          outCanvas.height = cropH;
+        }
+
+        const outCtx = outCanvas.getContext('2d');
+        if (!outCtx) {
           resolve(null);
           return;
         }
 
         // Fill background white
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        outCtx.fillStyle = '#ffffff';
+        outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
 
-        ctx.save();
+        outCtx.save();
+        outCtx.translate(outCanvas.width / 2, outCanvas.height / 2);
 
-        // Move to center of canvas for rotation and flipping
-        ctx.translate(canvas.width / 2, canvas.height / 2);
+        if (totalRot !== 0) {
+          outCtx.rotate((totalRot * Math.PI) / 180);
+        }
 
-        // Apply rotation (90 deg steps + straightening)
-        const totalAngleRad = ((state.rotation + state.straighten) * Math.PI) / 180;
-        ctx.rotate(totalAngleRad);
+        const sX = state.flipH ? -1 : 1;
+        const sY = state.flipV ? -1 : 1;
+        if (sX !== 1 || sY !== 1) {
+          outCtx.scale(sX, sY);
+        }
 
-        // Apply scale & flips
-        const sX = (state.flipH ? -1 : 1) * state.zoom;
-        const sY = (state.flipV ? -1 : 1) * state.zoom;
-        ctx.scale(sX, sY);
+        outCtx.drawImage(cropCanvas, -cropW / 2, -cropH / 2);
+        outCtx.restore();
 
-        // Draw the cropped region centered
-        ctx.drawImage(
-          img,
-          cropX,
-          cropY,
-          cropW,
-          cropH,
-          -canvas.width / 2,
-          -canvas.height / 2,
-          canvas.width,
-          canvas.height
-        );
-
-        ctx.restore();
-
-        canvas.toBlob(
+        outCanvas.toBlob(
           (blob) => {
             resolve(blob);
           },
           'image/jpeg',
-          0.92
+          0.95
         );
-      } catch (e) {
-        console.warn('Canvas export failed:', e);
+      } catch (err) {
+        console.error('[renderTransformedImageBlob] Canvas export failed:', err);
         resolve(null);
       }
     };
 
-    img.onerror = () => {
+    img.onerror = (e) => {
+      console.error('[renderTransformedImageBlob] Source image failed to load:', e);
       resolve(null);
     };
 
