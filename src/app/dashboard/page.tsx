@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
 import { NewPostLaunchpad } from '@/components/NewPostLaunchpad';
 import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { SpiderManLoadingScreen } from '@/components/SpiderManLoadingScreen';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_POSTS,
@@ -923,21 +924,9 @@ export default function DashboardPage() {
     }
   };
 
-  // Clean Apple auth and workspace initialization loading screen
+  // Spider-Man session initialization loading screen (only on page refresh)
   if (authChecking || !isLoaded) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-white text-gray-900 font-sans">
-        <div className="flex flex-col items-center space-y-4 text-center">
-          <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shadow-sm">
-            <Layers className="w-5 h-5 text-white animate-pulse" />
-          </div>
-          <div className="flex items-center space-x-2 text-xs text-gray-500 font-medium">
-            <Loader2 className="w-4 h-4 animate-spin text-black" />
-            <span>Loading your PostingTube session...</span>
-          </div>
-        </div>
-      </div>
-    );
+    return <SpiderManLoadingScreen message="Loading your PostingTube session..." />;
   }
 
   return (
