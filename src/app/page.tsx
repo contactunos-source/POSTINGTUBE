@@ -986,14 +986,15 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            {/* Column 3: Resources & Pricing */}
+            {/* Column 3: Trust & Legal */}
             <div className="space-y-2 text-xs">
-              <p className="font-bold text-gray-900">Resources</p>
+              <p className="font-bold text-gray-900">Trust &amp; Legal</p>
               <ul className="space-y-1.5 text-gray-500">
-                <li><a href="#pricing" className="hover:text-black transition-colors">Pricing Plans</a></li>
-                <li><a href="#faq" className="hover:text-black transition-colors">Knowledge Base</a></li>
                 <li><Link href="/privacy" className="hover:text-black transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-black transition-colors">Terms of Service</Link></li>
+                <li><Link href="/security" className="hover:text-black transition-colors">Security Architecture</Link></li>
+                <li><Link href="/legal" className="hover:text-black transition-colors">Legal Center</Link></li>
+                <li><Link href="/sitemap" className="hover:text-black transition-colors">Sitemap</Link></li>
               </ul>
             </div>
 
@@ -1058,8 +1059,18 @@ export default function LandingPage() {
 
           {/* Copyright Bottom Bar */}
           <div className="relative z-10 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-400 gap-2">
-            <span>&copy; 2026 Plan Poster Technologies. All rights reserved.</span>
-            <span>All official trademarks belong to their respective platforms.</span>
+            <span>&copy; 2026 Plan Poster Technologies Inc. All rights reserved.</span>
+            <div className="flex items-center space-x-3 text-gray-500">
+              <Link href="/privacy" className="hover:text-black transition-colors">Privacy</Link>
+              <span>•</span>
+              <Link href="/terms" className="hover:text-black transition-colors">Terms</Link>
+              <span>•</span>
+              <Link href="/security" className="hover:text-black transition-colors">Security</Link>
+              <span>•</span>
+              <Link href="/legal" className="hover:text-black transition-colors">Legal Hub</Link>
+              <span>•</span>
+              <Link href="/sitemap" className="hover:text-black transition-colors">Sitemap</Link>
+            </div>
           </div>
         </div>
       </footer>
