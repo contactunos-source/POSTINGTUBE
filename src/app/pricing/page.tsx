@@ -226,7 +226,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[#fafbfc] text-gray-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
       {/* Navigation Header */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-200/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Link
               href="/dashboard"
@@ -251,7 +251,7 @@ export default function PricingPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 space-y-10">
+      <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 pt-10 pb-20 space-y-10">
         {/* Title & Benefit-focused Headline */}
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
@@ -327,7 +327,7 @@ export default function PricingPage() {
         </div>
 
         {/* 5-Plan Responsive Pricing Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-5 xl:gap-6 items-stretch w-full">
           {plansList.map((plan) => {
             const isCurrent = currentPlan === plan.id;
             const isLoading = loadingPlanId === plan.id;
@@ -352,7 +352,7 @@ export default function PricingPage() {
                     : isGrowth
                     ? 'border-2 border-blue-500 shadow-xl ring-4 ring-blue-500/10 scale-[1.01] z-10'
                     : 'border border-gray-200/90 shadow-xs hover:shadow-md hover:border-gray-300'
-                } p-5 sm:p-6 lg:p-5 xl:p-6`}
+                } p-5 sm:p-6 lg:p-6 xl:p-7`}
               >
                 {/* Badges */}
                 {isPro && (
@@ -444,11 +444,11 @@ export default function PricingPage() {
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Included Benefits</p>
                     <ul className="space-y-2">
                       {plan.features.map((feat, idx) => (
-                        <li key={idx} className="flex items-start text-xs text-gray-700 leading-snug">
-                          <Check className={`w-4 h-4 mr-2 shrink-0 mt-0.5 ${
+                        <li key={idx} className="flex items-start text-xs sm:text-[13px] text-gray-700 leading-normal">
+                          <Check className={`w-4 h-4 mr-2.5 shrink-0 mt-0.5 ${
                             isPro ? 'text-emerald-600' : isGrowth ? 'text-blue-600' : 'text-gray-700'
                           }`} />
-                          <span>{feat}</span>
+                          <span className="break-normal">{feat}</span>
                         </li>
                       ))}
                     </ul>
@@ -461,7 +461,7 @@ export default function PricingPage() {
                     type="button"
                     disabled={isCurrent || isLoading}
                     onClick={() => handleSelectPlan(plan)}
-                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-default ${
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs whitespace-nowrap disabled:opacity-60 disabled:cursor-default ${
                       isCurrent
                         ? 'bg-gray-100 text-gray-500 border border-gray-200'
                         : isPro
@@ -512,7 +512,7 @@ export default function PricingPage() {
         </div>
 
         {/* Trust & Guarantee Badges */}
-        <div className="max-w-4xl mx-auto pt-6 border-t border-gray-200/80">
+        <div className="max-w-6xl mx-auto pt-8 border-t border-gray-200/80">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
             <div className="flex flex-col items-center space-y-2 p-4 rounded-2xl bg-white border border-gray-100 shadow-2xs">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">

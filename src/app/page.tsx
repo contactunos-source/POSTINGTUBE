@@ -655,7 +655,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================= 7. OFFICIAL PRICING SECTION ================= */}
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto border-t border-gray-200/80">
+      <section id="pricing" className="py-20 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 w-full max-w-[1920px] mx-auto border-t border-gray-200/80">
         <div className="text-center mb-8">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
             Official Plan Poster Plans
@@ -712,7 +712,7 @@ export default function LandingPage() {
         </div>
 
         {/* 5-Plan Responsive Pricing Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-5 xl:gap-6 items-stretch w-full">
           {[
             OFFICIAL_PLANS.free,
             OFFICIAL_PLANS.starter,
@@ -740,7 +740,7 @@ export default function LandingPage() {
                     : isGrowth
                     ? 'border-2 border-blue-500 shadow-xl ring-4 ring-blue-500/10 scale-[1.01] z-10'
                     : 'border border-gray-200/90 shadow-xs hover:shadow-md hover:border-gray-300'
-                } p-5 sm:p-6 lg:p-5 xl:p-6`}
+                } p-5 sm:p-6 lg:p-6 xl:p-7`}
               >
                 {/* Badges */}
                 {isPro && (
@@ -832,13 +832,13 @@ export default function LandingPage() {
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Included Benefits</p>
                     <ul className="space-y-2">
                       {plan.features.map((feat, idx) => (
-                        <li key={idx} className="flex items-start text-xs text-gray-700 leading-snug">
+                        <li key={idx} className="flex items-start text-xs sm:text-[13px] text-gray-700 leading-normal">
                           <Check
-                            className={`w-4 h-4 mr-2 shrink-0 mt-0.5 ${
+                            className={`w-4 h-4 mr-2.5 shrink-0 mt-0.5 ${
                               isPro ? 'text-emerald-600' : isGrowth ? 'text-blue-600' : 'text-gray-700'
                             }`}
                           />
-                          <span>{feat}</span>
+                          <span className="break-normal">{feat}</span>
                         </li>
                       ))}
                     </ul>
@@ -850,7 +850,7 @@ export default function LandingPage() {
                   {plan.id === 'free' ? (
                     <Link
                       href="/login?mode=signup"
-                      className="w-full py-3 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-900 flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
+                      className="w-full py-3 px-3.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-900 flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
                     >
                       <span>Get Started Free</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -858,7 +858,7 @@ export default function LandingPage() {
                   ) : (
                     <Link
                       href="/pricing"
-                      className={`w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-md ${
+                      className={`w-full py-3 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md whitespace-nowrap ${
                         isPro
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                           : isGrowth
