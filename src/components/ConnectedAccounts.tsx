@@ -1971,44 +1971,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </div>
                     </div>
 
-                    {/* Need Help Expandable Drawer */}
-                    {showHelp && (
-                      <div className="p-4 rounded-xl bg-gray-900/90 border border-gray-800 text-xs text-gray-300 space-y-2.5 animate-in fade-in duration-200">
-                        <div className="font-semibold text-white flex items-center space-x-1.5">
-                          <HelpCircle className="w-4 h-4 text-emerald-400" />
-                          <span>Meta Facebook Connection Guide</span>
-                        </div>
-                        <div className="space-y-1.5 text-[11px] text-gray-400 leading-relaxed">
-                          <p>
-                            <strong className="text-gray-200">1. Why Pages only?</strong> Meta Graph API strictly requires publishing to Facebook Pages. Direct API posting to personal timelines is prohibited by Meta policies.
-                          </p>
-                          <p>
-                            <strong className="text-gray-200">2. Development Mode:</strong> If your Meta App is currently in Development mode, Meta only allows users who are added under <strong className="text-emerald-400">Meta Developer Console &gt; App Roles &gt; Testers</strong> to authenticate. Add your account as a Tester, or complete App Review for public live mode.
-                          </p>
-                        </div>
-                        <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between">
-                          <span className="text-[10px] text-gray-500">Want to test immediately with a Page Token?</span>
-                          <button
-                            onClick={() => setFbStep('auth')}
-                            className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer"
-                          >
-                            Enter Token Manually →
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Bottom Action Bar */}
                     <div className="flex items-center justify-between pt-4 border-t border-gray-800">
                       <button
-                        onClick={() => setShowHelp(!showHelp)}
-                        className="flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                        type="button"
+                        onClick={() => setConnectingPlatform(null)}
+                        className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
                       >
-                        <span>Need Help</span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
+                        Cancel
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
                           window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
