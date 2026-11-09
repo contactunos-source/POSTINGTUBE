@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(req: NextRequest) {
   const requestUrl = new URL(req.url);
   const origin = requestUrl.origin;
-  const redirectTo = requestUrl.searchParams.get('redirectTo') || '/dashboard';
+  const redirectTo =
+    requestUrl.searchParams.get('redirectTo') ||
+    requestUrl.searchParams.get('next') ||
+    '/dashboard';
   const error = requestUrl.searchParams.get('error');
   const errorDescription = requestUrl.searchParams.get('error_description');
 

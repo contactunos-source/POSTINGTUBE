@@ -58,6 +58,30 @@ export async function signUpWithEmail(email: string, pass: string) {
   });
 }
 
+/**
+ * Send Password Reset Email via Supabase
+ */
+export async function sendPasswordResetEmail(email: string) {
+  const origin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.vercel.app');
+  const redirectTo = `${origin}/login?mode=reset-password`;
+
+  return await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+}
+
+/**
+ * Update / Reset Password when user has an active recovery session
+ */
+export async function updatePassword(newPassword: string) {
+  return await supabase.auth.updateUser({
+    password: newPassword,
+  });
+}
+
 // Auto-sync cookie for edge middleware protection
 if (supabase && typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange((_event, session) => {
