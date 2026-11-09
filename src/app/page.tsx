@@ -483,7 +483,7 @@ export default function LandingPage() {
               <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center justify-center relative mb-5 overflow-hidden">
                 <div className="w-24 h-24 rounded-full border border-dashed border-gray-300 flex items-center justify-center relative animate-[spin_20s_linear_infinite]">
                   <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
-                    <PlanPosterIcon size={18} />
+                    <PlanPosterIcon size={22} theme="dark" />
                   </div>
                   {/* Orbiting mini avatars */}
                   <div className="absolute -top-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">

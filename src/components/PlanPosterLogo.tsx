@@ -16,12 +16,12 @@ export interface PlanPosterIconProps {
  * Distinctive flying bird silhouette representing swift dispatch, elevation, and multi-channel scheduling.
  */
 export const PlanPosterIcon: React.FC<PlanPosterIconProps> = ({
-  size = 32,
+  size = 36,
   className = '',
   theme = 'light',
   variant = 'silhouette',
 }) => {
-  const numericSize = typeof size === 'number' ? size : parseInt(String(size), 10) || 32;
+  const numericSize = typeof size === 'number' ? size : parseInt(String(size), 10) || 36;
 
   if (variant === 'boxed') {
     return (
@@ -32,7 +32,7 @@ export const PlanPosterIcon: React.FC<PlanPosterIconProps> = ({
         <img
           src="/images/plan-poster-bird-white.png"
           alt="Plan Poster"
-          className="w-[70%] h-[70%] object-contain select-none"
+          className="w-[78%] h-[78%] object-contain select-none"
           draggable={false}
         />
       </div>
@@ -81,10 +81,10 @@ export const PlanPosterLogo: React.FC<PlanPosterLogoProps> = ({
   onClick,
 }) => {
   const iconSizes = {
-    sm: 24,
-    md: 32,
-    lg: 38,
-    xl: 46,
+    sm: 30,
+    md: 40,
+    lg: 50,
+    xl: 60,
   };
 
   const textSizes = {
