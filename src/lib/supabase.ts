@@ -1,65 +1,47 @@
 import { createClient } from '@supabase/supabase-js';
 import { StorageService } from '@/lib/storage';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const SUPABASE_PUBLIC_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdykqpqhuwfpondyqnms.supabase.co';
+export const SUPABASE_PUBLIC_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1keWtxcHFodXdmcG9uZHlxbm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NDY1MDgsImV4cCI6MjEwODIyMjUwOH0.jHlEb3e-MsQRxiSa22NziD8r8D47YZ_MP_ROKH9qUUk';
 
-// Safely initialize Supabase client
-export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+// Always available Supabase client with production fallback
+export const supabase = createClient(SUPABASE_PUBLIC_URL, SUPABASE_PUBLIC_ANON_KEY);
 
 /**
  * Sign in using Google OAuth via Supabase
  */
 export async function signInWithGoogle(redirectTo: string = '/dashboard') {
-  if (!supabase) {
-    alert('Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local to enable Supabase Google Auth.');
-    return;
-  }
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+  const origin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.vercel.app');
   const finalRedirect = `${origin}/api/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`;
 
-  try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: finalRedirect,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: finalRedirect,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
       },
-    });
+    },
+  });
 
-    if (error) {
-      if (error.message.includes('Unsupported provider') || error.message.includes('provider is not enabled')) {
-        alert(
-          'Google Auth setup needed in Supabase:\n\n1. Open: https://supabase.com/dashboard/project/mdykqpqhuwfpondyqnms/auth/providers\n2. Toggle "Google" to Enabled\n3. Add your Google OAuth Client ID & Secret from Google Cloud Console.\n\nTip: You can also use Email sign-in or "Continue as Demo Guest" below!'
-        );
-        return;
-      }
-      throw error;
-    }
-
-    return data;
-  } catch (err: any) {
-    if (err?.message?.includes('provider is not enabled')) {
-      alert(
-        'Google Auth setup needed in Supabase:\n\n1. Open: https://supabase.com/dashboard/project/mdykqpqhuwfpondyqnms/auth/providers\n2. Toggle "Google" to Enabled\n3. Add your Google OAuth Client ID & Secret.\n\nTip: You can also use Email sign-in or "Continue as Demo Guest" below!'
-      );
-    } else {
-      alert(`Supabase Auth Error: ${err?.message || 'Failed to initialize Google login'}`);
-    }
+  if (error) {
+    throw error;
   }
+
+  return data;
 }
 
 /**
  * Sign in with Email & Password
  */
 export async function signInWithEmail(email: string, pass: string) {
-  if (!supabase) throw new Error('Supabase is not configured');
   return await supabase.auth.signInWithPassword({
     email,
     password: pass,
@@ -70,7 +52,6 @@ export async function signInWithEmail(email: string, pass: string) {
  * Sign up with Email & Password
  */
 export async function signUpWithEmail(email: string, pass: string) {
-  if (!supabase) throw new Error('Supabase is not configured');
   return await supabase.auth.signUp({
     email,
     password: pass,

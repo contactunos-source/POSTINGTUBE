@@ -143,20 +143,22 @@ function LoginContent() {
         const { data, error } = await signInWithEmail(email.trim(), password);
         if (error) throw error;
         if (data.session?.user) {
-          await syncUserProfile(data.session.user);
+          syncUserProfile(data.session.user).catch(() => {});
           router.push(redirectTo);
+          return;
         }
       } else {
         const { data, error } = await signUpWithEmail(email.trim(), password);
         if (error) throw error;
         if (data.user) {
-          await syncUserProfile({
+          syncUserProfile({
             ...data.user,
             fullName: fullName.trim() || data.user.email?.split('@')[0],
-          });
+          }).catch(() => {});
         }
         if (data.session) {
           router.push(redirectTo);
+          return;
         } else {
           setSuccessMsg('Account created! Please check your email inbox to confirm your account or sign in directly.');
           setMode('signin');
