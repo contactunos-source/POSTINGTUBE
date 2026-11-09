@@ -2445,10 +2445,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-bold text-gray-900 tracking-tight">Platform Workspace</span>
             </div>
-            <span className="text-gray-300">•</span>
-            <span className="text-xs text-gray-500 font-medium">
-              {visibleAccountIds.length} {visibleAccountIds.length === 1 ? 'channel' : 'channels'} active
-            </span>
 
             {/* Master Caption quick toggle for multi-channel workflows */}
             {visibleAccountIds.length > 1 && currentPostType !== 'text' && (
@@ -3957,9 +3953,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                   <Eye className="w-4 h-4 text-emerald-600" />
                   <h3 className="text-sm font-bold text-gray-900 tracking-tight">Live Feed Preview</h3>
                 </div>
-                <span className="text-[11px] text-gray-400 font-medium">
-                  {visibleAccountIds.length} {visibleAccountIds.length === 1 ? 'channel' : 'channels'} active
-                </span>
               </div>
 
               {/* Synchronized Platform Preview Selector Bar */}

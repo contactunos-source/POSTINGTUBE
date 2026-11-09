@@ -1109,9 +1109,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Manage and disconnect your active Facebook Pages and Instagram Business destinations.
               </p>
             </div>
-            <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
-              {accounts.length} {accounts.length === 1 ? 'channel' : 'channels'} active
-            </span>
           </div>
 
           {accounts.length === 0 ? (
