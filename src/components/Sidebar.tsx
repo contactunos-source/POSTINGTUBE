@@ -19,7 +19,7 @@ import {
 import { SocialAccount } from '@/types/social';
 import { UserAvatar } from './UserAvatar';
 import { PlatformLogo } from './SocialIcons';
-import { PostingTubeLogo } from './PostingTubeLogo';
+import { PlanPosterLogo } from './PlanPosterLogo';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { signOutUser } from '@/lib/supabase';
 import { UpgradePlanModal } from './UpgradePlanModal';
@@ -173,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <PostingTubeLogo
+          <PlanPosterLogo
             size="md"
             href="/dashboard"
             onClick={(e) => {

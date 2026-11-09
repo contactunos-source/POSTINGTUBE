@@ -228,7 +228,7 @@ export function getPlatformDestinationUrl(acc: SocialAccount, res?: any): string
       return 'https://www.linkedin.com';
     }
     default:
-      return 'https://postingtube.com';
+      return 'https://planposter.com';
   }
 }
 

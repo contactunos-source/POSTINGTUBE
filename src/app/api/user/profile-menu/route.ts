@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
 
     // Organization / Workspace name
     const orgName =
-      workspace?.name && workspace.name !== 'PostingTube' && workspace.name !== 'Personal Workspace'
+      workspace?.name && workspace.name !== 'PostingTube' && workspace.name !== 'Plan Poster' && workspace.name !== 'Personal Workspace'
         ? workspace.name
         : 'My organization';
 

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     params.append('metadata[billingInterval]', isYearly ? 'yearly' : 'monthly');
     params.append('metadata[currency]', isUsd ? 'USD' : 'INR');
     params.append('line_items[0][price_data][currency]', isUsd ? 'usd' : 'inr');
-    params.append('line_items[0][price_data][product_data][name]', `PostingTube ${planConfig.name} (${planConfig.channelsLimit} Channels)`);
+    params.append('line_items[0][price_data][product_data][name]', `Plan Poster ${planConfig.name} (${planConfig.channelsLimit} Channels)`);
     params.append('line_items[0][price_data][recurring][interval]', isYearly ? 'year' : 'month');
     params.append('line_items[0][price_data][unit_amount]', String(Math.round(unitAmount)));
     params.append('line_items[0][quantity]', '1');

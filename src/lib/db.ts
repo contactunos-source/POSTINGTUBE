@@ -410,8 +410,8 @@ export const DatabaseService = {
       if (!data || error) {
         await supabase.from('workspaces').upsert({
           id: DEFAULT_WORKSPACE_ID,
-          name: 'PostingTube',
-          slug: 'postingtube',
+          name: 'Plan Poster',
+          slug: 'plan-poster',
           role: 'owner',
           created_at: new Date().toISOString(),
         });

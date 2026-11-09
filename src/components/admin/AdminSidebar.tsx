@@ -15,7 +15,7 @@ import {
   ExternalLink,
   Crown,
 } from 'lucide-react';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 
 export type AdminTab =
   | 'overview'
@@ -74,9 +74,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             } catch (e) {}
           }}
           className="flex items-center space-x-2.5 cursor-pointer hover:opacity-90 transition-opacity focus:outline-none group"
-          title="Return to PostingTube Creator Dashboard"
+          title="Return to Plan Poster Creator Dashboard"
         >
-          <PostingTubeLogo />
+          <PlanPosterLogo />
           {!collapsed && (
             <div className="min-w-0">
               <div className="flex items-center space-x-1">

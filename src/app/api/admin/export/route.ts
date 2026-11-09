@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="postingtube_users_${Date.now()}.csv"`,
+          'Content-Disposition': `attachment; filename="plan_poster_users_${Date.now()}.csv"`,
         },
       });
     }
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="postingtube_posts_${Date.now()}.csv"`,
+          'Content-Disposition': `attachment; filename="plan_poster_posts_${Date.now()}.csv"`,
         },
       });
     }
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="postingtube_billing_${Date.now()}.csv"`,
+          'Content-Disposition': `attachment; filename="plan_poster_billing_${Date.now()}.csv"`,
         },
       });
     }

@@ -1247,7 +1247,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           ? 'reel'
           : 'post');
 
-      // 1. YouTube Compatibility: PostingTube only supports Shorts/video for YouTube. Images and Community posts are not publishable via API.
+      // 1. YouTube Compatibility: Plan Poster only supports Shorts/video for YouTube. Images and Community posts are not publishable via API.
       if (acc.platform === 'youtube') {
         if (currentPostType === 'image' || hasImage) {
           const ext = (hasMedia && effectiveMedia[0]?.name?.split('.').pop()?.toUpperCase()) || 'PNG';
@@ -1331,8 +1331,8 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const activeAccount = useMemo(() => {
     return accounts.find((a) => selectedAccountIds.includes(a.id)) || accounts[0] || {
       id: 'fb_default',
-      displayName: 'PostingTube Studio',
-      username: 'postingtube',
+      displayName: 'Plan Poster Studio',
+      username: 'planposter',
       platform: 'facebook' as SocialPlatform,
       avatarUrl: '',
     };
@@ -2282,7 +2282,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 <span>Back</span>
               </button>
               <span>•</span>
-              <span className="text-gray-500 font-medium">PostingTube Studio</span>
+              <span className="text-gray-500 font-medium">Plan Poster Studio</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">

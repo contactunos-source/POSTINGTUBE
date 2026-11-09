@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
 import { NewPostLaunchpad } from '@/components/NewPostLaunchpad';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 import { SpiderManLoadingScreen } from '@/components/SpiderManLoadingScreen';
 import {
   INITIAL_ACCOUNTS,
@@ -526,7 +526,7 @@ export default function DashboardPage() {
     }
   };
 
-  // PostingTube Logo Click Navigation: Always routes directly to main dashboard / Create Post launchpad
+  // Plan Poster Logo Click Navigation: Always routes directly to main dashboard / Create Post launchpad
   const handleLogoClick = () => {
     setEditingPost(null);
     setPreviousTab('new-post');
@@ -658,7 +658,7 @@ export default function DashboardPage() {
         updatedAt: new Date().toISOString(),
         author: {
           id: 'usr_admin',
-          name: 'PostingTube Admin',
+          name: 'Plan Poster Admin',
           avatar: '',
         },
       };
@@ -926,12 +926,12 @@ export default function DashboardPage() {
 
   // Spider-Man session initialization loading screen (only on page refresh)
   if (authChecking || !isLoaded) {
-    return <SpiderManLoadingScreen message="Loading your PostingTube session..." />;
+    return <SpiderManLoadingScreen message="Loading your Plan Poster session..." />;
   }
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden font-sans text-gray-900">
-      {/* PostingTube Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
+      {/* Plan Poster Sidebar (Responsive Drawer on Mobile, Fixed on Desktop) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={handleTabChange}
@@ -994,7 +994,7 @@ export default function DashboardPage() {
 
             {/* Mobile Brand */}
             <div className="shrink-0">
-              <PostingTubeLogo
+              <PlanPosterLogo
                 size="sm"
                 href="/dashboard"
                 onClick={(e) => {
@@ -1052,7 +1052,7 @@ export default function DashboardPage() {
           <CalendarView
             posts={posts}
             accounts={accounts}
-            workspaceName="PostingTube"
+            workspaceName="Plan Poster"
             onSelectPost={handleEditExistingPost}
             onReschedulePost={handleReschedulePost}
             onNavigateToTab={(tab) => handleTabChange(tab as any)}

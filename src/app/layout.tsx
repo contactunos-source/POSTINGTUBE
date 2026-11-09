@@ -18,10 +18,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PostingTube - Social Media Management & Intelligence",
-  description: "Enterprise multi-platform social media publishing, scheduling, and intelligence",
+  title: "Plan Poster - Social Media Management & Intelligence",
+  description: "Enterprise multi-platform social media publishing, scheduling, and intelligence with Plan Poster",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/plan-poster-bird.svg",
+    shortcut: "/plan-poster-bird.svg",
+    apple: "/images/plan-poster-logo-dark.png",
   },
 };
 

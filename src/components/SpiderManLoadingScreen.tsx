@@ -9,13 +9,12 @@ interface SpiderManLoadingScreenProps {
 
 /**
  * SpiderManLoadingScreen
- * Replaces the default box logo loading screen on page refresh.
  * Features Spider-Man hanging by a web thread passing off the top of the screen,
- * a middle web thread holding the "Loading your PostingTube session..." indicator,
+ * a middle web thread holding the "Loading your Plan Poster session..." indicator,
  * and the silhouette of the girl hanging suspended below.
  */
 export const SpiderManLoadingScreen: React.FC<SpiderManLoadingScreenProps> = ({
-  message = 'Loading your PostingTube session...',
+  message = 'Loading your Plan Poster session...',
 }) => {
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white overflow-hidden select-none font-sans">

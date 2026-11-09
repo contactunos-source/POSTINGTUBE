@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   CheckCircle2,
 } from 'lucide-react';
-import { PostingTubeLogo } from './PostingTubeLogo';
+import { PlanPosterLogo } from './PlanPosterLogo';
 import {
   OFFICIAL_PLANS,
   PlanId,
@@ -87,15 +87,15 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     }, 15000);
 
     let userId = 'usr_customer';
-    let userEmail = 'customer@postingtube.com';
-    let userName = 'PostingTube Creator';
+    let userEmail = 'customer@planposter.com';
+    let userName = 'Plan Poster Creator';
 
     if (supabase) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           userId = session.user.id;
-          userEmail = session.user.email || 'customer@postingtube.com';
+          userEmail = session.user.email || 'customer@planposter.com';
           userName = session.user.user_metadata?.full_name || userEmail.split('@')[0] || 'Creator';
         }
       } catch {}
@@ -142,7 +142,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         key: order.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_live_postingtube_prod',
         amount: order.amount,
         currency: 'INR',
-        name: 'PostingTube',
+        name: 'Plan Poster',
         description: `${planConfig.name} Plan • ${planConfig.channelsLimit} Channels • ${intervalLabel}`,
         order_id: order.id && order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
@@ -223,10 +223,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Modal Header with Official PostingTube Logo */}
+        {/* Modal Header with Official Plan Poster Logo */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
           <div className="flex items-center space-x-3">
-            <PostingTubeLogo size="sm" />
+            <PlanPosterLogo size="sm" />
             <div className="border-l border-gray-200 pl-3">
               <h2 className="text-base font-black text-gray-950">Upgrade Your Plan</h2>
               <p className="text-[11px] text-gray-500">Connect more social channels with unlimited post scheduling.</p>

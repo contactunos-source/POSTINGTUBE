@@ -197,7 +197,7 @@ export const BillingView: React.FC<BillingViewProps> = ({
       <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Official PostingTube Plan Management</h2>
+            <h2 className="text-sm font-bold text-gray-900">Official Plan Poster Plan Management</h2>
             <p className="text-[11px] text-gray-500">Live capacity limits, monthly pricing in INR, and active subscriber distribution.</p>
           </div>
           <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">

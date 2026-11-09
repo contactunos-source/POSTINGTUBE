@@ -25,7 +25,7 @@ import {
   ArrowLeft,
   AlertCircle,
 } from 'lucide-react';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 
 function LoginContent() {
   const router = useRouter();
@@ -137,7 +137,7 @@ function LoginContent() {
           className="flex items-center space-x-2 text-xs font-medium text-gray-600 hover:text-black transition-colors group"
         >
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-          <span>Back to PostingTube</span>
+          <span>Back to Plan Poster</span>
         </Link>
 
         <div className="flex items-center space-x-2">
@@ -154,11 +154,11 @@ function LoginContent() {
           {/* Logo & Headline */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <PostingTubeLogo size="lg" href="/" />
+              <PlanPosterLogo size="lg" href="/" />
             </div>
 
             <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {mode === 'signin' ? 'Sign in to your workspace' : 'Create your PostingTube account'}
+              {mode === 'signin' ? 'Sign in to your workspace' : 'Create your Plan Poster account'}
             </h1>
             <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">
               {mode === 'signin'
@@ -333,7 +333,7 @@ function LoginContent() {
         </div>
 
         <div>
-          &copy; 2026 PostingTube Technologies Inc. All rights reserved.
+          &copy; 2026 Plan Poster Technologies Inc. All rights reserved.
         </div>
       </footer>
     </div>

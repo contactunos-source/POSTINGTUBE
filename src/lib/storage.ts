@@ -9,8 +9,8 @@ export const INITIAL_POSTS: Post[] = [];
 export const INITIAL_WORKSPACES: Workspace[] = [
   {
     id: '00000000-0000-0000-0000-000000000001',
-    name: 'PostingTube',
-    slug: 'postingtube',
+    name: 'Plan Poster',
+    slug: 'plan-poster',
     role: 'owner',
     connectedAccounts: [],
   },

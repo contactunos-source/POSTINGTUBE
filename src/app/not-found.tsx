@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 import { ArrowLeft, LayoutDashboard, HelpCircle } from 'lucide-react';
 
 export default function NotFound() {
@@ -9,7 +9,7 @@ export default function NotFound() {
     <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-between font-sans selection:bg-rose-100 selection:text-rose-900">
       {/* Top Header */}
       <header className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
-        <PostingTubeLogo size="sm" href="/" />
+        <PlanPosterLogo size="sm" href="/" />
         <Link
           href="/dashboard"
           className="inline-flex items-center space-x-1.5 text-xs font-semibold text-gray-600 hover:text-black transition-colors"
@@ -80,7 +80,7 @@ export default function NotFound() {
 
       {/* Footer */}
       <footer className="w-full py-6 text-center text-xs text-gray-400">
-        © 2026 PostingTube. All rights reserved.
+        © 2026 Plan Poster. All rights reserved.
       </footer>
     </div>
   );

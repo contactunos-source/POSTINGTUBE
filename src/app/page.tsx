@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { PlatformLogo } from '@/components/SocialIcons';
 import { supabase, getGuestUser } from '@/lib/supabase';
-import { PostingTubeLogo, PostingTubeIcon } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo, PlanPosterIcon } from '@/components/PlanPosterLogo';
 import { OFFICIAL_PLANS, BillingInterval } from '@/lib/pricing-config';
 
 // Supported channels for integration arc
@@ -97,7 +97,7 @@ const TESTIMONIALS = [
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=160&auto=format&fit=crop&q=80',
     rating: 5.0,
     quote:
-      'PostingTube has completely streamlined our video distribution. What used to take our agency 3 hours across 5 open tabs every morning now takes 3 minutes. The custom thumbnail frame extractor for YouTube alone is worth the subscription.',
+      'Plan Poster has completely streamlined our video distribution. What used to take our agency 3 hours across 5 open tabs every morning now takes 3 minutes. The custom thumbnail frame extractor for YouTube alone is worth the subscription.',
   },
   {
     name: 'James Carter',
@@ -178,7 +178,7 @@ export default function LandingPage() {
       <div className="fixed top-4 left-0 right-0 z-50 px-4 pointer-events-none">
         <nav className="max-w-4xl mx-auto bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-full px-5 py-2.5 shadow-sm shadow-gray-200/50 flex items-center justify-between pointer-events-auto transition-all">
           {/* Logo */}
-          <PostingTubeLogo size="sm" href="/" />
+          <PlanPosterLogo size="sm" href="/" />
 
           {/* Navigation Items */}
           <div className="hidden md:flex items-center space-x-7 text-xs font-semibold text-gray-600">
@@ -308,7 +308,7 @@ export default function LandingPage() {
 
         {/* Clean Subtitle */}
         <p className="mt-5 text-sm sm:text-base text-gray-600 max-w-xl mx-auto leading-relaxed">
-          PostingTube is a modern, all-in-one social media publishing platform designed to perfectly schedule,
+          Plan Poster is a modern, all-in-one social media publishing platform designed to perfectly schedule,
           adapt, and grow across YouTube, Instagram, Facebook, and LinkedIn.
         </p>
 
@@ -356,7 +356,7 @@ export default function LandingPage() {
             Built for everyone
           </h2>
           <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-lg mx-auto">
-            Thousands of creators, from solo podcasters to global digital agencies, use PostingTube to automate publishing.
+            Thousands of creators, from solo podcasters to global digital agencies, use Plan Poster to automate publishing.
           </p>
         </div>
 
@@ -430,7 +430,7 @@ export default function LandingPage() {
 
               <h3 className="text-base font-bold text-gray-900">For legal &amp; agency teams</h3>
               <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                PostingTube adheres 100% to official platform terms of service. No scrapers, zero risk of account bans.
+                Plan Poster adheres 100% to official platform terms of service. No scrapers, zero risk of account bans.
               </p>
             </div>
           </div>
@@ -483,7 +483,7 @@ export default function LandingPage() {
               <div className="h-36 bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center justify-center relative mb-5 overflow-hidden">
                 <div className="w-24 h-24 rounded-full border border-dashed border-gray-300 flex items-center justify-center relative animate-[spin_20s_linear_infinite]">
                   <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
-                    <PostingTubeIcon size={18} />
+                    <PlanPosterIcon size={18} />
                   </div>
                   {/* Orbiting mini avatars */}
                   <div className="absolute -top-3 w-6 h-6 rounded-full overflow-hidden border border-white shadow-xs">
@@ -575,7 +575,7 @@ export default function LandingPage() {
           Words of Appreciation
         </h2>
         <p className="mt-2 text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
-          Thousands of businesses, from startups to enterprises, use PostingTube to schedule and scale social content.
+          Thousands of businesses, from startups to enterprises, use Plan Poster to schedule and scale social content.
         </p>
 
         {/* Envelope Container Visual (Frame 00:11 styling) */}
@@ -658,7 +658,7 @@ export default function LandingPage() {
       <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto border-t border-gray-200/80">
         <div className="text-center mb-8">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
-            Official PostingTube Plans
+            Official Plan Poster Plans
           </span>
           <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
             Simple, transparent plans for creators &amp; teams
@@ -915,11 +915,11 @@ export default function LandingPage() {
           {[
             {
               q: 'Do I need to keep my laptop open or browser tab running for posts to publish?',
-              a: 'No. PostingTube runs an autonomous background scheduling daemon that continuously monitors scheduled queues every 10 seconds. Once scheduled, your post dispatches deterministically to the target networks on time, even if your device is completely powered down.',
+              a: 'No. Plan Poster runs an autonomous background scheduling daemon that continuously monitors scheduled queues every 10 seconds. Once scheduled, your post dispatches deterministically to the target networks on time, even if your device is completely powered down.',
             },
             {
               q: 'How does YouTube, Instagram, and Facebook connection work?',
-              a: 'We integrate with official Google YouTube Data API v3 and Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and PostingTube discovers all verified YouTube channels, Instagram accounts, and Facebook Pages you manage with official long-lived security tokens.',
+              a: 'We integrate with official Google YouTube Data API v3 and Meta Graph API v20.0 using OAuth 2.0. In one click, you approve access, and Plan Poster discovers all verified YouTube channels, Instagram accounts, and Facebook Pages you manage with official long-lived security tokens.',
             },
             {
               q: 'Are my client workspaces isolated from other accounts?',
@@ -927,7 +927,7 @@ export default function LandingPage() {
             },
             {
               q: 'How does the YouTube custom thumbnail frame extractor work?',
-              a: 'When you upload a video in the PostingTube YouTube Studio composer, our client-side video processor extracts timestamped video frames across the video and offers an interactive scrubber so you can choose any exact second of your video as the official thumbnail, or upload your own 16:9 image.',
+              a: 'When you upload a video in the Plan Poster Studio composer, our client-side video processor extracts timestamped video frames across the video and offers an interactive scrubber so you can choose any exact second of your video as the official thumbnail, or upload your own 16:9 image.',
             },
             {
               q: 'Where are my media attachments and images stored?',
@@ -969,9 +969,9 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-6 relative z-10">
             {/* Column 1: Brand Statement */}
             <div className="md:col-span-1 space-y-3">
-              <PostingTubeLogo size="sm" />
+              <PlanPosterLogo size="sm" />
               <p className="text-xs text-gray-500 leading-relaxed">
-                PostingTube is the all-in-one social scheduling platform that helps creators and teams build a thriving audience across YouTube, Instagram, Facebook, and LinkedIn.
+                Plan Poster is the all-in-one social scheduling platform that helps creators and teams build a thriving audience across YouTube, Instagram, Facebook, and LinkedIn.
               </p>
             </div>
 
@@ -1051,14 +1051,14 @@ export default function LandingPage() {
                 textAnchor="middle"
                 className="font-black text-[84px] fill-red-600 tracking-tight select-none"
               >
-                PostingTube
+                Plan Poster
               </text>
             </svg>
           </div>
 
           {/* Copyright Bottom Bar */}
           <div className="relative z-10 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-400 gap-2">
-            <span>&copy; 2026 PostingTube Technologies. All rights reserved.</span>
+            <span>&copy; 2026 Plan Poster Technologies. All rights reserved.</span>
             <span>All official trademarks belong to their respective platforms.</span>
           </div>
         </div>

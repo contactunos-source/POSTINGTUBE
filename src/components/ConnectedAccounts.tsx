@@ -1146,7 +1146,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           type="button"
                           onClick={() => setChannelToDelete(account)}
                           className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors flex items-center gap-1.5 cursor-pointer"
-                          title="Disconnect account from PostingTube"
+                          title="Disconnect account from Plan Poster"
                         >
                           <Trash2 className="w-3 h-3 text-rose-500" />
                           <span>Disconnect</span>
@@ -1592,7 +1592,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         Change to professional account?
                       </h2>
                       <p className="text-xs text-gray-400 mt-1">
-                        You need a professional Instagram account to connect Instagram to PostingTube
+                        You need a professional Instagram account to connect Instagram to Plan Poster
                       </p>
                     </div>
 
@@ -1605,7 +1605,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       <div className="font-bold text-white text-sm">Change to professional account?</div>
 
                       <p className="text-xs text-gray-300 leading-relaxed px-1">
-                        You need a professional Instagram account to connect Instagram to PostingTube. Anyone will be able
+                        You need a professional Instagram account to connect Instagram to Plan Poster. Anyone will be able
                         to see your posts and reels, but you can change who sees them anytime in settings.
                       </p>
 
@@ -1899,7 +1899,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           <span>Instagram Connection &amp; Publishing Guide</span>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
-                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, PostingTube will save your Instagram profile directly into your account. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
+                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, Plan Poster will save your Instagram profile directly into your account. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
                         </p>
                       </div>
                     )}
@@ -2303,7 +2303,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </div>
                       <h2 className="text-xl font-bold text-white tracking-tight">Connect YouTube Channel</h2>
                       <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                        Authorize PostingTube to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
+                        Authorize Plan Poster to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
                       </p>
                     </div>
 

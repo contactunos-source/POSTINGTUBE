@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   X,
 } from 'lucide-react';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 import {
   OFFICIAL_PLANS,
   PlanId,
@@ -108,8 +108,8 @@ export default function PricingPage() {
     }, 15000);
 
     const effectiveUserId = authUser?.id || 'usr_customer';
-    const effectiveEmail = authUser?.email || 'customer@postingtube.com';
-    const effectiveName = authUser?.user_metadata?.full_name || 'PostingTube Creator';
+    const effectiveEmail = authUser?.email || 'customer@planposter.com';
+    const effectiveName = authUser?.user_metadata?.full_name || 'Plan Poster Creator';
 
     try {
       const scriptLoaded = await loadRazorpayScript();
@@ -143,7 +143,7 @@ export default function PricingPage() {
         key: order.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_live_postingtube_prod',
         amount: order.amount,
         currency: 'INR',
-        name: 'PostingTube',
+        name: 'Plan Poster',
         description: `${plan.name} Plan • ${plan.channelsLimit} Channels • ${intervalLabel}`,
         order_id: order.id && order.id.startsWith('order_') ? order.id : undefined,
         prefill: {
@@ -236,7 +236,7 @@ export default function PricingPage() {
               <ArrowLeft className="w-4 h-4 mr-1" />
               <span>Back</span>
             </Link>
-            <PostingTubeLogo />
+            <PlanPosterLogo />
           </div>
 
           <div className="flex items-center space-x-3">
@@ -256,7 +256,7 @@ export default function PricingPage() {
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Official PostingTube Plans</span>
+            <span>Official Plan Poster Plans</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-950 tracking-tight">

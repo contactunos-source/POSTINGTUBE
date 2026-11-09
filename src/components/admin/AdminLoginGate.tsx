@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Mail, KeyRound, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
-import { PostingTubeLogo } from '@/components/PostingTubeLogo';
+import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 
 interface AdminLoginGateProps {
   onSuccess: (email: string) => void;
@@ -49,7 +49,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onSuccess }) => 
     <div className="min-h-screen bg-linear-to-b from-gray-50 via-white to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center mb-3">
-          <PostingTubeLogo />
+          <PlanPosterLogo />
         </div>
 
         <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-[11px] font-bold border border-amber-200/80 mb-2">
