@@ -27,6 +27,9 @@ import {
   ArrowLeft,
   AlertCircle,
   Key,
+  ShieldAlert,
+  Check,
+  X,
 } from 'lucide-react';
 import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 
@@ -56,20 +59,122 @@ function LoginContent() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isResetLoading, setIsResetLoading] = useState(false);
+  const [hasValidSession, setHasValidSession] = useState<boolean | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Check URL hash on mount for Supabase password recovery link (#access_token=...&type=recovery)
+  const code = searchParams?.get('code');
+
+  // Check URL hash and query params on mount for Supabase password recovery
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash;
-      if (hash && (hash.includes('type=recovery') || hash.includes('type=magiclink'))) {
+    if (typeof window === 'undefined') return;
+
+    const hash = window.location.hash;
+    if (hash) {
+      const cleanHash = hash.replace(/^#/, '');
+      const params = new URLSearchParams(cleanHash);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      const hashError = params.get('error');
+      const hashErrorDesc = params.get('error_description');
+
+      if (hashError) {
         setMode('reset-password');
+        setHasValidSession(false);
+        const decoded = hashErrorDesc
+          ? decodeURIComponent(hashErrorDesc.replace(/\+/g, ' '))
+          : 'This recovery link is invalid or has expired.';
+        setErrorMsg(decoded);
+        return;
+      }
+
+      if (accessToken && refreshToken && supabase) {
+        setMode('reset-password');
+        setIsResetLoading(true);
+        supabase.auth
+          .setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          .then(({ data, error }) => {
+            setIsResetLoading(false);
+            if (error) {
+              console.warn('[Auth] Failed to set recovery session from hash:', error);
+              setHasValidSession(false);
+              setErrorMsg('Your recovery link has expired or is invalid. Please request a new one.');
+            } else if (data?.session) {
+              setHasValidSession(true);
+              setErrorMsg(null);
+              setSuccessMsg('Recovery session verified! Please choose your new password.');
+              if (window.history?.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname + '?mode=reset-password');
+              }
+            }
+          });
+        return;
+      }
+
+      if (hash.includes('type=recovery') || hash.includes('type=magiclink')) {
+        setMode('reset-password');
+        setHasValidSession(true);
         setErrorMsg(null);
-        setSuccessMsg('You are in password recovery mode. Please choose your new password.');
+        setSuccessMsg('Recovery session verified! Please choose your new password.');
       }
     }
   }, []);
+
+  // Handle PKCE code exchange if present in URL
+  useEffect(() => {
+    if (!code || !supabase) return;
+
+    let isMounted = true;
+    setIsResetLoading(true);
+
+    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+      if (!isMounted) return;
+      setIsResetLoading(false);
+
+      if (error) {
+        console.warn('[Auth] Code exchange error:', error);
+        if (mode === 'reset-password' || urlMode === 'reset-password') {
+          setErrorMsg('This recovery link has expired or was already used. Please request a new one.');
+          setHasValidSession(false);
+        }
+      } else if (data?.session) {
+        setHasValidSession(true);
+        if (mode === 'reset-password' || urlMode === 'reset-password') {
+          setErrorMsg(null);
+          setSuccessMsg('Recovery session confirmed! Please choose your new password.');
+          if (typeof window !== 'undefined' && window.history?.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + '?mode=reset-password');
+          }
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [code, mode, urlMode]);
+
+  // Check active session status when entering reset-password mode
+  useEffect(() => {
+    if (mode !== 'reset-password' || !supabase) return;
+
+    // If hash has tokens or code is being exchanged, let the handlers finish
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (code || (hash && hash.includes('access_token'))) {
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setHasValidSession(true);
+      } else {
+        setHasValidSession(false);
+      }
+    });
+  }, [mode, code]);
 
   // If mode param changes in URL
   useEffect(() => {
@@ -268,8 +373,29 @@ function LoginContent() {
     setSuccessMsg(null);
 
     try {
+      if (!supabase) {
+        throw new Error('Authentication client unavailable.');
+      }
+
+      // Verify active session before attempting updateUser
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        setHasValidSession(false);
+        setErrorMsg('Active recovery session missing or expired. Please click the reset link in your email or request a new one.');
+        setIsResetLoading(false);
+        return;
+      }
+
       const { data, error } = await updatePassword(newPassword);
-      if (error) throw error;
+      if (error) {
+        if (error.message?.toLowerCase().includes('auth session missing')) {
+          setHasValidSession(false);
+          setErrorMsg('Your recovery link has expired or was already used. Please request a fresh reset link.');
+          return;
+        }
+        throw error;
+      }
+
       setSuccessMsg('Your password has been successfully updated! Redirecting to workspace...');
       if (data?.user) {
         syncUserProfile(data.user).catch(() => {});
@@ -278,7 +404,13 @@ function LoginContent() {
         router.push(redirectTo);
       }, 1500);
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to update password. Your recovery session may have expired.');
+      const msg = err?.message || 'Failed to update password.';
+      if (msg.toLowerCase().includes('auth session missing')) {
+        setHasValidSession(false);
+        setErrorMsg('Your recovery link has expired or was already used. Please request a fresh reset link.');
+      } else {
+        setErrorMsg(msg);
+      }
     } finally {
       setIsResetLoading(false);
     }
@@ -288,14 +420,20 @@ function LoginContent() {
     signin: 'Sign in to your workspace',
     signup: 'Create your Plan Poster account',
     forgot: 'Reset your password',
-    'reset-password': 'Set your new password',
+    'reset-password':
+      hasValidSession === false
+        ? 'Recovery Link Required'
+        : 'Set your new password',
   };
 
   const subtitles: Record<string, string> = {
     signin: 'Access your scheduled queue, automated worker, and multi-tenant channels.',
     signup: 'Start publishing to Facebook, Instagram, LinkedIn, and X simultaneously.',
     forgot: 'Enter your registered email address and we will send you a secure recovery link.',
-    'reset-password': 'Choose a strong new password with at least 6 characters.',
+    'reset-password':
+      hasValidSession === false
+        ? 'Password changes require a verified one-time link sent to your email.'
+        : 'Choose a strong new password with at least 6 characters.',
   };
 
   return (
@@ -403,72 +541,163 @@ function LoginContent() {
             </form>
           )}
 
-          {/* MODE: RESET PASSWORD (ACTIVE RECOVERY SESSION) */}
+          {/* MODE: RESET PASSWORD */}
           {mode === 'reset-password' && (
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  New Password (min 6 characters)
-                </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50/50 hover:bg-gray-50 text-gray-900 placeholder:text-gray-600 focus:outline-hidden focus:border-black focus:ring-1 focus:ring-black transition-all"
-                />
-              </div>
+            <>
+              {/* State A: Loading / Exchanging code or hash session */}
+              {hasValidSession === null && isResetLoading && (
+                <div className="py-10 text-center space-y-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-900 mx-auto" />
+                  <p className="text-xs font-medium text-gray-600">
+                    Verifying secure recovery session...
+                  </p>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50/50 hover:bg-gray-50 text-gray-900 placeholder:text-gray-600 focus:outline-hidden focus:border-black focus:ring-1 focus:ring-black transition-all"
-                />
-              </div>
+              {/* State B: Missing or Expired Session */}
+              {hasValidSession === false && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl text-left space-y-2">
+                    <div className="flex items-center space-x-2 text-amber-900 font-bold text-xs">
+                      <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Recovery Link Required</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      For your security, setting a new password requires an active one-time link from your email inbox. If you have not opened the email link yet or if it has expired, request a fresh recovery link below.
+                    </p>
+                  </div>
 
-              <button
-                type="submit"
-                disabled={isResetLoading}
-                className="w-full py-3.5 px-4 rounded-xl font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white flex items-center justify-center space-x-2 text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50 mt-2"
-              >
-                {isResetLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Saving New Password...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Save Password &amp; Enter Workspace</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('forgot');
+                      setErrorMsg(null);
+                      setSuccessMsg(null);
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white flex items-center justify-center space-x-2 text-xs shadow-sm transition-all cursor-pointer"
+                  >
+                    <span>Request New Reset Link</span>
                     <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+                  </button>
 
-              <div className="text-center mt-6 pt-5 border-t border-gray-100 text-xs text-gray-600">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setErrorMsg(null);
-                    setSuccessMsg(null);
-                  }}
-                  className="inline-flex items-center space-x-1.5 text-gray-700 hover:text-black font-semibold cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Return to Sign In</span>
-                </button>
-              </div>
-            </form>
+                  <div className="text-center pt-3 border-t border-gray-100 text-xs text-gray-600">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('signin');
+                        setErrorMsg(null);
+                        setSuccessMsg(null);
+                      }}
+                      className="inline-flex items-center space-x-1.5 text-gray-700 hover:text-black font-semibold cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Return to Sign In</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* State C: Active Session Established -> Ready to Set Password */}
+              {(hasValidSession === true || (hasValidSession === null && !isResetLoading)) && (
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      New Password (min 6 characters)
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50/50 hover:bg-gray-50 text-gray-900 placeholder:text-gray-600 focus:outline-hidden focus:border-black focus:ring-1 focus:ring-black transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50/50 hover:bg-gray-50 text-gray-900 placeholder:text-gray-600 focus:outline-hidden focus:border-black focus:ring-1 focus:ring-black transition-all"
+                    />
+                  </div>
+
+                  {/* Requirements Helper */}
+                  <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 pt-1">
+                    <span
+                      className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md ${
+                        newPassword.length >= 6
+                          ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {newPassword.length >= 6 ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      )}
+                      <span>6+ characters</span>
+                    </span>
+
+                    <span
+                      className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md ${
+                        confirmPassword.length > 0 && newPassword === confirmPassword
+                          ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {confirmPassword.length > 0 && newPassword === confirmPassword ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      )}
+                      <span>Passwords match</span>
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isResetLoading}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold bg-black hover:bg-gray-800 active:bg-gray-900 text-white flex items-center justify-center space-x-2 text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50 mt-2"
+                  >
+                    {isResetLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Saving New Password...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Save Password &amp; Enter Workspace</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center mt-6 pt-5 border-t border-gray-100 text-xs text-gray-600">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('signin');
+                        setErrorMsg(null);
+                        setSuccessMsg(null);
+                      }}
+                      className="inline-flex items-center space-x-1.5 text-gray-700 hover:text-black font-semibold cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Return to Sign In</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
           )}
 
           {/* MODE: SIGNIN & SIGNUP */}
