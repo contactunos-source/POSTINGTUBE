@@ -318,7 +318,7 @@ export default function LandingPage() {
             href="/login?mode=signup"
             className="w-full sm:w-auto px-7 py-3 rounded-full text-xs font-bold bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white flex items-center justify-center space-x-2 shadow-md shadow-red-600/20 transition-all cursor-pointer"
           >
-            <span>Request a Demo</span>
+            <span>Get Started Free</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
 

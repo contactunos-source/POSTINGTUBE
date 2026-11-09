@@ -123,10 +123,6 @@ function LoginContent() {
     }
   };
 
-  const handleGuestDemo = () => {
-    signInAsGuest();
-    router.push(redirectTo);
-  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-between relative overflow-hidden font-sans selection:bg-gray-900 selection:text-white">
@@ -303,21 +299,7 @@ function LoginContent() {
             )}
           </div>
 
-          {/* Instant Evaluation Demo Button */}
-          <div className="mt-5 p-3.5 rounded-2xl bg-gray-50 border border-gray-200/80 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-xs text-gray-600">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Evaluating without credentials?</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleGuestDemo}
-              className="text-xs text-black font-bold hover:underline flex items-center space-x-1 cursor-pointer transition-colors"
-            >
-              <span>Instant Demo</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
+
         </div>
       </main>
 
