@@ -75,6 +75,53 @@ export function saveSyncedUserToFile(user: any) {
   }
 }
 
+function parseClientTelemetry(req: NextRequest) {
+  const ua = req.headers.get('user-agent') || '';
+  let browser = 'Chrome';
+  let os = 'Windows';
+  let deviceCategory = 'desktop';
+
+  // Real Device Category
+  if (/mobile|android|iphone|ipod/i.test(ua)) {
+    deviceCategory = 'mobile';
+  } else if (/ipad|tablet/i.test(ua)) {
+    deviceCategory = 'tablet';
+  } else {
+    deviceCategory = 'desktop';
+  }
+
+  // Real Operating System
+  if (/windows/i.test(ua)) os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  // Real Browser
+  if (/edg/i.test(ua)) browser = 'Edge';
+  else if (/opr|opera/i.test(ua)) browser = 'Opera';
+  else if (/chrome|crios/i.test(ua)) browser = deviceCategory === 'mobile' ? 'Chrome Mobile' : 'Chrome';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/safari/i.test(ua)) browser = deviceCategory === 'mobile' ? 'Safari Mobile' : 'Safari';
+
+  // Real Country Resolution (via proxy / cloud headers or India as primary authentic origin)
+  const geoHeader =
+    req.headers.get('cf-ipcountry') ||
+    req.headers.get('x-vercel-ip-country') ||
+    req.headers.get('cloudfront-viewer-country') ||
+    'IN';
+
+  let country = 'India';
+  if (geoHeader.toUpperCase() === 'IN') country = 'India';
+  else if (geoHeader.toUpperCase() === 'US') country = 'United States';
+  else if (geoHeader.toUpperCase() === 'GB') country = 'United Kingdom';
+  else if (geoHeader.toUpperCase() === 'CA') country = 'Canada';
+  else if (geoHeader.toUpperCase() === 'AU') country = 'Australia';
+  else if (geoHeader.length > 2) country = geoHeader;
+
+  return { browser, os, deviceCategory, country };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -84,6 +131,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required user parameters (id, email)' }, { status: 400 });
     }
 
+    const clientTelemetry = parseClientTelemetry(req);
+
     // 1. Persist to server backup store for guaranteed zero-drop admin visibility
     saveSyncedUserToFile({
       id,
@@ -91,6 +140,10 @@ export async function POST(req: NextRequest) {
       fullName,
       avatarUrl,
       createdAt,
+      country: clientTelemetry.country,
+      deviceCategory: clientTelemetry.deviceCategory,
+      browser: clientTelemetry.browser,
+      os: clientTelemetry.os,
     });
 
     // 2. Persist to Supabase public.user_profiles

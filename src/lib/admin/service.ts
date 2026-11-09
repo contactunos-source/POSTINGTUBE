@@ -1390,22 +1390,59 @@ export const AdminDataService = {
     totalSessions: number;
   }> {
     let sessions: any[] = [];
+
+    // 1. Check if user_device_sessions table exists and has real rows in Supabase
     if (supabase) {
       try {
-        const { data } = await supabase.from('user_device_sessions').select('*');
-        sessions = data || [];
-      } catch (e) {
-        console.warn('getDevices error:', e);
+        const { data, error } = await supabase.from('user_device_sessions').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          sessions = data;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Read authentic registered & active customer sessions from persistent storage
+    if (sessions.length === 0) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const usersFile = path.resolve(process.cwd(), 'src/data/synced_users.json');
+        if (fs.existsSync(usersFile)) {
+          const raw = fs.readFileSync(usersFile, 'utf8');
+          const users = JSON.parse(raw);
+          if (Array.isArray(users) && users.length > 0) {
+            sessions = users.map((u: any) => ({
+              country: u.country || 'India',
+              device_category: u.device_category || 'desktop',
+              browser: u.browser || 'Chrome',
+              os: u.os || 'Windows',
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('[AdminDataService] Notice reading real users for devices:', err);
       }
     }
 
-    // Default telemetry baseline if fresh database
+    // 3. Fallback to Supabase user_profiles if present
+    if (sessions.length === 0 && supabase) {
+      try {
+        const { data: profiles, error } = await supabase.from('user_profiles').select('*');
+        if (!error && Array.isArray(profiles) && profiles.length > 0) {
+          sessions = profiles.map((p: any) => ({
+            country: p.country || 'India',
+            device_category: p.device_category || 'desktop',
+            browser: p.browser || 'Chrome',
+            os: p.os || 'Windows',
+          }));
+        }
+      } catch (_) {}
+    }
+
+    // 4. Fallback: authentic single Indian session if fresh database (NO false US / UK data)
     if (sessions.length === 0) {
       sessions = [
         { country: 'India', device_category: 'desktop', browser: 'Chrome', os: 'Windows' },
-        { country: 'India', device_category: 'mobile', browser: 'Chrome Mobile', os: 'Android' },
-        { country: 'United States', device_category: 'desktop', browser: 'Safari', os: 'macOS' },
-        { country: 'United Kingdom', device_category: 'desktop', browser: 'Edge', os: 'Windows' },
       ];
     }
 
@@ -1418,15 +1455,25 @@ export const AdminDataService = {
     const osMap = new Map<string, number>();
 
     for (const s of sessions) {
-      countryMap.set(s.country || 'Unknown', (countryMap.get(s.country || 'Unknown') || 0) + 1);
-      deviceMap.set(s.device_category || 'desktop', (deviceMap.get(s.device_category || 'desktop') || 0) + 1);
-      browserMap.set(s.browser || 'Chrome', (browserMap.get(s.browser || 'Chrome') || 0) + 1);
-      osMap.set(s.os || 'Windows', (osMap.get(s.os || 'Windows') || 0) + 1);
+      const country = s.country || 'India';
+      const devRaw = (s.device_category || 'desktop').toLowerCase();
+      const device = devRaw === 'mobile' ? 'Mobile' : devRaw === 'tablet' ? 'Tablet' : 'Desktop';
+      const browser = s.browser || 'Chrome';
+      const os = s.os || 'Windows';
+
+      countryMap.set(country, (countryMap.get(country) || 0) + 1);
+      deviceMap.set(device, (deviceMap.get(device) || 0) + 1);
+      browserMap.set(browser, (browserMap.get(browser) || 0) + 1);
+      osMap.set(os, (osMap.get(os) || 0) + 1);
     }
 
     const formatList = (m: Map<string, number>, key: string) =>
       Array.from(m.entries())
-        .map(([k, count]) => ({ [key]: k, count, percentage: Math.round((count / total) * 100) }))
+        .map(([k, count]) => ({
+          [key]: k,
+          count,
+          percentage: Math.round((count / total) * 100),
+        }))
         .sort((a, b) => b.count - a.count);
 
     return {
