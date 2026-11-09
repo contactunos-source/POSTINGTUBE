@@ -2618,7 +2618,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                       : currentPostType === 'video'
                       ? 'reel'
                       : 'post');
-                  const isCaptionOpen = expandedCaptions[accId] ?? true;
+                  const isCaptionOpen = expandedCaptions[accId] ?? false;
                   const isFeaturesOpen = expandedFeatures[accId] ?? false;
                   const accCaption = accountCaptions[accId]?.caption ?? '';
                   const isCustomized = accCaption.trim().length > 0;
