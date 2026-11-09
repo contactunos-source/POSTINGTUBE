@@ -4,6 +4,17 @@ export async function GET(req: NextRequest) {
   const requestUrl = new URL(req.url);
   const origin = requestUrl.origin;
   const redirectTo = requestUrl.searchParams.get('redirectTo') || '/dashboard';
+  const error = requestUrl.searchParams.get('error');
+  const errorDescription = requestUrl.searchParams.get('error_description');
+
+  if (error) {
+    const loginUrl = new URL('/login', origin);
+    loginUrl.searchParams.set('error', error);
+    if (errorDescription) {
+      loginUrl.searchParams.set('error_description', errorDescription);
+    }
+    return NextResponse.redirect(loginUrl.toString());
+  }
 
   // Redirect user to destination where Supabase client recovers session
   const target = new URL(redirectTo, origin);
