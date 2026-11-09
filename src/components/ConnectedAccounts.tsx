@@ -1446,17 +1446,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           <span>Instagram will prompt you to easily convert to a professional account if needed.</span>
                         </div>
 
-                        {/* Link to connect via Facebook (Image 1) */}
-                        <div className="mt-2.5 pt-2.5 border-t border-gray-800/80 text-center">
-                          <button
-                            onClick={() => {
-                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                            }}
-                            className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-medium cursor-pointer"
-                          >
-                            Connect Instagram through Facebook if your Instagram account is currently linked to Facebook →
-                          </button>
-                        </div>
+
                       </div>
                     </div>
 

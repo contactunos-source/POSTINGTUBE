@@ -314,18 +314,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return posts.filter((p) => p.status === 'draft' && !p.scheduledFor && !p.publishedAt);
   }, [posts]);
 
-  // Pre-index filtered posts into a localized date map to achieve instant O(1) lookups instead of O(N*logN) repeated 168 times
-  const postsByDayMap = useMemo(() => {
-    const map = new Map<string, Post[]>();
+  const EMPTY_POSTS = useMemo<Post[]>(() => [], []);
+
+  // Pre-index filtered posts once into localized day & slot maps for instant O(1) rendering without latency
+  const { postsByDayMap, postsBySlotMap } = useMemo(() => {
+    const dayMap = new Map<string, Post[]>();
+    const slotMap = new Map<string, Post[]>();
+
     for (const post of filteredPosts) {
       const dateIso = post.scheduledFor || post.publishedAt || post.createdAt;
       if (!dateIso) continue;
       const dayKey = getLocalDateString(dateIso, timeZone);
-      const list = map.get(dayKey) || [];
-      list.push(post);
-      map.set(dayKey, list);
+      if (!dayKey) continue;
+
+      let dayList = dayMap.get(dayKey);
+      if (!dayList) {
+        dayList = [];
+        dayMap.set(dayKey, dayList);
+      }
+      dayList.push(post);
+
+      const parts = getLocalTimeParts(dateIso, timeZone);
+      const slotKey = `${dayKey}_${parts.hour24}`;
+      let slotList = slotMap.get(slotKey);
+      if (!slotList) {
+        slotList = [];
+        slotMap.set(slotKey, slotList);
+      }
+      slotList.push(post);
     }
-    map.forEach((list) => {
+
+    dayMap.forEach((list) => {
       list.sort((a, b) => {
         const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
         const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
@@ -334,17 +353,55 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         return partsA.hour24 * 60 + partsA.minute - (partsB.hour24 * 60 + partsB.minute);
       });
     });
-    return map;
+
+    slotMap.forEach((list) => {
+      list.sort((a, b) => {
+        const timeA = a.scheduledFor || a.publishedAt || a.createdAt;
+        const timeB = b.scheduledFor || b.publishedAt || b.createdAt;
+        const partsA = getLocalTimeParts(timeA, timeZone);
+        const partsB = getLocalTimeParts(timeB, timeZone);
+        return partsA.minute - partsB.minute;
+      });
+    });
+
+    return { postsByDayMap: dayMap, postsBySlotMap: slotMap };
   }, [filteredPosts, timeZone]);
 
-  // Retrieve posts for a specific day sorted chronologically by user's exact local time (O(1) lookup)
+  // Retrieve posts for a specific day sorted chronologically (O(1) lookup)
   const getPostsForDay = useCallback(
     (day: Date) => {
       const key = getLocalDateString(day, timeZone);
-      return postsByDayMap.get(key) || [];
+      return postsByDayMap.get(key) || EMPTY_POSTS;
     },
-    [postsByDayMap, timeZone]
+    [postsByDayMap, timeZone, EMPTY_POSTS]
   );
+
+  // Pre-calculated memoized item representations for week view
+  const weekDayKeys = useMemo(() => {
+    return weekDays.map((d) => ({
+      day: d,
+      key: getLocalDateString(d, timeZone),
+      iso: d.toISOString(),
+      isCurrentDay: isToday(d),
+      dayNameLong: format(d, 'EEEE'),
+      dayNameShort: format(d, 'EEE'),
+      dayNum: format(d, 'd'),
+    }));
+  }, [weekDays, timeZone]);
+
+  // Pre-calculated memoized item representations for month view
+  const monthDayItems = useMemo(() => {
+    return monthDays.map((day) => ({
+      day,
+      dayKey: getLocalDateString(day, timeZone),
+      iso: day.toISOString(),
+      dayNum: format(day, 'd'),
+      isCurrMonth: isSameMonth(day, currentDate),
+      isCurrentDay: isToday(day),
+    }));
+  }, [monthDays, currentDate, timeZone]);
+
+  const currentDayKey = useMemo(() => getLocalDateString(currentDate, timeZone), [currentDate, timeZone]);
 
   // Helper to get accounts targeted by a post
   const getAccountsForPost = (post: Post): SocialAccount[] => {
@@ -976,38 +1033,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
 
                 {/* 7 Days Columns with highlighted today */}
-                {weekDays.map((day, dayIdx) => {
-                  const isCurrentDay = isToday(day);
-                  const isLastDay = dayIdx === weekDays.length - 1;
+                {weekDayKeys.map((item, dayIdx) => {
+                  const isLastDay = dayIdx === weekDayKeys.length - 1;
 
                   return (
                     <div
-                      key={day.toISOString()}
+                      key={item.iso}
                       className={`sticky top-0 z-20 py-3 px-2 border-b border-gray-200 transition-colors select-none text-center relative ${
                         !isLastDay ? 'border-r border-gray-200/80' : ''
                       } ${
-                        isCurrentDay
+                        item.isCurrentDay
                           ? 'bg-emerald-50/90 backdrop-blur-xs'
                           : 'bg-gray-50/95 backdrop-blur-xs hover:bg-gray-100/80'
                       }`}
                     >
-                      {isCurrentDay && (
+                      {item.isCurrentDay && (
                         <div className="absolute top-0 left-0 right-0 h-0.5 bg-emerald-600" />
                       )}
                       <div
                         className={`text-[11px] font-bold uppercase tracking-wider ${
-                          isCurrentDay ? 'text-emerald-700' : 'text-gray-500'
+                          item.isCurrentDay ? 'text-emerald-700' : 'text-gray-500'
                         }`}
                       >
-                        <span className="hidden sm:inline">{format(day, 'EEEE')}</span>
-                        <span className="sm:hidden">{format(day, 'EEE')}</span>
+                        <span className="hidden sm:inline">{item.dayNameLong}</span>
+                        <span className="sm:hidden">{item.dayNameShort}</span>
                       </div>
                       <div
                         className={`text-sm font-extrabold mt-0.5 ${
-                          isCurrentDay ? 'text-emerald-800' : 'text-gray-900'
+                          item.isCurrentDay ? 'text-emerald-800' : 'text-gray-900'
                         }`}
                       >
-                        {format(day, 'd')}
+                        {item.dayNum}
                       </div>
                     </div>
                   );
@@ -1037,25 +1093,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </span>
                       </div>
 
-                      {/* Columns 1-7: Day Cells for this specific hour row */}
-                      {weekDays.map((day, dayIdx) => {
-                        const dayPosts = getPostsForDay(day);
-                        const isCurrentDay = isToday(day);
-                        const isLastDay = dayIdx === weekDays.length - 1;
-
-                        // Filter posts scheduled specifically in this 1-hour slot
-                        const slotPosts = dayPosts.filter((post) => {
-                          const time = post.scheduledFor || post.publishedAt || post.createdAt;
-                          const parts = getLocalTimeParts(time, timeZone);
-                          return parts.hour24 === slot.hour;
-                        });
-
-                        const slotDropKey = `${day.toISOString()}_${slot.hour}`;
+                      {/* Columns 1-7: Day Cells for this specific hour row (Instant O(1) slot lookup) */}
+                      {weekDayKeys.map((item, dayIdx) => {
+                        const isLastDay = dayIdx === weekDayKeys.length - 1;
+                        const slotPosts = postsBySlotMap.get(`${item.key}_${slot.hour}`) || EMPTY_POSTS;
+                        const slotDropKey = `${item.iso}_${slot.hour}`;
                         const isSlotDropTarget = dragOverDayIso === slotDropKey;
 
                         return (
                           <div
-                            key={`${day.toISOString()}_${slot.hour}`}
+                            key={slotDropKey}
                             onDragOver={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1066,17 +1113,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               e.preventDefault();
                               e.stopPropagation();
                               setDragOverDayIso(null);
-                              handleDropOnDay(e, day, slot.hour);
+                              handleDropOnDay(e, item.day, slot.hour);
                             }}
                             onClick={() => {
-                              const target = new Date(day);
+                              const target = new Date(item.day);
                               target.setHours(slot.hour, 0, 0, 0);
                               onCreateAtDate(target);
                             }}
                             className={`min-h-[96px] p-2 relative transition-all group cursor-pointer border-b border-gray-100/90 min-w-0 ${
                               !isLastDay ? 'border-r border-gray-200/80' : ''
                             } ${
-                              isCurrentDay ? 'bg-emerald-50/10' : ''
+                              item.isCurrentDay ? 'bg-emerald-50/10' : ''
                             } ${
                               isSlotDropTarget
                                 ? 'bg-emerald-50 ring-2 ring-emerald-500 ring-inset'
@@ -1146,11 +1193,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {/* Hourly Timeline with Local Phase Information */}
           <div className="divide-y divide-gray-100 max-h-[750px] overflow-y-auto">
             {Array.from({ length: 24 }).map((_, hour) => {
-              const hourPosts = getPostsForDay(currentDate).filter((p) => {
-                const ts = p.scheduledFor || p.publishedAt || p.createdAt;
-                const parts = getLocalTimeParts(ts, timeZone);
-                return parts.hour24 === hour;
-              });
+              const hourPosts = postsBySlotMap.get(`${currentDayKey}_${hour}`) || EMPTY_POSTS;
 
               const isPm = hour >= 12;
               let h12 = hour % 12;
@@ -1230,23 +1273,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               {/* Days matrix */}
               <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[720px] sm:min-h-[840px]">
-                {monthDays.map((day) => {
-                  const dayPosts = getPostsForDay(day);
-                  const isCurrMonth = isSameMonth(day, currentDate);
-                  const isCurrentDay = isToday(day);
-                  const isDropTarget = dragOverDayIso === day.toISOString();
+                {monthDayItems.map((item) => {
+                  const dayPosts = postsByDayMap.get(item.dayKey) || EMPTY_POSTS;
+                  const isDropTarget = dragOverDayIso === item.iso;
 
                   return (
                     <div
-                      key={day.toISOString()}
-                      onDragOver={(e) => handleDragOverDay(e, day)}
-                      onDragLeave={() => handleDragLeaveDay(day)}
-                      onDrop={(e) => handleDropOnDay(e, day)}
-                      onClick={() => openDayModal(day)}
+                      key={item.iso}
+                      onDragOver={(e) => handleDragOverDay(e, item.day)}
+                      onDragLeave={() => handleDragLeaveDay(item.day)}
+                      onDrop={(e) => handleDropOnDay(e, item.day)}
+                      onClick={() => openDayModal(item.day)}
                       className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[140px] sm:min-h-[160px] cursor-pointer ${
                         isDropTarget
                           ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
-                          : isCurrMonth
+                          : item.isCurrMonth
                           ? 'bg-white hover:bg-emerald-50/15'
                           : 'bg-gray-50/40 text-gray-400'
                       }`}
@@ -1255,20 +1296,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       <div className="flex items-center justify-between mb-2">
                         <span
                           className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
-                            isCurrentDay
+                            item.isCurrentDay
                               ? 'bg-emerald-600 text-white shadow-2xs font-extrabold'
-                              : isCurrMonth
+                              : item.isCurrMonth
                               ? 'text-gray-900'
                               : 'text-gray-400'
                           }`}
                         >
-                          {format(day, 'd')}
+                          {item.dayNum}
                         </span>
 
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onCreateAtDate(day);
+                            onCreateAtDate(item.day);
                           }}
                           className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-emerald-100 text-emerald-700 transition-opacity cursor-pointer"
                           title="Schedule post for this date"

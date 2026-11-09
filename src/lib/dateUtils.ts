@@ -12,6 +12,19 @@ export const USER_TZ_STORAGE_KEY = 'postingtube_user_tz';
 export type TimeFormat = '12-hour' | '24-hour';
 export const USER_TIME_FORMAT_KEY = 'postingtube_time_format';
 
+// High-performance shared Intl.DateTimeFormat cache
+const dtfCache = new Map<string, Intl.DateTimeFormat>();
+export function getCachedDTF(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}:${JSON.stringify(options)}`;
+  let formatter = dtfCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    dtfCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+
 /**
  * Dynamically retrieves user's preferred time format:
  * 1. Checks localStorage ('postingtube_time_format').
@@ -357,7 +370,7 @@ export function getLocalDateString(
   const d = parseDateSafe(dateInput, tz);
   if (!d) return '';
   const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
-  const formatter = new Intl.DateTimeFormat('en-CA', {
+  const formatter = getCachedDTF('en-CA', {
     timeZone: activeTz,
     year: 'numeric',
     month: '2-digit',
@@ -412,7 +425,7 @@ export function getLocalTimeParts(
   }
 
   const activeTz = isValidTimezone(tz) ? tz : getUserTimezone();
-  const formatter = new Intl.DateTimeFormat('en-US', {
+  const formatter = getCachedDTF('en-US', {
     timeZone: activeTz,
     hour: 'numeric',
     minute: 'numeric',
@@ -501,7 +514,7 @@ export function formatLocalToUtcIso(
 
     const getLocalMsInTz = (utcMs: number): number => {
       const dObj = new Date(utcMs);
-      const formatter = new Intl.DateTimeFormat('en-US', {
+      const formatter = getCachedDTF('en-US', {
         timeZone: activeTz,
         year: 'numeric',
         month: 'numeric',
