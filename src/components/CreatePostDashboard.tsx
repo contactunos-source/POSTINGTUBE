@@ -420,6 +420,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     showToast('Edited media applied successfully!');
   };
 
+  const handleUpdatePermanentUrl = (mediaId: string, permanentUrl: string) => {
+    setMediaList((prev) =>
+      prev.map((m) => (m.id === mediaId ? { ...m, url: permanentUrl } : m))
+    );
+    setPlatformMediaMap((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (next[key]) {
+          next[key] = next[key].map((m) =>
+            m.id === mediaId ? { ...m, url: permanentUrl } : m
+          );
+        }
+      }
+      return next;
+    });
+  };
+
   const isFreePlan = !subscriptionData || subscriptionData.planId === 'free';
   const monthlyUsage: MonthlyUsageSummary = SubscriptionService.calculateMonthlyUsage(
     allPosts || [],
@@ -4506,6 +4523,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           mediaList={studioMediaList}
           initialIndex={studioActiveIndex}
           onSave={handleSaveEditedMedia}
+          onUpdatePermanentUrl={handleUpdatePermanentUrl}
           onCancel={() => {
             setIsEditMediaStudioOpen(false);
             setEditingMediaTarget(null);
