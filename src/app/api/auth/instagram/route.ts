@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * NOTE ON REDIRECT_URI:
  * Instagram OAuth strictly requires an HTTPS redirect URI matching the Meta App settings.
  * If running on HTTP localhost, it defaults to the registered HTTPS production domain
- * (https://postingtube.vercel.app/api/auth/instagram/callback) and preserves the local origin
+ * (https://planposter.vercel.app/api/auth/instagram/callback) and preserves the local origin
  * in state.returnUrl so the user returns seamlessly to their local dashboard after authorization.
  */
 const META_GRAPH_IG_SCOPES = [
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       // Instagram API requires HTTPS. When testing locally, default to the registered HTTPS Vercel URL
       const httpsBase =
         (process.env.APP_URL?.startsWith('https') && process.env.APP_URL) ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://postingtube.vercel.app');
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://planposter.vercel.app');
       redirectUri = `${httpsBase}/api/auth/instagram/callback`;
     }
   }
