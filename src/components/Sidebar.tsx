@@ -9,8 +9,7 @@ import {
   Settings,
   ChevronDown,
   BarChart3,
-  X,
-  Zap,
+  X,
   LogOut,
   Building2,
   ShieldCheck,
@@ -380,9 +379,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={handleOpenUpgrade}
-                className="w-full mt-3 py-2.5 px-3.5 rounded-xl bg-gray-900 hover:bg-black active:bg-gray-800 text-white text-xs font-semibold flex items-center justify-center space-x-2 shadow-xs transition-all cursor-pointer group"
+                className="w-full mt-3 py-2.5 px-3.5 rounded-xl bg-gray-900 hover:bg-black active:bg-gray-800 text-white text-xs font-semibold flex items-center justify-center shadow-xs transition-all cursor-pointer group"
               >
-                <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform" />
                 <span>Upgrade Plan</span>
               </button>
 
