@@ -206,10 +206,10 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
   const [isApplying, setIsApplying] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
-  // Active Image reference
+  // Active Image reference - always use current active media URL so applied crops persist on canvas
   const activeMedia = imageMediaList[activeIndex];
   const activeMediaId = activeMedia?.id;
-  const activeMediaUrl = activeMedia?.originalUrl || activeMedia?.url;
+  const activeMediaUrl = activeMedia?.url;
 
   const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number }>({
     width: 800,
@@ -586,7 +586,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           continue;
         }
 
-        const sourceUrl = item.originalUrl || item.url;
+        const sourceUrl = item.url;
         const domImage = (i === activeIndex && activeImgRef.current && activeImgRef.current.complete)
           ? activeImgRef.current
           : null;
@@ -607,7 +607,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
           optimisticMediaList.push({
             ...item,
             url: localBlobUrl,
-            originalUrl: item.originalUrl || item.url,
+            originalUrl: localBlobUrl,
             thumbnailUrl: localBlobUrl,
             aspectRatio: editState.aspectRatio,
             editMetadata: {
@@ -863,7 +863,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                       title={`Slide ${idx + 1}`}
                     >
                       <img
-                        src={media.thumbnailUrl || media.originalUrl || media.url}
+                        src={media.thumbnailUrl || media.url}
                         alt={`Slide ${idx + 1}`}
                         className="w-full h-full object-cover"
                       />

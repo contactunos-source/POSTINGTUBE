@@ -422,14 +422,20 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
   const handleUpdatePermanentUrl = (mediaId: string, permanentUrl: string) => {
     setMediaList((prev) =>
-      prev.map((m) => (m.id === mediaId ? { ...m, url: permanentUrl } : m))
+      prev.map((m) =>
+        m.id === mediaId
+          ? { ...m, url: permanentUrl, originalUrl: permanentUrl, thumbnailUrl: permanentUrl }
+          : m
+      )
     );
     setPlatformMediaMap((prev) => {
       const next = { ...prev };
       for (const key of Object.keys(next)) {
         if (next[key]) {
           next[key] = next[key].map((m) =>
-            m.id === mediaId ? { ...m, url: permanentUrl } : m
+            m.id === mediaId
+              ? { ...m, url: permanentUrl, originalUrl: permanentUrl, thumbnailUrl: permanentUrl }
+              : m
           );
         }
       }
