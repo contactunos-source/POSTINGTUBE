@@ -4210,16 +4210,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Media Missing Alert Banner */}
-              {isMediaMissing && (
-                <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5 shadow-2xs">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <span className="font-bold">Media Required:</span> Please attach an image, video, or carousel slide to enable scheduling or publishing.
-                  </div>
-                </div>
-              )}
-
               {scheduleMode === 'schedule' ? (
                 <div className="space-y-4">
                   {/* Professional Date & Time Picker */}
