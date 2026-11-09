@@ -86,7 +86,7 @@ export const AdminLoginGate: React.FC<AdminLoginGateProps> = ({ onSuccess }) => 
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. onmansonu@gmail.com"
+                  placeholder="e.g. planposter.team@gmail.com"
                   className="w-full pl-10 pr-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-gray-900 focus:bg-white transition-all"
                 />
               </div>

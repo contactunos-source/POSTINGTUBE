@@ -355,7 +355,7 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
       }
 
       const ownerEmails = [
-        'onmansonu@gmail.com',
+        'planposter.team@gmail.com',
         'noobsonu001@gmail.com',
         'admin@postingtube.com',
         ...(process.env.OWNER_EMAILS ? process.env.OWNER_EMAILS.split(',') : []),
@@ -468,8 +468,8 @@ export const DatabaseService = {
 
         // For owner accounts, also include DEFAULT_WORKSPACE_ID
         const ownerEmails = [
-          (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase().trim(),
-          'onmansonu@gmail.com',
+          (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase().trim(),
+          'planposter.team@gmail.com',
           'noobsonu001@gmail.com',
           'admin@postingtube.com',
         ];
@@ -670,8 +670,8 @@ export const DatabaseService = {
         }
 
         const ownerEmails = [
-          (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase().trim(),
-          'onmansonu@gmail.com',
+          (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase().trim(),
+          'planposter.team@gmail.com',
           'noobsonu001@gmail.com',
           'admin@postingtube.com',
         ];

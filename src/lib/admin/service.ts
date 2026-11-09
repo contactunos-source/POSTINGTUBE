@@ -183,7 +183,7 @@ async function fetchAggregatedUserProfiles(): Promise<any[]> {
             email: u.email || '',
             full_name: fullName,
             avatar_url: avatarUrl,
-            role: email === (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').toLowerCase() ? 'owner' : 'customer',
+            role: email === (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase() ? 'owner' : 'customer',
             status: u.banned_until ? 'suspended' : 'active',
             plan: 'free',
             billing_cycle: 'monthly',
@@ -555,7 +555,7 @@ export const AdminDataService = {
           id: p.id,
           eventType: p.status === 'published' ? 'POST_PUBLISHED' : p.status === 'scheduled' ? 'POST_SCHEDULED' : 'POST_CREATED',
           description: `Post "${(p.content || '').substring(0, 32)}..." (${p.status})`,
-          userEmail: 'onmansonu@gmail.com',
+          userEmail: 'planposter.team@gmail.com',
           timestamp: p.updated_at || p.created_at,
           status: p.status === 'failed' ? 'failed' : 'success',
         });
@@ -1035,7 +1035,7 @@ export const AdminDataService = {
       const ownerUserId = a.user_id || (a.workspace_id ? wsToUserMap.get(a.workspace_id) : null);
       const owner = (ownerUserId && profileMap.get(ownerUserId)) ||
         (a.user_id && profileMap.get(a.user_id)) ||
-        { email: 'onmansonu@gmail.com', name: 'PostingTube Owner' };
+        { email: 'planposter.team@gmail.com', name: 'PostingTube Owner' };
 
       return {
         id: a.id,
@@ -1155,7 +1155,7 @@ export const AdminDataService = {
       const owner = (customerUserId && profileMap.get(customerUserId)) ||
         (p.user_id && profileMap.get(p.user_id)) ||
         {
-          email: 'onmansonu@gmail.com',
+          email: 'planposter.team@gmail.com',
           name: 'PostingTube Customer',
         };
 

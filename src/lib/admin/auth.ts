@@ -29,8 +29,8 @@ export function isOwnerEmail(email?: string | null): boolean {
   if (!email) return false;
   const cleanEmail = email.trim().toLowerCase();
 
-  const primaryOwner = (process.env.OWNER_EMAIL || 'onmansonu@gmail.com').trim().toLowerCase();
-  const allowlist = (process.env.OWNER_EMAILS || 'onmansonu@gmail.com,admin@postingtube.com')
+  const primaryOwner = (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').trim().toLowerCase();
+  const allowlist = (process.env.OWNER_EMAILS || 'planposter.team@gmail.com,admin@postingtube.com')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);

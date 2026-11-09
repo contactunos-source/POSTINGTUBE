@@ -17,7 +17,7 @@ import { Loader2 } from 'lucide-react';
 export default function AdminPage() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [ownerEmail, setOwnerEmail] = useState<string>('onmansonu@gmail.com');
+  const [ownerEmail, setOwnerEmail] = useState<string>('planposter.team@gmail.com');
 
   // Navigation state with URL & localStorage persistence across page refresh
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {

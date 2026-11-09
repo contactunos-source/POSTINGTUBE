@@ -39,7 +39,7 @@ export async function syncUserProfile(user: any): Promise<boolean> {
     email: user.email,
     fullName,
     avatarUrl,
-    role: user.email === (process.env.NEXT_PUBLIC_OWNER_EMAIL || 'onmansonu@gmail.com') ? 'owner' : 'customer',
+    role: user.email === (process.env.NEXT_PUBLIC_OWNER_EMAIL || 'planposter.team@gmail.com') ? 'owner' : 'customer',
     status: 'active',
     plan: 'free',
     createdAt,

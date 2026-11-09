@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
             email,
             full_name: fullName || email.split('@')[0],
             avatar_url: avatarUrl || '',
-            role: email === (process.env.OWNER_EMAIL || 'onmansonu@gmail.com') ? 'owner' : 'customer',
+            role: email === (process.env.OWNER_EMAIL || 'planposter.team@gmail.com') ? 'owner' : 'customer',
             status: 'active',
             plan: 'free',
             created_at: createdAt || new Date().toISOString(),
