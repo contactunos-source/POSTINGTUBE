@@ -21,10 +21,12 @@ export async function GET(req: NextRequest) {
   const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
   const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
 
-  const baseUrl =
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
+  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+  const baseUrl = isLocalhost
+    ? requestOrigin
+    : (process.env.APP_URL ||
+       process.env.NEXT_PUBLIC_APP_URL ||
+       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin));
   const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const userId = req.nextUrl.searchParams.get('user_id') || '';
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
     userId,
     platform: 'facebook',
     returnUrl: requestOrigin,
+    usedRedirectUri: redirectUri,
   };
   const state = encodeURIComponent(JSON.stringify(stateObj));
 

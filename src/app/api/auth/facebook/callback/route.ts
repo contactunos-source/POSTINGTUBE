@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
   const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
   const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
 
-  const defaultBaseUrl =
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
-  const redirectUri = `${defaultBaseUrl}/api/auth/facebook/callback`;
+  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+  const defaultBaseUrl = isLocalhost
+    ? requestOrigin
+    : (process.env.APP_URL ||
+       process.env.NEXT_PUBLIC_APP_URL ||
+       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin));
+  let redirectUri = `${defaultBaseUrl}/api/auth/facebook/callback`;
   const appId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
   const appSecret = process.env.FACEBOOK_APP_SECRET;
 
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
       workspaceId = parsed.workspaceId || '';
       userId = parsed.userId || '';
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
+      if (parsed.usedRedirectUri) redirectUri = parsed.usedRedirectUri;
     } catch {
       workspaceId = stateRaw;
     }
