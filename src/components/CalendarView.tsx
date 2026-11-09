@@ -507,7 +507,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           e.stopPropagation();
           openPostModal(post);
         }}
-        className={`group/card bg-white border rounded-xl p-2.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
+        className={`group/card bg-white border rounded-2xl p-3 sm:p-3.5 transition-all select-none relative shadow-xs hover:shadow-md cursor-pointer ${
           post.status === 'published'
             ? 'border-emerald-200/90 hover:border-emerald-400'
             : post.status === 'scheduled'
@@ -519,19 +519,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             : 'border-rose-200/90 hover:border-rose-400 bg-rose-50/15'
         }`}
       >
-        {/* Top Header: Time on left, Account Badges with Red Icon for Failed Accounts on right */}
-        <div className="flex items-center justify-between mb-1.5 gap-1.5 min-w-0">
+        {/* Top Header: Time on left, Account Badges on right */}
+        <div className="flex items-center justify-between mb-2 gap-2 min-w-0">
           {/* Exact Time Display with Period Phase */}
-          <div className="flex items-center space-x-1 shrink-0">
-            <span className="text-[11px] font-bold text-gray-900 tracking-tight">
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <span className="text-xs sm:text-[13px] font-extrabold text-gray-900 tracking-tight">
               {timeStr}
             </span>
-            <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded capitalize hidden sm:inline">
+            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-1.5 py-0.5 rounded-md capitalize inline-flex items-center">
               {localParts.periodLabel}
             </span>
           </div>
 
-          {/* Targeted Social Media Icons: Red border + badge if account hasn't posted or failed */}
+          {/* Targeted Social Media Icons */}
           <div className="flex items-center space-x-1 shrink-0">
             {postAccounts.map((acc) => {
               const status = getAccountPublishStatus(post, acc);
@@ -542,7 +542,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               return (
                 <div
                   key={acc.id}
-                  className={`relative w-4.5 h-4.5 rounded-full flex items-center justify-center p-0.5 shadow-2xs transition-all ${
+                  className={`relative w-5 h-5 rounded-full flex items-center justify-center p-0.5 shadow-2xs transition-all ${
                     isFailed
                       ? 'bg-rose-50 border border-rose-500 text-rose-600 ring-1 ring-rose-400/50'
                       : isSuccess
@@ -557,7 +557,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       : 'Scheduled'
                   }`}
                 >
-                  <PlatformLogo platform={acc.platform} className={`w-3 h-3 ${isFailed ? 'text-rose-600' : ''}`} />
+                  <PlatformLogo platform={acc.platform} className={`w-3.5 h-3.5 ${isFailed ? 'text-rose-600' : ''}`} />
                   {isFailed && (
                     <span
                       className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-600 border border-white shadow-xs flex items-center justify-center"
@@ -572,7 +572,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             {/* Overall Post Status Dot */}
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ml-0.5 ${
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ml-1 ${
                 post.status === 'published'
                   ? 'bg-emerald-500'
                   : post.status === 'scheduled'
@@ -588,15 +588,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         </div>
 
-        {/* Content Body: Caption Preview on left, Thumbnail on right (matches reference image) */}
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-[11px] font-medium text-gray-800 line-clamp-2 leading-snug flex-1 break-words">
-            {post.content || '(Media asset)'}
-          </p>
+        {/* Content Body: Caption Preview on left, Rectangular Media Thumbnail on right */}
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-relaxed break-words">
+              {post.content || (
+                <span className="text-gray-400 italic font-normal">
+                  {post.media?.length ? '(Media asset)' : '(Empty post)'}
+                </span>
+              )}
+            </p>
+            {post.postType && post.postType !== 'post' && (
+              <span className="inline-block mt-1 text-[9px] font-bold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                {post.postType}
+              </span>
+            )}
+          </div>
 
-          {/* Media thumbnail */}
+          {/* Rectangular media thumbnail preview */}
           {media && (
-            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-950 border border-gray-200/80 relative">
+            <div className="w-14 h-14 sm:w-16 sm:h-14 rounded-xl overflow-hidden shrink-0 bg-gray-950 border border-gray-200 shadow-2xs relative group-hover/card:border-emerald-300 transition-colors">
               {isVideo ? (
                 <div className="w-full h-full relative flex items-center justify-center bg-gray-950">
                   {ytThumb || hasRealImageThumb ? (
@@ -615,8 +626,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     />
                   )}
                   <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
-                    <div className="w-3.5 h-3.5 rounded-full bg-black/60 flex items-center justify-center shadow-xs">
-                      <Play className="w-2 h-2 text-white fill-white ml-0.5" />
+                    <div className="w-4 h-4 rounded-full bg-black/60 flex items-center justify-center shadow-xs">
+                      <Play className="w-2.5 h-2.5 text-white fill-white ml-0.5" />
                     </div>
                   </div>
                 </div>
@@ -624,7 +635,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <img
                   src={media.thumbnailUrl || media.url}
                   alt={media.name || 'Asset thumbnail'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-200"
                 />
               )}
             </div>
@@ -635,7 +646,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto font-sans space-y-4">
+    <div className="p-3 sm:p-5 lg:p-6 w-full font-sans space-y-4 min-w-0">
       {/* TOP HEADER ROW: Calendar Title & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
         <div className="flex items-center space-x-3">
@@ -949,9 +960,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'week' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[840px] max-h-[800px] overflow-y-auto">
+            <div className="min-w-[960px] max-h-[840px] overflow-y-auto">
               {/* Single Unified CSS Grid for Header and all 24 Hour Rows — Guaranteed Pixel-Perfect Column Alignment */}
-              <div className="grid grid-cols-[68px_repeat(7,minmax(0,1fr))] relative">
+              <div className="grid grid-cols-[76px_repeat(7,minmax(0,1fr))] relative">
                 {/* 1. Header Cells (Row 0): Sticky at top, perfectly synchronized with body columns */}
                 {/* Timezone corner header with quick modal launcher */}
                 <button
@@ -1007,7 +1018,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   return (
                     <React.Fragment key={slot.hour}>
                       {/* Column 0: Time Gutter Cell strictly aligned to this hour row */}
-                      <div className="border-b border-r border-gray-200/80 bg-gray-50/50 min-h-[68px] flex flex-col justify-start items-end pr-2.5 pt-1.5 select-none">
+                      <div className="border-b border-r border-gray-200/80 bg-gray-50/50 min-h-[96px] flex flex-col justify-start items-end pr-3 pt-2 select-none">
                         <span className="text-[11px] font-bold text-gray-900 leading-tight">
                           {slot.label}
                         </span>
@@ -1062,7 +1073,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               target.setHours(slot.hour, 0, 0, 0);
                               onCreateAtDate(target);
                             }}
-                            className={`min-h-[68px] p-1.5 relative transition-all group cursor-pointer border-b border-gray-100/90 min-w-0 ${
+                            className={`min-h-[96px] p-2 relative transition-all group cursor-pointer border-b border-gray-100/90 min-w-0 ${
                               !isLastDay ? 'border-r border-gray-200/80' : ''
                             } ${
                               isCurrentDay ? 'bg-emerald-50/10' : ''
@@ -1074,7 +1085,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           >
                             {/* Post Cards scheduled in this exact slot */}
                             {slotPosts.length > 0 ? (
-                              <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-0.5">
+                              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-0.5">
                                 {slotPosts.map((post) => (
                                   <div
                                     key={post.id}
@@ -1086,7 +1097,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </div>
                             ) : (
                               /* Clean interactive hover to schedule at this slot */
-                              <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity min-h-[48px]">
+                              <div className="opacity-0 group-hover:opacity-100 h-full flex items-center justify-center transition-opacity min-h-[72px]">
                                 <span className="text-[10px] font-semibold text-gray-400 group-hover:text-emerald-700 flex items-center space-x-1">
                                   <Plus className="w-2.5 h-2.5 text-emerald-600" />
                                   <span>{slot.label}</span>
@@ -1205,7 +1216,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {viewMode === 'month' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <div className="min-w-[620px]">
+            <div className="min-w-[860px]">
               {/* Days of week header */}
               <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/90 text-center py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold text-gray-700 uppercase tracking-wider">
                 <div><span className="hidden sm:inline">Sunday</span><span className="sm:hidden">Sun</span></div>
@@ -1218,7 +1229,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               {/* Days matrix */}
-              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[620px] sm:min-h-[720px]">
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-gray-100 min-h-[720px] sm:min-h-[840px]">
                 {monthDays.map((day) => {
                   const dayPosts = getPostsForDay(day);
                   const isCurrMonth = isSameMonth(day, currentDate);
@@ -1232,7 +1243,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onDragLeave={() => handleDragLeaveDay(day)}
                       onDrop={(e) => handleDropOnDay(e, day)}
                       onClick={() => openDayModal(day)}
-                      className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[120px] sm:min-h-[135px] cursor-pointer ${
+                      className={`group relative p-2.5 flex flex-col justify-between transition-all min-h-[140px] sm:min-h-[160px] cursor-pointer ${
                         isDropTarget
                           ? 'bg-emerald-50/70 ring-2 ring-emerald-500 ring-inset'
                           : isCurrMonth
@@ -1267,7 +1278,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       </div>
 
                       {/* Day's scheduled posts */}
-                      <div className="flex-1 space-y-2 overflow-y-auto max-h-36 scrollbar-none">
+                      <div className="flex-1 space-y-2 overflow-y-auto max-h-48 scrollbar-none">
                         {dayPosts.slice(0, 3).map((post) => (
                           <div key={post.id} onClick={(e) => e.stopPropagation()}>
                             {renderPostCard(post, { compact: true })}
