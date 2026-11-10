@@ -33,8 +33,8 @@ const DIRECT_IG_SCOPES = [
 ];
 
 export async function GET(req: NextRequest) {
-  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '3482720281909354';
+  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID || fbAppId;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const userId = req.nextUrl.searchParams.get('user_id') || '';
   const requestedMode = req.nextUrl.searchParams.get('mode'); // 'direct' | 'facebook'
@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
   const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
 
   // Decide mode: use direct Instagram OAuth if an INSTAGRAM_APP_ID exists and mode is not forced to facebook
-  const useDirect = igAppId && requestedMode !== 'facebook';
+  // Always default to direct Instagram OAuth (instagram.com) unless explicitly requested via Facebook
+  const useDirect = requestedMode !== 'facebook';
 
   // Compute compliant redirect URI
   let redirectUri = process.env.INSTAGRAM_REDIRECT_URI;

@@ -35,14 +35,14 @@ export async function GET(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
 
-  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-  const fbAppSecret = process.env.FACEBOOK_APP_SECRET;
-  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '3482720281909354';
+  const fbAppSecret = process.env.FACEBOOK_APP_SECRET || 'b1433776560f5cf75695f4785a8c9fa6';
+  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID || fbAppId;
   const igAppSecret = process.env.INSTAGRAM_APP_SECRET || fbAppSecret;
 
   let workspaceId = '';
   let userId = '';
-  let authMode: 'direct' | 'facebook' = 'facebook';
+  let authMode: 'direct' | 'facebook' = 'direct';
   let returnBaseUrl = defaultBaseUrl;
   let activeRedirectUri = `${defaultBaseUrl}/api/auth/instagram/callback`;
 
@@ -51,8 +51,10 @@ export async function GET(req: NextRequest) {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
       userId = parsed.userId || '';
-      if (parsed.mode === 'direct') {
+      if (parsed.mode === 'direct' || !parsed.mode) {
         authMode = 'direct';
+      } else if (parsed.mode === 'facebook') {
+        authMode = 'facebook';
       }
       if (parsed.returnUrl) {
         returnBaseUrl = parsed.returnUrl;
@@ -98,27 +100,57 @@ export async function GET(req: NextRequest) {
     // -------------------------------------------------------------------------
     // FLOW A: DIRECT INSTAGRAM LOGIN (via Instagram Login for Business)
     // -------------------------------------------------------------------------
-    if (authMode === 'direct' && igAppId && igAppSecret) {
+    if (authMode === 'direct') {
+      const effectiveId = igAppId || fbAppId || '3482720281909354';
+      const effectiveSecret = igAppSecret || fbAppSecret || 'b1433776560f5cf75695f4785a8c9fa6';
+
       const directTokenForm = new URLSearchParams();
-      directTokenForm.append('client_id', igAppId);
-      directTokenForm.append('client_secret', igAppSecret);
+      directTokenForm.append('client_id', effectiveId);
+      directTokenForm.append('client_secret', effectiveSecret);
       directTokenForm.append('grant_type', 'authorization_code');
       directTokenForm.append('redirect_uri', activeRedirectUri);
       directTokenForm.append('code', cleanCode);
 
-      const directRes = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: directTokenForm.toString(),
-      });
+      let directData: any = null;
+      let tokenErrorMsg = '';
 
-      const directData = await directRes.json();
+      // 1. Try api.instagram.com/oauth/access_token
+      try {
+        const directRes = await fetch('https://api.instagram.com/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: directTokenForm.toString(),
+        });
+        directData = await directRes.json();
+      } catch (err: any) {
+        tokenErrorMsg = err?.message || 'Instagram API network error';
+      }
 
-      if (directData.error_type || directData.error_message || directData.error) {
+      // 2. If api.instagram.com returned error or didn't return access_token, try graph.facebook.com
+      if (!directData?.access_token) {
+        try {
+          const fbTokenRes = await fetch('https://graph.facebook.com/v20.0/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: directTokenForm.toString(),
+          });
+          const fbTokenData = await fbTokenRes.json();
+          if (fbTokenData.access_token) {
+            directData = fbTokenData;
+          } else if (fbTokenData.error) {
+            tokenErrorMsg = fbTokenData.error.message || tokenErrorMsg;
+          }
+        } catch (e: any) {
+          console.warn('Fallback graph.facebook.com token exchange failed:', e);
+        }
+      }
+
+      if (!directData?.access_token) {
         return makeRedirect({
           error:
-            directData.error_message ||
-            directData.error?.message ||
+            directData?.error_message ||
+            directData?.error?.message ||
+            tokenErrorMsg ||
             'Failed to exchange authorization code with Instagram.',
         });
       }

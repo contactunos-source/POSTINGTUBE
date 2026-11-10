@@ -33,11 +33,8 @@ export async function POST(req: NextRequest) {
       igUserId = envIgUserId;
     }
 
-    if (!accessToken || accessToken.startsWith('IG')) {
-      // For publishing via Graph API, Facebook Page Token with instagram permissions is the primary supported token
-      if (envFbToken) {
-        accessToken = envFbToken;
-      }
+    if (!accessToken && envFbToken) {
+      accessToken = envFbToken;
     }
 
     if (!accessToken) {
