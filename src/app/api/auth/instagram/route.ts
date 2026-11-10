@@ -48,17 +48,18 @@ export async function GET(req: NextRequest) {
   // Always default to direct Instagram OAuth (instagram.com) unless explicitly requested via Facebook
   const useDirect = requestedMode !== 'facebook';
 
-  // Compute compliant redirect URI
+  // Compute compliant canonical redirect URI
   let redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
   if (!redirectUri) {
-    if (requestOrigin.startsWith('https://')) {
+    if (requestOrigin.includes('planposter.com') || requestOrigin.includes('vercel.app')) {
+      redirectUri = 'https://planposter.com/api/auth/instagram/callback';
+    } else if (requestOrigin.startsWith('https://')) {
       redirectUri = `${requestOrigin}/api/auth/instagram/callback`;
     } else {
-      // Instagram API requires HTTPS. When testing locally, default to the registered HTTPS production domain
       const httpsBase =
         (process.env.APP_URL?.startsWith('https') && process.env.APP_URL) ||
         (process.env.NEXT_PUBLIC_APP_URL?.startsWith('https') && process.env.NEXT_PUBLIC_APP_URL) ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://planposter.com');
+        'https://planposter.com';
       redirectUri = `${httpsBase}/api/auth/instagram/callback`;
     }
   }
