@@ -2,22 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Dedicated Instagram OAuth Route.
+ * Completely isolated from Facebook OAuth to prevent any cross-linking or shared redirects.
+ * 
+ * Supports:
+ * 1. Direct Instagram Login for Business (https://www.instagram.com/oauth/authorize)
+ *    Used when INSTAGRAM_APP_ID is configured.
+ * 2. Meta Graph API via Facebook Login (https://www.facebook.com/v20.0/dialog/oauth)
+ *    Requests official Instagram publishing permissions.
  *
- * Implements Meta's official "Instagram API (Unified Login) - Instagram Login Compatible"
- * using Configuration ID: 1863450354684620 and App ID: 3482720281909354.
- *
- * This allows users to log in directly with their Instagram account credentials,
- * shows the native Instagram permission authorization screen (like Buffer),
- * and redirects securely to our callback without "Invalid redirect_uri" errors.
+ * NOTE ON REDIRECT_URI:
+ * Instagram OAuth strictly requires an HTTPS redirect URI matching the Meta App settings.
+ * If running on HTTP localhost, it defaults to the registered HTTPS production domain
+ * (https://planposter.vercel.app/api/auth/instagram/callback) and preserves the local origin
+ * in state.returnUrl so the user returns seamlessly to their local dashboard after authorization.
  */
-
-const DIRECT_IG_SCOPES = [
-  'instagram_business_basic',
-  'instagram_business_content_publish',
-  'instagram_business_manage_messages',
-  'instagram_business_manage_comments',
-];
-
 const META_GRAPH_IG_SCOPES = [
   'public_profile',
   'pages_show_list',
@@ -27,25 +25,36 @@ const META_GRAPH_IG_SCOPES = [
   'instagram_content_publish',
 ];
 
+const DIRECT_IG_SCOPES = [
+  'instagram_business_basic',
+  'instagram_business_content_publish',
+  'instagram_business_manage_messages',
+  'instagram_business_manage_comments',
+];
+
 export async function GET(req: NextRequest) {
   const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '3482720281909354';
   const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID || '2116988269210142';
-  const configId = process.env.FACEBOOK_INSTAGRAM_CONFIG_ID || '1863450354684620';
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const userId = req.nextUrl.searchParams.get('user_id') || '';
-  const requestedMode = req.nextUrl.searchParams.get('mode'); // 'unified' (default) | 'instagram_dot_com' | 'facebook'
+  const requestedMode = req.nextUrl.searchParams.get('mode'); // 'direct' | 'facebook'
 
   // Detect incoming request host and protocol dynamically
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
   const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
   const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
 
-  // Determine production HTTPS callback URL
+  // Decide mode: use direct Instagram OAuth if an INSTAGRAM_APP_ID exists and mode is not forced to facebook
+  // Always default to direct Instagram OAuth (instagram.com) unless explicitly requested via Facebook
+  const useDirect = requestedMode !== 'facebook';
+
+  // Compute compliant redirect URI
   let redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
   if (!redirectUri) {
     if (requestOrigin.startsWith('https://')) {
       redirectUri = `${requestOrigin}/api/auth/instagram/callback`;
     } else {
+      // Instagram API requires HTTPS. When testing locally, default to the registered HTTPS production domain
       const httpsBase =
         (process.env.APP_URL?.startsWith('https') && process.env.APP_URL) ||
         (process.env.NEXT_PUBLIC_APP_URL?.startsWith('https') && process.env.NEXT_PUBLIC_APP_URL) ||
@@ -54,62 +63,36 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // OPTION 1: Meta Unified Login with Configuration ID (RECOMMENDED / DEFAULT)
-  // This is Meta's official Instagram Login for Business framework.
-  // Presents Instagram Login option & consent dialog directly.
-  // ---------------------------------------------------------------------------
-  if (!requestedMode || requestedMode === 'unified' || requestedMode === 'direct') {
+  if (useDirect) {
     const stateObj = {
       workspaceId,
       userId,
       platform: 'instagram',
-      mode: 'unified',
-      returnUrl: requestOrigin,
-      usedRedirectUri: redirectUri,
-    };
-    const state = encodeURIComponent(JSON.stringify(stateObj));
-
-    // Notice: Uses client_id=fbAppId with config_id=1863450354684620.
-    // Permissions are managed by the configuration on Meta's servers.
-    const unifiedUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(
-      fbAppId
-    )}&config_id=${encodeURIComponent(
-      configId
-    )}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&response_type=code&state=${state}&display=popup&override_default_response_type=true`;
-
-    return NextResponse.redirect(unifiedUrl);
-  }
-
-  // ---------------------------------------------------------------------------
-  // OPTION 2: Legacy Direct instagram.com Authorization (for standalone IG apps)
-  // ---------------------------------------------------------------------------
-  if (requestedMode === 'instagram_dot_com') {
-    const stateObj = {
-      workspaceId,
-      userId,
-      platform: 'instagram',
-      mode: 'instagram_dot_com',
+      mode: 'direct',
       returnUrl: requestOrigin,
       usedRedirectUri: redirectUri,
     };
     const state = encodeURIComponent(JSON.stringify(stateObj));
     const scopes = DIRECT_IG_SCOPES.join(',');
 
-    const directUrl = `https://www.instagram.com/oauth/authorize?client_id=${encodeURIComponent(
+    const directUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(
       igAppId
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
       scopes
-    )}&response_type=code&state=${state}&enable_fb_login=1&force_reauth=true`;
+    )}&response_type=code&state=${state}`;
 
     return NextResponse.redirect(directUrl);
   }
 
-  // ---------------------------------------------------------------------------
-  // OPTION 3: Classic Meta Graph API via Facebook Login dialog
-  // ---------------------------------------------------------------------------
+  // Fallback to Meta Graph API via Facebook Login dialog
+  if (!fbAppId) {
+    return NextResponse.redirect(
+      `${requestOrigin}/dashboard?tab=connections&platform=instagram&error=${encodeURIComponent(
+        'Please configure FACEBOOK_APP_ID in your environment variables to enable Instagram Login.'
+      )}`
+    );
+  }
+
   const scopes = META_GRAPH_IG_SCOPES.join(',');
   const stateObj = {
     workspaceId,

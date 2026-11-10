@@ -43,15 +43,6 @@ export async function GET(req: NextRequest) {
       userId = parsed.userId || '';
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
       if (parsed.usedRedirectUri) redirectUri = parsed.usedRedirectUri;
-
-      // If this was an Instagram authorization flow, seamlessly forward to Instagram callback handler
-      if (parsed.platform === 'instagram') {
-        const forwardUrl = new URL('/api/auth/instagram/callback', req.nextUrl.origin);
-        req.nextUrl.searchParams.forEach((value, key) => {
-          forwardUrl.searchParams.set(key, value);
-        });
-        return NextResponse.redirect(forwardUrl.toString());
-      }
     } catch {
       workspaceId = stateRaw;
     }
