@@ -333,9 +333,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     setGenericHandle('');
     setGenericToken('');
 
-    // Direct Instagram OAuth connection - zero intermediate screens or popups
+    // Single check pop-up for Instagram connection inspired by Buffer
     if (platform === 'instagram') {
-      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+      setConnectingPlatform('instagram');
+      setIgStep('check_account');
       return;
     }
 
@@ -729,22 +730,22 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         </div>
       )}
 
-      {/* Redesigned Social Account Connection Result Screen (Matching Reference Image) */}
+      {/* Redesigned Social Account Connection Result Screen (Matching PlanPoster White Theme) */}
       {resultModal && resultModal.isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) setResultModal(null);
           }}
         >
           <div
             ref={resultModalRef}
-            className="bg-[#1c1d1f] border border-zinc-800 text-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200"
+            className="bg-white border border-gray-200 text-gray-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200"
           >
             {/* Top Close Button 'X' */}
             <button
               onClick={() => setResultModal(null)}
-              className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer z-10"
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer z-10"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -754,7 +755,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             <div className="p-8 sm:p-10 text-center">
               {/* Centered Avatar Box with Corner Platform Badge */}
               <div className="relative inline-block mx-auto mb-6">
-                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-zinc-800 border-2 border-white/20 shadow-xl flex items-center justify-center">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 border-2 border-gray-200 shadow-md flex items-center justify-center">
                   {resultModal.avatarUrl ? (
                     <img
                       src={resultModal.avatarUrl}
@@ -763,11 +764,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white font-bold text-2xl">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-800 font-bold text-2xl">
                       {resultModal.accountName ? (
                         resultModal.accountName.charAt(0).toUpperCase()
                       ) : (
-                        <PlatformLogo platform={resultModal.platform} className="w-8 h-8 text-white" />
+                        <PlatformLogo platform={resultModal.platform} className="w-8 h-8 text-gray-700" />
                       )}
                     </div>
                   )}
@@ -776,38 +777,40 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 {/* Platform Badge on Bottom-Right of Avatar */}
                 <div className="absolute -bottom-1.5 -right-1.5">
                   {resultModal.status === 'error' ? (
-                    <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center shadow-md border-2 border-[#1c1d1f]">
+                    <div className="w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center shadow-md border-2 border-white">
                       <AlertCircle className="w-3.5 h-3.5 text-white" />
                     </div>
                   ) : (
-                    renderPlatformCornerBadge(resultModal.platform)
+                    <div className="rounded-full border-2 border-white shadow-xs">
+                      {renderPlatformCornerBadge(resultModal.platform)}
+                    </div>
                   )}
                 </div>
               </div>
 
               {/* Title / Heading */}
               {resultModal.status === 'already_connected' ? (
-                <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-3">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight mb-3">
                   &apos;{resultModal.accountName || 'This channel'}&apos; is already connected
                 </h2>
               ) : resultModal.status === 'success' ? (
                 <>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight mb-2">
                     Account Connected Successfully!
                   </h2>
                   {resultModal.accountName && (
-                    <p className="text-sm font-semibold text-emerald-400 mb-2">
+                    <p className="text-sm font-bold text-emerald-600 mb-2">
                       &apos;{resultModal.accountName}&apos;
                     </p>
                   )}
                 </>
               ) : (
                 <>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight mb-2">
                     Connection Failed
                   </h2>
                   {resultModal.accountName && (
-                    <p className="text-sm font-semibold text-rose-400 mb-2">
+                    <p className="text-sm font-bold text-rose-600 mb-2">
                       &apos;{resultModal.accountName}&apos;
                     </p>
                   )}
@@ -816,20 +819,20 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
               {/* Short Description */}
               {resultModal.status === 'already_connected' ? (
-                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                <p className="text-xs sm:text-sm text-gray-600 max-w-sm mx-auto leading-relaxed">
                   If you meant to connect another account, please make sure you are logged into the right account on{' '}
-                  <strong className="text-zinc-200">
+                  <strong className="text-gray-900 font-semibold">
                     {PLATFORM_CONFIGS[resultModal.platform]?.name || resultModal.platform}
                   </strong>{' '}
                   and try connecting your channel again.
                 </p>
               ) : resultModal.status === 'success' ? (
-                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                <p className="text-xs sm:text-sm text-gray-600 max-w-sm mx-auto leading-relaxed">
                   Your {PLATFORM_CONFIGS[resultModal.platform]?.name || resultModal.platform} account is now
                   connected and ready for automated publishing and analytics.
                 </p>
               ) : (
-                <p className="text-xs sm:text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                <p className="text-xs sm:text-sm text-gray-600 max-w-sm mx-auto leading-relaxed">
                   {resultModal.errorMessage ||
                     'Unable to connect your account. Please check your account permissions and try again.'}
                 </p>
@@ -837,12 +840,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             </div>
 
             {/* Bottom Footer Separator & Action Buttons */}
-            <div className="px-8 py-5 border-t border-zinc-800/80 bg-[#18191b] flex items-center justify-end">
+            <div className="px-8 py-4 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end">
               {resultModal.status === 'already_connected' ? (
                 <button
                   type="button"
                   onClick={() => setResultModal(null)}
-                  className="px-6 py-2.5 rounded-lg bg-[#94d877] hover:bg-[#85c968] text-zinc-950 font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                  className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
                 >
                   Back to Channels
                 </button>
@@ -850,7 +853,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 <button
                   type="button"
                   onClick={() => setResultModal(null)}
-                  className="px-6 py-2.5 rounded-lg bg-[#94d877] hover:bg-[#85c968] text-zinc-950 font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
                 >
                   Save / Continue
                 </button>
@@ -859,7 +862,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   <button
                     type="button"
                     onClick={() => setResultModal(null)}
-                    className="px-4 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
                   >
                     Back to Channels
                   </button>
@@ -870,7 +873,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       setResultModal(null);
                       handleStartConnect(plat);
                     }}
-                    className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
                   >
                     Try Again
                   </button>
@@ -1247,382 +1250,216 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         </div>
       </div>
       
-      {/* Buffer-Style Step-by-Step Connection Modal */}
+      {/* Buffer-Style Step-by-Step Connection Modal (White Theme) */}
       {connectingPlatform && (
         <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setConnectingPlatform(null);
           }}
         >
           <div
             ref={connectModalRef}
-            className="bg-[#18191a] text-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-800 animate-in fade-in zoom-in-95"
+            className="bg-white text-gray-900 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-200/90 animate-in fade-in zoom-in-95"
           >
             {/* Top Navigation Bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/80">
-              <div className="flex items-center space-x-3">
-                {/* Back navigation logic */}
-                {connectingPlatform === 'instagram' ? (
-                  igStep === 'confirm' ? (
-                    <button
-                      onClick={() => {
-                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                      }}
-                      className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer font-medium"
-                    >
-                      Switch Account
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setConnectingPlatform(null)}
-                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  )
-                ) : connectingPlatform === 'facebook' ? (
-                  fbStep === 'confirm' ? (
-                    <button
-                      onClick={() => {
-                        window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                      }}
-                      className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer font-medium"
-                    >
-                      Switch Account
-                    </button>
-                  ) : fbStep === 'auth' ? (
-                    <button
-                      onClick={() => setFbStep('select_type')}
-                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setConnectingPlatform(null)}
-                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  )
-                ) : (
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
+              {/* Back navigation */}
+              {connectingPlatform === 'instagram' ? (
+                <button
+                  type="button"
+                  onClick={() => setConnectingPlatform(null)}
+                  className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              ) : connectingPlatform === 'facebook' ? (
+                fbStep === 'confirm' ? (
                   <button
-                    onClick={() => setConnectingPlatform(null)}
-                    className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium"
+                  >
+                    Switch Account
+                  </button>
+                ) : fbStep === 'auth' ? (
+                  <button
+                    type="button"
+                    onClick={() => setFbStep('select_type')}
+                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    aria-label="Back"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
-                )}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConnectingPlatform(null)}
+                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConnectingPlatform(null)}
+                  className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
 
-                {/* Logo interchange indicator with Official PlanPoster Logo and Exact Platform Branding */}
-                <div className="flex items-center space-x-2 text-xs text-gray-400">
-                  <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center p-1 border border-white/10 shadow-xs shrink-0">
-                    <img
-                      src="/images/plan-poster-bird-white.png"
-                      alt="Plan Poster"
-                      className="w-full h-full object-contain select-none"
-                      draggable={false}
-                    />
-                  </div>
-                  <span className="text-gray-500 font-bold text-xs">⇄</span>
-                  {connectingPlatform && (
-                    <div
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs ${
-                        connectingPlatform === 'instagram'
-                          ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600'
-                          : connectingPlatform === 'facebook'
-                          ? 'bg-[#1877F2]'
-                          : connectingPlatform === 'youtube'
-                          ? 'bg-[#FF0000]'
-                          : connectingPlatform === 'linkedin'
-                          ? 'bg-[#0A66C2]'
-                          : connectingPlatform === 'pinterest'
-                          ? 'bg-[#E60023]'
-                          : connectingPlatform === 'threads' || connectingPlatform === 'tiktok' || connectingPlatform === 'twitter'
-                          ? 'bg-black border border-gray-700'
-                          : 'bg-[#0085ff]'
-                      }`}
-                    >
-                      <PlatformLogo platform={connectingPlatform} className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+              {/* Centered Logo Interchange: Official PlanPoster Bird ⇄ Platform Logo (Balanced Size) */}
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center p-1.5 shadow-xs shrink-0">
+                  <img
+                    src="/images/plan-poster-bird-white.png"
+                    alt="Plan Poster"
+                    className="w-5.5 h-5.5 object-contain select-none"
+                    draggable={false}
+                  />
                 </div>
+                <span className="text-gray-400 font-bold text-sm mx-1 select-none">⇄</span>
+                {connectingPlatform && (
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs ${
+                      connectingPlatform === 'instagram'
+                        ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600'
+                        : connectingPlatform === 'facebook'
+                        ? 'bg-[#1877F2]'
+                        : connectingPlatform === 'youtube'
+                        ? 'bg-[#FF0000]'
+                        : connectingPlatform === 'linkedin'
+                        ? 'bg-[#0A66C2]'
+                        : connectingPlatform === 'pinterest'
+                        ? 'bg-[#E60023]'
+                        : connectingPlatform === 'threads' || connectingPlatform === 'tiktok' || connectingPlatform === 'twitter'
+                        ? 'bg-black border border-gray-200'
+                        : 'bg-[#0085ff]'
+                    }`}
+                  >
+                    <PlatformLogo platform={connectingPlatform} className="w-5 h-5 text-white" />
+                  </div>
+                )}
               </div>
 
+              {/* Close Button */}
               <button
+                type="button"
                 onClick={() => setConnectingPlatform(null)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* INSTAGRAM WORKFLOW (Recreating Buffer UX Exactly from Screenshots) */}
+            {/* INSTAGRAM WORKFLOW (Clean White Single Pop-up Matching Inspiration) */}
             {connectingPlatform === 'instagram' ? (
-              <div className="p-6">
-                {/* Direct Instagram Connection */}
-                {igStep !== 'confirm' && (
-                  <div className="space-y-5 animate-in fade-in duration-200 text-center py-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center mx-auto shadow-lg">
-                      <PlatformLogo platform="instagram" className="w-7 h-7" />
+              <div className="p-6 sm:p-7">
+                {/* Title & Subtitle */}
+                <div className="text-center pb-5">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight">
+                    First, Check Your Instagram Account
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+                    Make sure you&apos;re signed in to the Instagram account you want to connect
+                  </p>
+                </div>
+
+                {/* 3-Point Card */}
+                <div className="bg-gray-50/90 border border-gray-200/90 rounded-2xl p-5 sm:p-6 space-y-5 text-left">
+                  {/* Point 1: Open Instagram */}
+                  <div className="flex items-start space-x-3.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-2xs">
+                      1
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-white tracking-tight">
-                        Connect to Instagram
-                      </h2>
-                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                        Redirecting to Instagram to authenticate your professional profile directly...
+                    <div className="space-y-2.5 flex-1">
+                      <p className="text-xs sm:text-sm text-gray-800 font-medium leading-relaxed">
+                        Open Instagram and check which account you&apos;re signed in to.
                       </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                      }}
-                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] active:bg-[#199f4a] text-black transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-2"
-                    >
-                      <PlatformLogo platform="instagram" className="w-4 h-4" />
-                      <span>Continue to Instagram</span>
-                    </button>
-                    <div className="pt-2 border-t border-gray-800">
-                      <button
-                        onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
-                      >
-                        Cancel
-                      </button>
+                      <div>
+                        <a
+                          href="https://www.instagram.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs transition-colors shadow-2xs cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Open Instagram</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {/* STEP 4: Confirm your Account */}
-                {igStep === 'confirm' && (
-                  <div className="space-y-5 animate-in fade-in duration-200">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
-                        Confirm Instagram Account
-                      </h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Connect your Instagram Professional profile with official Meta Graph API v20.0 publishing.
+                  {/* Point 2: Professional Account Requirement */}
+                  <div className="flex items-start space-x-3.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-2xs">
+                      2
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <p className="text-xs sm:text-sm text-gray-800 font-medium leading-relaxed">
+                        Make sure it is a <strong className="text-gray-950 font-bold">Professional (Business or Creator)</strong> account.
+                      </p>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Only professional accounts can be connected. Personal accounts are not supported by the Meta API. If needed, switch to a free professional account in your Instagram settings.
                       </p>
                     </div>
+                  </div>
 
-                    {/* Case 1: No Instagram account found linked to Meta assets */}
-                    {(noInstagramFound || discoveredPages.length === 0) ? (
-                      <div className="p-5 rounded-2xl border border-amber-500/40 bg-[#191612] space-y-4">
-                        <div className="flex items-start space-x-3.5">
-                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-                            <AlertCircle className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold text-white">No Linked Instagram Account Found</div>
-                            <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-                              Your Meta account was authenticated, but no Instagram Professional (Business or Creator) account is linked to your Facebook Page.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Step-by-step resolution */}
-                        <div className="p-3.5 rounded-xl bg-black/40 border border-gray-800 text-xs text-gray-300 space-y-2">
-                          <div className="font-semibold text-white flex items-center space-x-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Quick 30-Second Fix in Instagram App:</span>
-                          </div>
-                          <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-400 leading-relaxed">
-                            <li>Open the Instagram app on your phone and go to your profile.</li>
-                            <li>Tap <strong className="text-gray-200">Edit Profile</strong>.</li>
-                            <li>Under <strong className="text-gray-200">Public Business Information</strong>, tap <strong className="text-emerald-400">Page</strong>.</li>
-                            <li>Connect your Facebook Page (e.g. <em>U NOS Digital marketing</em>).</li>
-                          </ol>
-                        </div>
-
-                        <div className="space-y-2 pt-1">
-                          <button
-                            onClick={() => {
-                              window.location.href = `/api/auth/instagram?mode=facebook&workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                            }}
-                            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors cursor-pointer flex items-center justify-center space-x-2"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            <span>Retry Connecting Instagram via Facebook</span>
-                          </button>
-
-                          <button
-                            onClick={() => setIgStep('convert_guide')}
-                            className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors cursor-pointer"
-                          >
-                            Learn How to Convert Account to Professional
-                          </button>
-                        </div>
-
-                        {/* Manual entry drawer if user has an account handle / ID */}
-                        <div className="pt-2 border-t border-gray-800/80">
-                          <button
-                            type="button"
-                            onClick={() => setShowManualIg(!showManualIg)}
-                            className="text-xs text-gray-400 hover:text-white flex items-center space-x-1 cursor-pointer"
-                          >
-                            <span>Or enter your Instagram handle manually</span>
-                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showManualIg ? 'rotate-180' : ''}`} />
-                          </button>
-
-                          {showManualIg && (
-                            <div className="mt-3 p-3.5 rounded-xl bg-gray-950/80 border border-gray-800 text-xs space-y-3">
-                              <div>
-                                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                                  Instagram Username / Handle
-                                </label>
-                                <div className="relative">
-                                  <span className="absolute left-3 top-2 text-xs text-gray-500 font-bold">@</span>
-                                  <input
-                                    type="text"
-                                    value={customIgHandle}
-                                    onChange={(e) => setCustomIgHandle(e.target.value.replace(/^@/, '').trim())}
-                                    placeholder="your_handle"
-                                    className="w-full text-xs pl-7 pr-3 py-1.5 rounded-lg border border-gray-700 bg-gray-900 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
-                                  />
-                                </div>
-                              </div>
-
-                              <div>
-                                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                                  Instagram Business Account ID (Optional)
-                                </label>
-                                <input
-                                  type="text"
-                                  value={manualIgId}
-                                  onChange={(e) => setManualIgId(e.target.value.trim())}
-                                  placeholder="e.g. 17841400000000000"
-                                  className="w-full text-xs font-mono px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-900 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
-                                />
-                              </div>
-
-                              <button
-                                onClick={handleFinishConnection}
-                                disabled={!customIgHandle.trim()}
-                                className="w-full py-2 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] disabled:opacity-50 text-black transition-colors cursor-pointer"
-                              >
-                                Connect Instagram Account
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Case 2: Genuine Discovered Instagram Account(s) */
-                      <div className="space-y-4">
-                        <div className="space-y-2.5">
-                          {discoveredPages.map((page) => {
-                            const isSelected = selectedPageIds.includes(page.id);
-                            return (
-                              <div
-                                key={page.id}
-                                onClick={() => {
-                                  setSelectedPageIds([page.id]);
-                                  if (page.name) {
-                                    setCustomIgHandle(page.name.replace(/^@/, ''));
-                                  }
-                                }}
-                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                                  isSelected
-                                    ? 'border-emerald-500/70 bg-gradient-to-b from-[#1b221d] to-[#141815] ring-1 ring-emerald-500/50 shadow-sm'
-                                    : 'border-gray-800 bg-[#161719] hover:border-gray-700'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-3.5">
-                                  {page.avatarUrl ? (
-                                    <img referrerPolicy="no-referrer"
-                                      src={page.avatarUrl}
-                                      alt={page.name}
-                                      className="w-12 h-12 rounded-xl object-cover border border-gray-700 shadow-sm"
-                                    />
-                                  ) : (
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white shadow-md shrink-0">
-                                      <PlatformLogo platform="instagram" className="w-6 h-6" />
-                                    </div>
-                                  )}
-                                  <div>
-                                    <div className="text-sm font-bold text-white flex items-center space-x-2">
-                                      <span>{page.name.startsWith('@') ? page.name : `@${page.name}`}</span>
-                                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-semibold uppercase">
-                                        Verified
-                                      </span>
-                                    </div>
-                                    <div className="text-xs text-gray-400 mt-0.5">
-                                      Instagram Professional Profile (ID: {page.id})
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div
-                                  className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
-                                    isSelected
-                                      ? 'bg-[#22c55e] text-black font-bold'
-                                      : 'border border-gray-700 bg-gray-900 text-transparent'
-                                  }`}
-                                >
-                                  <Check className="w-4 h-4 stroke-[3]" />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Editable Handle */}
-                        <div className="p-3.5 rounded-xl bg-gray-900/60 border border-gray-800">
-                          <label className="block text-[11px] font-semibold text-gray-300 mb-1">
-                            Instagram Username / Handle
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-2 text-xs text-gray-500 font-bold">@</span>
-                            <input
-                              type="text"
-                              value={customIgHandle}
-                              onChange={(e) => setCustomIgHandle(e.target.value.replace(/^@/, '').trim())}
-                              placeholder="your_handle"
-                              className="w-full text-xs pl-7 pr-3 py-1.5 rounded-lg border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-emerald-500"
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={handleFinishConnection}
-                          className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black transition-colors shadow-sm cursor-pointer"
-                        >
-                          Save Instagram Account
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-                      <button
-                        onClick={() => setShowHelp(!showHelp)}
-                        className="flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
-                      >
-                        <span>Need Help</span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      <button
-                        onClick={() => setConnectingPlatform(null)}
-                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
+                  {/* Point 3: Return & Continue */}
+                  <div className="flex items-start space-x-3.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-2xs">
+                      3
                     </div>
+                    <p className="text-xs sm:text-sm text-gray-800 font-medium leading-relaxed mt-0.5 flex-1">
+                      Come back and click <strong className="text-gray-950 font-bold">&apos;Continue to Instagram&apos;</strong> below.
+                    </p>
+                  </div>
+                </div>
 
-                    {showHelp && (
-                      <div className="p-4 rounded-xl bg-gray-900/90 border border-gray-800 text-xs text-gray-300 space-y-2 animate-in fade-in">
-                        <div className="font-semibold text-white flex items-center space-x-1.5">
-                          <HelpCircle className="w-4 h-4 text-emerald-400" />
-                          <span>Instagram Connection &amp; Publishing Guide</span>
-                        </div>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
-                          Your Instagram account is authorized through your Meta Facebook account. By clicking <strong>Save Instagram Account</strong>, Plan Poster will save your Instagram profile directly into your account. You can schedule Reels, images, and videos with automatic Meta Graph API publishing.
-                        </p>
-                      </div>
-                    )}
+                {/* Bottom Bar: Help on Left, Continue to Instagram on Right */}
+                <div className="pt-5 mt-2 border-t border-gray-100 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setShowHelp(!showHelp)}
+                    className="flex items-center space-x-1 text-xs text-gray-500 hover:text-gray-900 transition-colors font-medium cursor-pointer py-1"
+                  >
+                    <span>Help</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                    }}
+                    className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <span>Continue to Instagram</span>
+                    <ArrowUpRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Collapsible Help Guide */}
+                {showHelp && (
+                  <div className="mt-3 p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 space-y-2 animate-in fade-in duration-150">
+                    <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                      <HelpCircle className="w-4 h-4 text-emerald-600" />
+                      <span>How to switch to a free Professional account in 30 seconds:</span>
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1 text-gray-600 pl-1 text-[11px] leading-relaxed">
+                      <li>Open the Instagram app on your phone and tap your profile.</li>
+                      <li>Tap the menu (☰) in the top right &rarr; <strong>Settings and privacy</strong>.</li>
+                      <li>Scroll down to <strong>Account type and tools</strong> &rarr; <strong>Switch to professional account</strong>.</li>
+                      <li>Select <strong>Creator</strong> or <strong>Business</strong> (100% free, no credit card required).</li>
+                    </ol>
                   </div>
                 )}
               </div>
@@ -1633,35 +1470,26 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 {fbStep === 'select_type' && (
                   <div className="space-y-6">
                     <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
+                      <h2 className="text-xl font-extrabold text-gray-950 tracking-tight">
                         Select Facebook Account Type
                       </h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Check out{' '}
-                        <a
-                          href="https://developers.facebook.com/docs/graph-api"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-emerald-400 underline hover:text-emerald-300"
-                        >
-                          our guide ↗
-                        </a>{' '}
-                        to supported channels for more details.
+                      <p className="text-xs text-gray-500 mt-1">
+                        Connect Facebook Pages for automated publishing and post scheduling.
                       </p>
                     </div>
 
                     {verifyError && (
-                      <div className="p-3.5 bg-rose-950/70 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-start justify-between">
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start justify-between">
                         <div className="flex items-start space-x-2.5">
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
                           <div className="flex-1">
-                            <div className="font-semibold text-rose-200">Connection Notice</div>
-                            <div className="mt-0.5 leading-relaxed text-[11px] text-rose-300">{verifyError}</div>
+                            <div className="font-semibold text-rose-900">Connection Notice</div>
+                            <div className="mt-0.5 leading-relaxed text-[11px] text-rose-700">{verifyError}</div>
                           </div>
                         </div>
                         <button
                           onClick={() => setVerifyError(null)}
-                          className="text-rose-400 hover:text-white p-1 rounded-sm cursor-pointer shrink-0 ml-2"
+                          className="text-rose-500 hover:text-rose-800 p-1 rounded-sm cursor-pointer shrink-0 ml-2"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -1670,15 +1498,15 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                     <div className="space-y-3">
                       {/* Option 1: Page */}
-                      <div className="p-4 rounded-xl border transition-all cursor-pointer flex items-start justify-between border-emerald-500/80 bg-gray-800/60 ring-1 ring-emerald-500/50">
+                      <div className="p-4 rounded-xl border transition-all cursor-pointer flex items-start justify-between border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/30">
                         <div className="flex items-start space-x-3.5">
-                          <div className="w-9 h-9 rounded-lg bg-gray-800 flex items-center justify-center text-gray-300 shrink-0">
-                            <Flag className="w-4 h-4 text-emerald-400" />
+                          <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                            <Flag className="w-4 h-4 text-emerald-700" />
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-white">Page</div>
-                            <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                              A page is for businesses, brands, organizations and public figures users &quot;like&quot; or &quot;follow&quot;. Connecting to personal or professional profiles is not supported by Meta.
+                            <div className="text-sm font-bold text-gray-950">Facebook Page</div>
+                            <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                              A page is for businesses, brands, organizations, and public figures. Connecting to personal Facebook profiles is not supported by Meta.
                             </p>
                           </div>
                         </div>
@@ -1692,11 +1520,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     </div>
 
                     {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                       <button
                         type="button"
                         onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -1706,9 +1534,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         onClick={() => {
                           window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
-                        className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-gray-950 font-bold transition-colors cursor-pointer shadow-sm"
+                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors cursor-pointer shadow-sm"
                       >
-                        Continue
+                        Continue to Facebook
                       </button>
                     </div>
                   </div>
@@ -1718,17 +1546,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 {fbStep === 'auth' && (
                   <div className="space-y-5">
                     <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">
                         Connect Facebook Page
                       </h2>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-500 mt-1">
                         Connect directly via official Facebook login with zero manual tokens.
                       </p>
                     </div>
 
                     {verifyError && (
-                      <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-start space-x-2">
-                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start space-x-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
                         <span className="leading-relaxed">{verifyError}</span>
                       </div>
                     )}
@@ -1739,31 +1567,31 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         onClick={() => {
                           window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
                         }}
-                        className="w-full py-3 px-4 rounded-xl font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white flex items-center justify-center space-x-2 text-sm shadow-md transition-all cursor-pointer"
+                        className="w-full py-3 px-4 rounded-xl font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white flex items-center justify-center space-x-2 text-sm shadow-sm transition-all cursor-pointer"
                       >
                         <PlatformLogo platform="facebook" className="w-5 h-5 text-white" />
                         <span>Continue with Facebook</span>
                       </button>
 
-                      <div className="flex items-center my-3 text-gray-500 text-xs">
-                        <div className="flex-1 border-t border-gray-800"></div>
+                      <div className="flex items-center my-3 text-gray-400 text-xs">
+                        <div className="flex-1 border-t border-gray-200"></div>
                         <span className="px-3 uppercase font-semibold text-[10px] text-gray-500">
                           or enter Page Access Token / ID
                         </span>
-                        <div className="flex-1 border-t border-gray-800"></div>
+                        <div className="flex-1 border-t border-gray-200"></div>
                       </div>
 
-                      <div className="space-y-3 bg-gray-900/60 p-4 rounded-xl border border-gray-800/80">
+                      <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-semibold text-gray-300">
+                            <label className="text-xs font-semibold text-gray-700">
                               Facebook Page Access Token
                             </label>
                             <a
                               href="https://developers.facebook.com/tools/explorer/"
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[11px] text-blue-400 hover:underline"
+                              className="text-[11px] text-blue-600 hover:underline"
                             >
                               Explorer ↗
                             </a>
@@ -1773,12 +1601,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             value={fbAccessToken}
                             onChange={(e) => setFbAccessToken(e.target.value)}
                             placeholder="EAA... (Paste Page Token if testing without App OAuth)"
-                            className="w-full text-xs font-mono px-3 py-2 rounded-xl border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-blue-500"
+                            className="w-full text-xs font-mono px-3 py-2 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-blue-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
                             Facebook Page ID
                           </label>
                           <input
@@ -1786,17 +1614,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             value={fbPageId}
                             onChange={(e) => setFbPageId(e.target.value)}
                             placeholder="e.g. 122149488525072386"
-                            className="w-full text-xs font-mono px-3 py-2 rounded-xl border border-gray-700 bg-gray-950 text-white placeholder:text-gray-600 focus:outline-hidden focus:border-blue-500"
+                            className="w-full text-xs font-mono px-3 py-2 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-blue-500"
                           />
                         </div>
                       </div>
                     </div>
 
                     {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                       <button
                         onClick={() => setFbStep('select_type')}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
+                        className="text-xs text-gray-500 hover:text-gray-800 cursor-pointer"
                       >
                         Back
                       </button>
@@ -1804,7 +1632,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       <button
                         onClick={handleVerifyFacebookPages}
                         disabled={isVerifying || !fbAccessToken.trim()}
-                        className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-white transition-colors flex items-center space-x-1.5 disabled:opacity-40 cursor-pointer"
+                        className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-gray-900 hover:bg-black text-white transition-colors flex items-center space-x-1.5 disabled:opacity-40 cursor-pointer"
                       >
                         {isVerifying && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                         <span>{isVerifying ? 'Verifying...' : 'Find & Select Account'}</span>
@@ -1817,7 +1645,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 {fbStep === 'confirm' && (
                   <div className="space-y-6">
                     <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">
                         Confirm your Account
                       </h2>
                     </div>
@@ -1837,8 +1665,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             }}
                             className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                               isChecked
-                                ? 'border-[#22c55e] bg-[#141b16] ring-1 ring-[#22c55e]/60 shadow-xs'
-                                : 'border-gray-800 bg-gray-900/60 hover:bg-gray-800/40'
+                                ? 'border-[#22c55e] bg-emerald-50/50 ring-1 ring-[#22c55e]/60 shadow-xs'
+                                : 'border-gray-200 bg-white hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex items-center space-x-3.5">
@@ -1846,7 +1674,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 <img referrerPolicy="no-referrer"
                                   src={page.avatarUrl}
                                   alt={page.name}
-                                  className="w-11 h-11 rounded-xl object-cover ring-1 ring-gray-700"
+                                  className="w-11 h-11 rounded-xl object-cover ring-1 ring-gray-200"
                                 />
                               ) : (
                                 <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-sm">
@@ -1854,11 +1682,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 </div>
                               )}
                               <div>
-                                <div className="text-sm font-bold text-white leading-tight flex items-center space-x-1.5">
+                                <div className="text-sm font-bold text-gray-950 leading-tight flex items-center space-x-1.5">
                                   <span>{page.name}</span>
-                                  <PlatformLogo platform="facebook" className="w-3.5 h-3.5 text-gray-300" />
+                                  <PlatformLogo platform="facebook" className="w-3.5 h-3.5 text-gray-500" />
                                 </div>
-                                <div className="text-xs text-gray-400 mt-0.5">
+                                <div className="text-xs text-gray-500 mt-0.5">
                                   Facebook Page
                                 </div>
                               </div>
@@ -1868,8 +1696,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             <div
                               className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
                                 isChecked
-                                  ? 'border-[#22c55e] bg-[#22c55e] text-black font-bold'
-                                  : 'border-gray-600'
+                                  ? 'border-[#22c55e] bg-[#22c55e] text-white font-bold'
+                                  : 'border-gray-300'
                               }`}
                             >
                               {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1880,10 +1708,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     </div>
 
                     {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                       <button
                         onClick={() => setShowHelp(!showHelp)}
-                        className="flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                        className="flex items-center space-x-1 text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                       >
                         <span>Need Help</span>
                         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
@@ -1907,17 +1735,17 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   /* YouTube Step: Confirm Channel */
                   <div className="space-y-4">
                     <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-red-600/20 text-red-500 flex items-center justify-center mx-auto mb-3">
+                      <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-100">
                         <PlatformLogo platform="youtube" className="w-6 h-6" />
                       </div>
-                      <h2 className="text-xl font-bold text-white tracking-tight">Confirm YouTube Channel</h2>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Confirm YouTube Channel</h2>
+                      <p className="text-xs text-gray-500 mt-1">
                         Select the YouTube channel you want to connect to your account.
                       </p>
                     </div>
 
                     {verifyError && (
-                      <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-xl">
                         {verifyError}
                       </div>
                     )}
@@ -1931,8 +1759,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             onClick={() => setSelectedPageIds([channel.id])}
                             className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                               isChecked
-                                ? 'bg-red-950/30 border-red-500/80 shadow-md ring-1 ring-red-500/40'
-                                : 'bg-gray-900/60 border-gray-800 hover:border-gray-700'
+                                ? 'bg-red-50/60 border-red-500 ring-1 ring-red-500/40 shadow-xs'
+                                : 'bg-white border-gray-200 hover:border-gray-300'
                             }`}
                           >
                             <div className="flex items-center space-x-3 min-w-0">
@@ -1940,7 +1768,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 <img referrerPolicy="no-referrer"
                                   src={channel.avatarUrl}
                                   alt={channel.name}
-                                  className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10"
+                                  className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100"
                                 />
                               ) : (
                                 <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold">
@@ -1948,18 +1776,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <h4 className="text-sm font-bold text-white truncate">{channel.name}</h4>
-                                <p className="text-xs text-gray-400">
+                                <h4 className="text-sm font-bold text-gray-950 truncate">{channel.name}</h4>
+                                <p className="text-xs text-gray-500">
                                   {channel.username || '@channel'}
                                   {typeof channel.followersCount === 'number' && (
-                                    <span className="ml-2 text-gray-500">• {channel.followersCount.toLocaleString()} subscribers</span>
+                                    <span className="ml-2 text-gray-400">• {channel.followersCount.toLocaleString()} subscribers</span>
                                   )}
                                 </p>
                               </div>
                             </div>
                             <div
                               className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
-                                isChecked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-700'
+                                isChecked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300'
                               }`}
                             >
                               {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1969,13 +1797,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       })}
                     </div>
 
-                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-800">
+                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100">
                       <button
                         onClick={() => {
                           setConnectingPlatform(null);
                           setDiscoveredPages([]);
                         }}
-                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white cursor-pointer"
+                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -1992,45 +1820,45 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   /* YouTube Step: Connect OAuth Initiation */
                   <div className="space-y-5">
                     <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-red-600/20 text-red-500 flex items-center justify-center mx-auto mb-3">
+                      <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-100">
                         <PlatformLogo platform="youtube" className="w-6 h-6" />
                       </div>
-                      <h2 className="text-xl font-bold text-white tracking-tight">Connect YouTube Channel</h2>
-                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect YouTube Channel</h2>
+                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                         Authorize Plan Poster to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
                       </p>
                     </div>
 
                     {verifyError && (
-                      <div className="p-3 bg-rose-950/60 border border-rose-800 text-xs text-rose-300 rounded-xl">
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-xl">
                         {verifyError}
                       </div>
                     )}
 
-                    <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-3">
-                      <div className="flex items-start space-x-2.5 text-xs text-gray-300">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Google OAuth 2.0 Web Server authorization with offline access & automatic token refresh.</span>
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                      <div className="flex items-start space-x-2.5 text-xs text-gray-700">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>Google OAuth 2.0 Web Server authorization with offline access &amp; automatic token refresh.</span>
                       </div>
-                      <div className="flex items-start space-x-2.5 text-xs text-gray-300">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="flex items-start space-x-2.5 text-xs text-gray-700">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         <span>Full support for standard videos (16:9) and YouTube Shorts (&le;60s vertical).</span>
                       </div>
                     </div>
 
                     <a
                       href={`/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`}
-                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                     >
                       <PlatformLogo platform="youtube" className="w-4 h-4" />
                       <span>Sign in with Google / YouTube</span>
                     </a>
 
-                    <div className="text-center pt-2 border-t border-gray-800">
+                    <div className="text-center pt-2 border-t border-gray-100">
                       <button
                         type="button"
                         onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -2042,38 +1870,38 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               /* LINKEDIN DEDICATED FLOW */
               <div className="p-6 space-y-5">
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#0A66C2] text-white flex items-center justify-center mx-auto mb-3 shadow-md">
-                    <PlatformLogo platform="linkedin" className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center mx-auto mb-3 border border-[#0A66C2]/20 shadow-xs">
+                    <PlatformLogo platform="linkedin" className="w-6 h-6 text-[#0A66C2]" />
                   </div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">Connect LinkedIn Account</h2>
-                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                  <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect LinkedIn Account</h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                     Publish professional articles, image posts, and company updates via the official free Share on LinkedIn API.
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
                   <div className="flex items-start space-x-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>Official Microsoft LinkedIn Community Management &amp; Share APIs (100% Free).</span>
                   </div>
                   <div className="flex items-start space-x-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>Supports Company Pages, Creator profiles, and multi-image posts up to 3,000 characters.</span>
                   </div>
                 </div>
 
                 <div className="space-y-4 pt-1">
-                  <div className="p-3 bg-gray-900/60 border border-gray-800 rounded-xl flex items-start space-x-3">
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start space-x-3">
                     <input
                       type="checkbox"
                       id="include_li_org"
                       checked={includeLinkedInOrg}
                       onChange={(e) => setIncludeLinkedInOrg(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-gray-700 bg-gray-800 text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
                     />
-                    <label htmlFor="include_li_org" className="text-xs text-gray-300 cursor-pointer select-none">
-                      <span className="font-semibold text-white block">Include LinkedIn Company Pages</span>
-                      <span className="text-[11px] text-gray-400 block mt-0.5">
+                    <label htmlFor="include_li_org" className="text-xs text-gray-700 cursor-pointer select-none">
+                      <span className="font-semibold text-gray-950 block">Include LinkedIn Company Pages</span>
+                      <span className="text-[11px] text-gray-500 block mt-0.5">
                         Requests permissions to also connect Company Pages you administer. Requires Community Management API approval in your LinkedIn Developer Portal.
                       </span>
                     </label>
@@ -2081,18 +1909,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <a
                     href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
                     <span>Authorize with Official LinkedIn OAuth</span>
                   </a>
                 </div>
 
-                <div className="text-center pt-2 border-t border-gray-800">
+                <div className="text-center pt-2 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setConnectingPlatform(null)}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                    className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -2102,29 +1930,29 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               /* THREADS DEDICATED FLOW */
               <div className="p-6 space-y-5">
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 border border-gray-800 shadow-md">
+                  <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
                     <PlatformLogo platform="threads" className="w-6 h-6 text-white" />
                   </div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">Connect Threads Profile</h2>
-                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                  <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect Threads Profile</h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                     Publish fast short-form threads, photos, and videos using the official 100% free Meta Threads API.
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
                   <div className="flex items-start space-x-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>Official Meta Graph Threads API (100% Free with zero API credit fees).</span>
                   </div>
                   <div className="flex items-start space-x-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>500-character posts with photos, carousels, and video publishing.</span>
                   </div>
                 </div>
 
                 <div className="space-y-3 pt-1">
                   <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
                       Threads Handle
                     </label>
                     <input
@@ -2132,7 +1960,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       placeholder="e.g. @yourbrand or @creator"
                       value={genericHandle}
                       onChange={(e) => setGenericHandle(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-white"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-black"
                     />
                   </div>
 
@@ -2157,7 +1985,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         setResultModal({
                           isOpen: true,
                           status: 'already_connected',
-                          platform: 'pinterest',
+                          platform: 'threads',
                           accountName: newAcc.displayName,
                           avatarUrl: newAcc.avatarUrl,
                         });
@@ -2170,7 +1998,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         setResultModal({
                           isOpen: true,
                           status: 'already_connected',
-                          platform: 'pinterest',
+                          platform: 'threads',
                           accountName: newAcc.displayName,
                           avatarUrl: newAcc.avatarUrl,
                         });
@@ -2183,24 +2011,24 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       setResultModal({
                         isOpen: true,
                         status: 'success',
-                        platform: 'pinterest',
+                        platform: 'threads',
                         accountName: newAcc.displayName,
                         avatarUrl: newAcc.avatarUrl,
                       });
                       if (onNavigateToTab) onNavigateToTab('connections');
                     }}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-white hover:bg-gray-200 text-black transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    <PlatformLogo platform="threads" className="w-4 h-4 text-black" />
+                    <PlatformLogo platform="threads" className="w-4 h-4 text-white" />
                     <span>Authorize Threads Profile</span>
                   </button>
                 </div>
 
-                <div className="text-center pt-2 border-t border-gray-800">
+                <div className="text-center pt-2 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setConnectingPlatform(null)}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                    className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -2210,29 +2038,29 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               /* PINTEREST DEDICATED FLOW */
               <div className="p-6 space-y-5">
                 <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#BD081C] text-white flex items-center justify-center mx-auto mb-3 shadow-md">
+                  <div className="w-12 h-12 rounded-2xl bg-[#BD081C] text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
                     <PlatformLogo platform="pinterest" className="w-6 h-6 text-white" />
                   </div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">Connect Pinterest Account</h2>
-                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                  <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect Pinterest Account</h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                     Publish image and video pins to your boards with custom destination links using the official free Pinterest API v5.
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2.5 text-xs text-gray-300">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
                   <div className="flex items-start space-x-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>Official Pinterest API v5 (100% Free with zero credit charges).</span>
                   </div>
                   <div className="flex items-start space-x-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>Direct pin publishing with custom destination links and board organization.</span>
                   </div>
                 </div>
 
                 <div className="space-y-3 pt-1">
                   <div>
-                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
                       Pinterest Username / Board
                     </label>
                     <input
@@ -2240,7 +2068,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       placeholder="e.g. MyStudio or @creativepins"
                       value={genericHandle}
                       onChange={(e) => setGenericHandle(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-700 bg-gray-900 text-white placeholder:text-gray-500 focus:outline-hidden focus:border-[#BD081C]"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-[#BD081C]"
                     />
                   </div>
 
@@ -2298,18 +2126,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       });
                       if (onNavigateToTab) onNavigateToTab('connections');
                     }}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#BD081C] hover:bg-[#a00718] text-white transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#BD081C] hover:bg-[#a00718] text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <PlatformLogo platform="pinterest" className="w-4 h-4 text-white" />
                     <span>Authorize Pinterest Account</span>
                   </button>
                 </div>
 
-                <div className="text-center pt-2 border-t border-gray-800">
+                <div className="text-center pt-2 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setConnectingPlatform(null)}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+                    className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
