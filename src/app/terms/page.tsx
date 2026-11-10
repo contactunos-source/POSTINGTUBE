@@ -54,7 +54,7 @@ export default function TermsOfServicePage() {
           </div>
 
           <p>
-            Welcome to Plan Poster (&quot;Plan Poster&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;). Plan Poster provides a cloud-hosted software-as-a-service (SaaS) application accessible at <strong>planposter.vercel.app</strong> and associated domains that enables individual creators, social managers, agencies, and brands to compose, schedule, manage, and dispatch social media publications.
+            Welcome to Plan Poster (&quot;Plan Poster&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;). Plan Poster provides a cloud-hosted software-as-a-service (SaaS) application accessible at <strong>planposter.com</strong> and associated domains that enables individual creators, social managers, agencies, and brands to compose, schedule, manage, and dispatch social media publications.
           </p>
           <p>
             By registering an account, connecting third-party social media profiles, or accessing any part of our platform, you confirm that you have read, understood, and agreed to be bound by these Terms of Service and our incorporated Privacy Policy. If you do not agree to these terms, you must not use our Service.
@@ -268,7 +268,7 @@ export default function TermsOfServicePage() {
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-xs space-y-1 font-mono">
             <div><strong>Entity:</strong> Plan Poster Technologies Inc.</div>
             <div><strong>Email:</strong> planposter.team@gmail.com</div>
-            <div><strong>Website:</strong> https://planposter.vercel.app</div>
+            <div><strong>Website:</strong> https://planposter.com</div>
           </div>
         </section>
       </div>

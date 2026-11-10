@@ -53,10 +53,11 @@ export async function GET(req: NextRequest) {
     if (requestOrigin.startsWith('https://')) {
       redirectUri = `${requestOrigin}/api/auth/instagram/callback`;
     } else {
-      // Instagram API requires HTTPS. When testing locally, default to the registered HTTPS Vercel URL
+      // Instagram API requires HTTPS. When testing locally, default to the registered HTTPS production domain
       const httpsBase =
         (process.env.APP_URL?.startsWith('https') && process.env.APP_URL) ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://planposter.vercel.app');
+        (process.env.NEXT_PUBLIC_APP_URL?.startsWith('https') && process.env.NEXT_PUBLIC_APP_URL) ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://planposter.com');
       redirectUri = `${httpsBase}/api/auth/instagram/callback`;
     }
   }

@@ -67,7 +67,7 @@ export default function SitemapPage() {
     >
       <div className="space-y-12 max-w-4xl">
         <p className="text-sm text-gray-700 leading-relaxed">
-          Below is a structured index of all available pages, workspace utilities, and compliance documentation hosted across <strong>planposter.vercel.app</strong>.
+          Below is a structured index of all available pages, workspace utilities, and compliance documentation hosted across <strong>planposter.com</strong>.
         </p>
 
         {sections.map((section, idx) => (

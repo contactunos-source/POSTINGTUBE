@@ -17,7 +17,7 @@ export async function signInWithGoogle(redirectTo: string = '/dashboard') {
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
-      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.vercel.app');
+      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.com');
   const finalRedirect = `${origin}/api/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -65,7 +65,7 @@ export async function sendPasswordResetEmail(email: string) {
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
-      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.vercel.app');
+      : (process.env.NEXT_PUBLIC_APP_URL || 'https://planposter.com');
   const redirectTo = `${origin}/login?mode=reset-password`;
 
   return await supabase.auth.resetPasswordForEmail(email, {
