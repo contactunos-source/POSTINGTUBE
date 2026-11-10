@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     const state = encodeURIComponent(JSON.stringify(stateObj));
     const scopes = DIRECT_IG_SCOPES.join(',');
 
-    const directUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(
+    const directUrl = `https://www.instagram.com/oauth/authorize?client_id=${encodeURIComponent(
       igAppId
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
       scopes
