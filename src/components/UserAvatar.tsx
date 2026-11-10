@@ -19,7 +19,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   // Compute initials (e.g., "SKY SHORTS" -> "SK", "John" -> "JO")
   const initials = (() => {
-    if (!name) return 'PB';
+    if (!name) return 'PP';
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();

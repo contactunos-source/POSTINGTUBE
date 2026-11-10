@@ -333,10 +333,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     setGenericHandle('');
     setGenericToken('');
 
+    // Direct Instagram OAuth connection - zero intermediate screens or popups
+    if (platform === 'instagram') {
+      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+      return;
+    }
+
     if (platform === 'facebook') {
       setFbStep('select_type');
-    } else if (platform === 'instagram') {
-      setIgStep('select_type');
     } else if (platform === 'youtube') {
       setYtStep('auth');
     }
@@ -1269,20 +1273,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     >
                       Switch Account
                     </button>
-                  ) : igStep === 'convert_guide' ? (
-                    <button
-                      onClick={() => setIgStep('check_account')}
-                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  ) : igStep === 'check_account' ? (
-                    <button
-                      onClick={() => setIgStep('select_type')}
-                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
                   ) : (
                     <button
                       onClick={() => setConnectingPlatform(null)}
@@ -1325,21 +1315,38 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </button>
                 )}
 
-                {/* Logo interchange indicator (Matching Images 1, 2, 3) */}
+                {/* Logo interchange indicator with Official PlanPoster Logo and Exact Platform Branding */}
                 <div className="flex items-center space-x-2 text-xs text-gray-400">
-                  <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-[10px]">
-                    PB
-                  </span>
-                  <span className="text-gray-500 font-bold">⇄</span>
-                  <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-white ${
-                      connectingPlatform === 'instagram'
-                        ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600'
-                        : 'bg-[#1877F2]'
-                    }`}
-                  >
-                    <PlatformLogo platform={connectingPlatform} className="w-3.5 h-3.5" />
+                  <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center p-1 border border-white/10 shadow-xs shrink-0">
+                    <img
+                      src="/images/plan-poster-bird-white.png"
+                      alt="Plan Poster"
+                      className="w-full h-full object-contain select-none"
+                      draggable={false}
+                    />
                   </div>
+                  <span className="text-gray-500 font-bold text-xs">⇄</span>
+                  {connectingPlatform && (
+                    <div
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center text-white shrink-0 shadow-xs ${
+                        connectingPlatform === 'instagram'
+                          ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600'
+                          : connectingPlatform === 'facebook'
+                          ? 'bg-[#1877F2]'
+                          : connectingPlatform === 'youtube'
+                          ? 'bg-[#FF0000]'
+                          : connectingPlatform === 'linkedin'
+                          ? 'bg-[#0A66C2]'
+                          : connectingPlatform === 'pinterest'
+                          ? 'bg-[#E60023]'
+                          : connectingPlatform === 'threads' || connectingPlatform === 'tiktok' || connectingPlatform === 'twitter'
+                          ? 'bg-black border border-gray-700'
+                          : 'bg-[#0085ff]'
+                      }`}
+                    >
+                      <PlatformLogo platform={connectingPlatform} className="w-3.5 h-3.5" />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1354,312 +1361,35 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             {/* INSTAGRAM WORKFLOW (Recreating Buffer UX Exactly from Screenshots) */}
             {connectingPlatform === 'instagram' ? (
               <div className="p-6">
-                {/* STEP 1: How would you like to connect your Instagram Account? (Image 1) */}
-                {igStep === 'select_type' && (
-                  <div className="space-y-5 animate-in fade-in duration-200">
-                    <div className="text-center">
+                {/* Direct Instagram Connection */}
+                {igStep !== 'confirm' && (
+                  <div className="space-y-5 animate-in fade-in duration-200 text-center py-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center mx-auto shadow-lg">
+                      <PlatformLogo platform="instagram" className="w-7 h-7" />
+                    </div>
+                    <div>
                       <h2 className="text-xl font-bold text-white tracking-tight">
-                        How would you like to connect your Instagram Account?
+                        Connect to Instagram
                       </h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Choose the connection method that best fits your workflow.
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+                        Redirecting to Instagram to authenticate your professional profile directly...
                       </p>
                     </div>
-
-                    {verifyError && (
-                      <div className="p-3.5 bg-rose-950/70 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-start justify-between">
-                        <div className="flex items-start space-x-2.5">
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-                          <div className="flex-1">
-                            <div className="font-semibold text-rose-200">Notice</div>
-                            <div className="mt-0.5 leading-relaxed text-[11px] text-rose-300">{verifyError}</div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setVerifyError(null)}
-                          className="text-rose-400 hover:text-white p-1 shrink-0 ml-2 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="space-y-3.5">
-                      {/* Option 1: Professional (Business & Creator) - Featured (Image 1) */}
-                      <div className="p-4 rounded-2xl border border-emerald-500/60 bg-gradient-to-b from-[#1c221e] to-[#141815] ring-1 ring-emerald-500/40 relative shadow-xs">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-bold text-white flex items-center space-x-2">
-                            <span>Professional (Business & Creator)</span>
-                          </div>
-                          <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                            Recommended
-                          </span>
-                        </div>
-
-                        <p className="text-xs text-gray-300 mb-3 leading-relaxed">
-                          Unlock direct automated scheduling, reels, carousels, and in-depth performance analytics.
-                        </p>
-
-                        {/* Feature Bullet Points (Image 1) */}
-                        <div className="space-y-1.5 mb-4 text-xs text-gray-300">
-                          <div className="flex items-center space-x-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                            <span>Automatic &amp; Notification-based Posting</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                            <span>Schedule Reels, Carousels, &amp; Stories</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                            <span>Community replies &amp; engagement</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                            <span>Post metrics &amp; performance tracking</span>
-                          </div>
-                        </div>
-
-                        {/* Green Connect Button (Image 1) - Direct Instagram OAuth */}
-                        <button
-                          onClick={() => {
-                            window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                          }}
-                          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] active:bg-[#199f4a] text-black transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-2"
-                        >
-                          <span>Connect to Instagram</span>
-                        </button>
-
-                        <div className="mt-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setIgStep('check_account')}
-                            className="text-[11px] text-gray-400 hover:text-white transition-colors cursor-pointer"
-                          >
-                            Pre-check account requirements →
-                          </button>
-                        </div>
-
-                        {/* Helper note (Image 1) */}
-                        <div className="mt-2.5 flex items-start space-x-1.5 text-[11px] text-gray-400">
-                          <HelpCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>Instagram will prompt you to easily convert to a professional account if needed.</span>
-                        </div>
-
-
-                      </div>
-                    </div>
-
-                    {/* Bottom Action Bar */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-800">
-                      <button
-                        onClick={() => setShowHelp(!showHelp)}
-                        className="flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
-                      >
-                        <span>Need Help</span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
-                      </button>
-
+                    <button
+                      onClick={() => {
+                        window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                      }}
+                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] active:bg-[#199f4a] text-black transition-all shadow-sm cursor-pointer flex items-center justify-center space-x-2"
+                    >
+                      <PlatformLogo platform="instagram" className="w-4 h-4" />
+                      <span>Continue to Instagram</span>
+                    </button>
+                    <div className="pt-2 border-t border-gray-800">
                       <button
                         onClick={() => setConnectingPlatform(null)}
                         className="text-xs text-gray-400 hover:text-white cursor-pointer"
                       >
                         Cancel
-                      </button>
-                    </div>
-
-                    {/* Expandable Help */}
-                    {showHelp && (
-                      <div className="p-3.5 rounded-xl bg-gray-900/90 border border-gray-800 text-xs text-gray-300 space-y-2 animate-in fade-in">
-                        <div className="font-semibold text-white flex items-center space-x-1.5">
-                          <HelpCircle className="w-4 h-4 text-emerald-400" />
-                          <span>Meta API Requirements</span>
-                        </div>
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
-                          Meta Graph API strictly requires a Professional (Creator or Business) account to support direct automated posting. Converting in the Instagram app is free, takes under 30 seconds, and lets you keep all your photos and followers.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* STEP 2: First, Check Your Instagram Account (Image 2) */}
-                {igStep === 'check_account' && (
-                  <div className="space-y-5 animate-in fade-in duration-200">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
-                        First, Check Your Instagram Account
-                      </h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Make sure you&apos;re signed in to the Instagram account you want to connect
-                      </p>
-                    </div>
-
-                    {/* 3 Numbered Steps Box (Exact match to Image 2) */}
-                    <div className="p-5 rounded-2xl bg-[#141517] border border-gray-800 space-y-4">
-                      <div className="flex items-start space-x-3.5">
-                        <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          1
-                        </div>
-                        <div className="text-xs text-gray-200 leading-relaxed">
-                          Open the Instagram app or website in your browser.
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-3.5">
-                        <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          2
-                        </div>
-                        <div className="text-xs text-gray-200 leading-relaxed">
-                          Go to your <strong className="text-white">Profile</strong> &gt;{' '}
-                          <strong className="text-white">Edit Profile</strong> (or{' '}
-                          <strong className="text-white">Settings and privacy</strong>).
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-3.5">
-                        <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          3
-                        </div>
-                        <div className="text-xs text-gray-200 leading-relaxed">
-                          Confirm your account type is set to{' '}
-                          <strong className="text-emerald-400">Professional (Business or Creator)</strong>.
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons (Image 2) */}
-                    <div className="space-y-2.5">
-                      <button
-                        onClick={() => window.open('https://www.instagram.com', '_blank')}
-                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black flex items-center justify-center space-x-2 shadow-sm transition-colors cursor-pointer"
-                      >
-                        <span>Open Instagram</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                        }}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gray-800/90 hover:bg-gray-700 border border-gray-700 text-white transition-colors cursor-pointer"
-                      >
-                        Skip Check and Connect to Instagram
-                      </button>
-                    </div>
-
-                    <div className="pt-1 text-center">
-                      <button
-                        onClick={() => setIgStep('convert_guide')}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium cursor-pointer"
-                      >
-                        Not a Professional account yet? Learn how to convert in 30 seconds →
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-800">
-                      <button
-                        onClick={() => setIgStep('select_type')}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
-                      >
-                        Back
-                      </button>
-                      <button
-                        onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* STEP 3: Change to professional account? (Image 3) */}
-                {igStep === 'convert_guide' && (
-                  <div className="space-y-5 animate-in fade-in duration-200">
-                    <div className="text-center">
-                      <h2 className="text-xl font-bold text-white tracking-tight">
-                        Change to professional account?
-                      </h2>
-                      <p className="text-xs text-gray-400 mt-1">
-                        You need a professional Instagram account to connect Instagram to Plan Poster
-                      </p>
-                    </div>
-
-                    {/* Simulated Native Instagram Dialog (Faithful recreation of Image 3) */}
-                    <div className="bg-[#242527] rounded-2xl p-5 border border-gray-700/80 max-w-sm mx-auto shadow-xl text-center space-y-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center mx-auto text-white shadow-md">
-                        <PlatformLogo platform="instagram" className="w-6 h-6" />
-                      </div>
-
-                      <div className="font-bold text-white text-sm">Change to professional account?</div>
-
-                      <p className="text-xs text-gray-300 leading-relaxed px-1">
-                        You need a professional Instagram account to connect Instagram to Plan Poster. Anyone will be able
-                        to see your posts and reels, but you can change who sees them anytime in settings.
-                      </p>
-
-                      <div className="pt-2 flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => window.open('https://www.instagram.com/accounts/edit/', '_blank')}
-                          className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#0095F6] hover:bg-[#1877F2] text-white transition-colors cursor-pointer"
-                        >
-                          Change
-                        </button>
-                        <button
-                          onClick={() => setIgStep('check_account')}
-                          className="flex-1 py-2 rounded-xl text-xs font-semibold bg-gray-700/80 hover:bg-gray-700 text-gray-300 transition-colors cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 30-Second Quick Instructions */}
-                    <div className="p-4 rounded-xl bg-gray-900/80 border border-gray-800 text-xs text-gray-300 space-y-2">
-                      <div className="font-semibold text-white flex items-center space-x-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>30-Second Conversion Steps:</span>
-                      </div>
-                      <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-400 leading-relaxed">
-                        <li>
-                          In the Instagram app, go to <strong className="text-gray-200">Settings and privacy</strong>
-                        </li>
-                        <li>
-                          Tap <strong className="text-gray-200">Account type and tools</strong> &gt;{' '}
-                          <strong className="text-emerald-400">Switch to Professional Account</strong>
-                        </li>
-                        <li>
-                          Choose a category (<strong className="text-gray-200">Creator</strong> or{' '}
-                          <strong className="text-gray-200">Business</strong>)
-                        </li>
-                        <li>Link to your Facebook Page (required for Meta Graph API access)</li>
-                      </ol>
-                    </div>
-
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => {
-                          window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
-                        }}
-                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#22c55e] hover:bg-[#1eb355] text-black flex items-center justify-center space-x-2 shadow-sm transition-colors cursor-pointer"
-                      >
-                        <span>Ready! Connect to Instagram</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-800">
-                      <button
-                        onClick={() => setIgStep('check_account')}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
-                      >
-                        Back
-                      </button>
-                      <button
-                        onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-400 hover:text-white cursor-pointer"
-                      >
-                        Close
                       </button>
                     </div>
                   </div>
