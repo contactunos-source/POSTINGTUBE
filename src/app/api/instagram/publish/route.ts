@@ -14,6 +14,22 @@ import path from 'path';
 // In-memory idempotency cache for Instagram publishing requests (prevents duplicate API dispatches within 45s)
 const recentInstagramPublishes = new Map<string, { timestamp: number; result: any }>();
 
+function parseMetaErrorMessage(err: any): string {
+  const msg = err?.message || '';
+  const lower = msg.toLowerCase();
+
+  if (lower.includes('unsupported request') || lower.includes('method type')) {
+    return "Meta Authorization Notice: Meta restricts direct publishing for newly connected accounts until 'instagram_business_content_publish' has completed Meta App Review, or until the account is added under App Roles > Instagram Testers in your Meta Developer Console. Please add this account as a tester or reconnect.";
+  }
+  if (lower.includes('session has expired') || lower.includes('error validating access token') || err?.code === 190) {
+    return "Instagram session has expired. Please go to the Connections tab and click 'Reconnect' on your Instagram account to renew authorization.";
+  }
+  if (lower.includes('does not exist') || lower.includes('missing permissions')) {
+    return "Instagram account permission not found. Please ensure your account is an active Instagram Professional (Business or Creator) account and reconnect.";
+  }
+  return msg || 'Failed to communicate with Instagram API.';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -313,13 +329,10 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
-          const friendlyMsg = isAuthOrMethodError
-            ? `${errMsg || 'Instagram token is expired or unauthorized'}. Please go to the Connections tab and click 'Reconnect' on your Instagram account to renew authorization.`
-            : initData.error.message || 'Failed to initialize Instagram video container.';
           return NextResponse.json(
             {
               success: false,
-              error: friendlyMsg,
+              error: parseMetaErrorMessage(initData.error),
               details: initData.error,
             },
             { status: 400 }
@@ -480,13 +493,10 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
-          const friendlyMsg = isAuthOrMethodError
-            ? `${errMsg || 'Instagram token is expired or unauthorized'}. Please go to the Connections tab and click 'Reconnect' on your Instagram account to renew authorization.`
-            : containerData.error.message || 'Failed to create Instagram media container.';
           return NextResponse.json(
             {
               success: false,
-              error: friendlyMsg,
+              error: parseMetaErrorMessage(containerData.error),
               details: containerData.error,
             },
             { status: 400 }
@@ -593,7 +603,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: publishData.error.message || 'Failed to publish media on Instagram.',
+          error: parseMetaErrorMessage(publishData.error),
           details: publishData.error,
         },
         { status: 400 }

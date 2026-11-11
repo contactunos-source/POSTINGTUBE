@@ -154,9 +154,13 @@ export const instagramAdapter: PlatformAdapter = {
             details: data.details,
           };
         } else {
+          const rawErr = data.error || 'Failed to publish to Instagram';
+          const cleanErr = rawErr.startsWith('Instagram') || rawErr.startsWith('Meta')
+            ? rawErr
+            : `Instagram Publishing Notice: ${rawErr}`;
           return {
             success: false,
-            errorMessage: `Instagram API Error: ${data.error || 'Failed to publish to Instagram'}`,
+            errorMessage: cleanErr,
           };
         }
       } catch (e: unknown) {
