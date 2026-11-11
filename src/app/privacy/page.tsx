@@ -130,6 +130,17 @@ export default function PrivacyPolicyPage() {
                   Google Security Settings Page
                 </a>.
               </p>
+              <div className="mt-3 p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-[11px] text-gray-700 leading-relaxed">
+                <strong>Google API Services User Data Policy:</strong> Plan Poster&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{' '}
+                <a
+                  href="https://developers.google.com/terms/api-services-user-data-policy"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 underline font-semibold"
+                >
+                  Google API Services User Data Policy
+                </a>, including the Limited Use requirements.
+              </div>
             </div>
 
             {/* Meta */}
