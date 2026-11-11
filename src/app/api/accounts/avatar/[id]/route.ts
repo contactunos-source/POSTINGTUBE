@@ -13,6 +13,18 @@ export async function GET(
     return NextResponse.json({ error: 'Missing account id' }, { status: 400 });
   }
 
+  if (id === 'ig_27268941606137076' || id.includes('27268941606137076')) {
+    return NextResponse.redirect(
+      'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/planposterofficial.png',
+      {
+        status: 307,
+        headers: {
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        },
+      }
+    );
+  }
+
   const filename = `avatars/${id}.jpg`;
   let matchedAccount: any = null;
 

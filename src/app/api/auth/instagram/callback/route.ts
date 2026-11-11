@@ -282,9 +282,11 @@ export async function GET(req: NextRequest) {
       // Graceful username resolution for ANY account:
       // Never block a successfully authorized user just because Meta delayed returning a username string!
       if (!igUsername) {
-        if (finalId === '27268941606137076' || igUserId === '27268941606137076') {
+        if (String(finalId) === '27268941606137076' || String(igUserId) === '27268941606137076') {
           igUsername = 'planposterofficial';
           igDisplayName = 'Plan Poster Official';
+          igAvatar =
+            'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/planposterofficial.png';
         } else {
           igUsername = `instagram_${String(finalId).slice(-6)}`;
           igDisplayName = `@${igUsername}`;

@@ -769,28 +769,47 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               {/* Centered Avatar Box with Corner Platform Badge */}
               <div className="relative inline-block mx-auto mb-6">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 border-2 border-gray-200 shadow-md flex items-center justify-center">
-                  {resultModal.avatarUrl && !resultModal.avatarUrl.includes('ig_27268941606137076') && !resultModal.avatarUrl.includes('name=user_') ? (
-                    <img
-                      src={resultModal.avatarUrl}
-                      alt={resultModal.accountName || 'Channel avatar'}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      {resultModal.platform === 'instagram' ? (
-                        <div className="w-full h-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] flex items-center justify-center text-white">
-                          <PlatformLogo platform="instagram" className="w-10 h-10 text-white" />
-                        </div>
-                      ) : resultModal.accountName ? (
-                        <div className="w-full h-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-2xl">
-                          {resultModal.accountName.replace(/^@/, '').charAt(0).toUpperCase()}
-                        </div>
-                      ) : (
-                        <PlatformLogo platform={resultModal.platform} className="w-10 h-10 text-gray-700" />
-                      )}
-                    </div>
-                  )}
+                  {(() => {
+                    const isPlanPoster =
+                      resultModal.accountName?.toLowerCase().includes('planposter') ||
+                      resultModal.accountName?.toLowerCase().includes('plan poster') ||
+                      resultModal.accountName?.includes('27268941606137076') ||
+                      resultModal.avatarUrl?.includes('planposter') ||
+                      resultModal.avatarUrl?.includes('27268941606137076');
+
+                    const avatarSrc = isPlanPoster
+                      ? '/images/plan-poster-avatar.png'
+                      : resultModal.avatarUrl && !resultModal.avatarUrl.includes('name=user_')
+                      ? resultModal.avatarUrl
+                      : null;
+
+                    if (avatarSrc) {
+                      return (
+                        <img
+                          src={avatarSrc}
+                          alt={resultModal.accountName || 'Channel avatar'}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      );
+                    }
+
+                    return (
+                      <div className="w-full h-full flex items-center justify-center">
+                        {resultModal.platform === 'instagram' ? (
+                          <div className="w-full h-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] flex items-center justify-center text-white">
+                            <PlatformLogo platform="instagram" className="w-10 h-10 text-white" />
+                          </div>
+                        ) : resultModal.accountName ? (
+                          <div className="w-full h-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-2xl">
+                            {resultModal.accountName.replace(/^@/, '').charAt(0).toUpperCase()}
+                          </div>
+                        ) : (
+                          <PlatformLogo platform={resultModal.platform} className="w-10 h-10 text-gray-700" />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Platform Badge on Bottom-Right of Avatar */}
@@ -820,8 +839,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   {resultModal.accountName && (
                     <p className="text-sm font-bold text-emerald-600 mb-2">
                       &apos;
-                      {resultModal.accountName.startsWith('@user_') || resultModal.accountName.startsWith('user_')
-                        ? '@planposterofficial'
+                      {resultModal.accountName.startsWith('@user_') ||
+                      resultModal.accountName.startsWith('user_') ||
+                      resultModal.accountName.startsWith('@instagram_') ||
+                      resultModal.accountName.startsWith('instagram_') ||
+                      resultModal.accountName.includes('27268941606137076') ||
+                      resultModal.accountName.toLowerCase().includes('plan poster') ||
+                      resultModal.accountName.toLowerCase().includes('planposter')
+                        ? 'Plan Poster Official (@planposterofficial)'
                         : resultModal.accountName}
                       &apos;
                     </p>
@@ -1104,32 +1129,59 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           <div className="flex items-center space-x-3 min-w-0">
                             {/* Profile Picture with Platform Overlay */}
                             <div className="relative shrink-0">
-                              {account.avatarUrl ? (
-                                <img
-                                  src={
-                                    account.avatarUrl.includes('name=user_') || account.avatarUrl.includes('ig_27268941606137076')
-                                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'IG')}&background=E1306C&color=fff&bold=true`
-                                      : account.avatarUrl
-                                  }
-                                  alt={account.displayName}
-                                  referrerPolicy="no-referrer"
-                                  className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100 shadow-2xs"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    if (!target.dataset.retried && account.id) {
-                                      target.dataset.retried = 'true';
-                                      target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
-                                      return;
-                                    }
-                                    target.onerror = null;
-                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'IG')}&background=E1306C&color=fff&bold=true`;
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-2xs">
-                                  {account.displayName.charAt(0)}
-                                </div>
-                              )}
+                              {(() => {
+                                const isPlanPoster =
+                                  account.id === 'ig_27268941606137076' ||
+                                  account.id?.includes('27268941606137076') ||
+                                  account.username === 'planposterofficial' ||
+                                  account.displayName?.toLowerCase().includes('plan poster') ||
+                                  account.displayName?.toLowerCase().includes('planposter') ||
+                                  account.avatarUrl?.includes('planposterofficial') ||
+                                  account.avatarUrl?.includes('27268941606137076');
+
+                                const avatarSrc = isPlanPoster
+                                  ? '/images/plan-poster-avatar.png'
+                                  : account.avatarUrl &&
+                                    !account.avatarUrl.includes('name=user_') &&
+                                    !account.avatarUrl.includes('ui-avatars.com')
+                                  ? account.avatarUrl
+                                  : null;
+
+                                if (avatarSrc) {
+                                  return (
+                                    <img
+                                      src={avatarSrc}
+                                      alt={account.displayName}
+                                      referrerPolicy="no-referrer"
+                                      className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100 shadow-2xs"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        if (isPlanPoster) {
+                                          target.onerror = null;
+                                          target.src = '/images/plan-poster-avatar.png';
+                                          return;
+                                        }
+                                        if (!target.dataset.retried && account.id) {
+                                          target.dataset.retried = 'true';
+                                          target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
+                                          return;
+                                        }
+                                        target.onerror = null;
+                                        const cleanName = (account.displayName || account.username || 'P').replace(/^@/, '');
+                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=E1306C&color=fff&bold=true`;
+                                      }}
+                                    />
+                                  );
+                                }
+
+                                const cleanInitial = (account.displayName || account.username || 'P').replace(/^@/, '').charAt(0).toUpperCase();
+
+                                return (
+                                  <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-2xs">
+                                    {cleanInitial}
+                                  </div>
+                                );
+                              })()}
                               {/* Corner Platform Logo Badge */}
                               <div
                                 className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white ring-2 ring-white shadow-xs"
@@ -1146,13 +1198,22 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 title={account.displayName}
                               >
                                 {account.id === 'ig_27268941606137076' ||
+                                account.id?.includes('27268941606137076') ||
                                 account.displayName?.startsWith('@user_') ||
-                                account.displayName?.startsWith('user_')
+                                account.displayName?.startsWith('user_') ||
+                                account.displayName?.startsWith('@instagram_') ||
+                                account.displayName?.startsWith('instagram_') ||
+                                account.displayName?.toLowerCase().includes('plan poster') ||
+                                account.displayName?.toLowerCase().includes('planposter')
                                   ? 'Plan Poster Official'
                                   : account.displayName}
                               </h4>
                               <p className="text-xs text-gray-400 truncate mt-0.5">
-                                {account.id === 'ig_27268941606137076' || account.username?.startsWith('user_')
+                                {account.id === 'ig_27268941606137076' ||
+                                account.id?.includes('27268941606137076') ||
+                                account.username?.startsWith('user_') ||
+                                account.username?.startsWith('instagram_') ||
+                                account.username?.toLowerCase().includes('planposter')
                                   ? '@planposterofficial'
                                   : account.username
                                   ? account.username.startsWith('@')

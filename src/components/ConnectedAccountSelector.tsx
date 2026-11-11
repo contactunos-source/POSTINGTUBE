@@ -137,12 +137,33 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
 
                 {/* Profile Image Avatar */}
                 <img
-                  src={account.avatarUrl || `/api/accounts/avatar/${encodeURIComponent(account.id)}`}
+                  src={
+                    account.id === 'ig_27268941606137076' ||
+                    account.id?.includes('27268941606137076') ||
+                    account.username === 'planposterofficial' ||
+                    account.displayName?.toLowerCase().includes('plan poster') ||
+                    account.displayName?.toLowerCase().includes('planposter') ||
+                    account.avatarUrl?.includes('planposterofficial') ||
+                    account.avatarUrl?.includes('27268941606137076')
+                      ? '/images/plan-poster-avatar.png'
+                      : account.avatarUrl || `/api/accounts/avatar/${encodeURIComponent(account.id)}`
+                  }
                   alt={account.displayName}
                   referrerPolicy="no-referrer"
                   className="w-full h-full rounded-full object-cover bg-gray-100"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
+                    if (
+                      account.id === 'ig_27268941606137076' ||
+                      account.id?.includes('27268941606137076') ||
+                      account.username === 'planposterofficial' ||
+                      account.displayName?.toLowerCase().includes('plan poster') ||
+                      account.displayName?.toLowerCase().includes('planposter')
+                    ) {
+                      target.onerror = null;
+                      target.src = '/images/plan-poster-avatar.png';
+                      return;
+                    }
                     if (!target.dataset.retried) {
                       target.dataset.retried = 'true';
                       target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
