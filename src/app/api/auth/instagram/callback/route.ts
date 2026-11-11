@@ -18,6 +18,7 @@ interface DetectedChannel {
   accessToken: string;
   platform: 'instagram';
   instagramId: string;
+  tokenExpiresAt?: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -72,9 +73,6 @@ export async function GET(req: NextRequest) {
     const target = new URL('/dashboard', returnBaseUrl);
     target.searchParams.set('tab', 'connections');
     target.searchParams.set('platform', 'instagram');
-    if (workspaceId) {
-      target.searchParams.set('workspace_id', workspaceId);
-    }
     for (const [k, v] of Object.entries(params)) {
       target.searchParams.set(k, v);
     }
@@ -169,6 +167,7 @@ export async function GET(req: NextRequest) {
 
       // Exchange for 60-day long-lived token
       let longToken = shortToken;
+      let tokenExpiresIn = 60 * 24 * 60 * 60; // 60 days in seconds
       try {
         const longRes = await fetch(
           `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(
@@ -178,6 +177,22 @@ export async function GET(req: NextRequest) {
         const longData = await longRes.json();
         if (longData.access_token) {
           longToken = longData.access_token;
+          if (longData.expires_in) {
+            tokenExpiresIn = Number(longData.expires_in);
+          }
+        } else if (fbAppSecret && fbAppSecret !== effectiveSecret) {
+          const fallbackRes = await fetch(
+            `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(
+              fbAppSecret
+            )}&access_token=${encodeURIComponent(shortToken)}`
+          );
+          const fallbackData = await fallbackRes.json().catch(() => ({}));
+          if (fallbackData.access_token) {
+            longToken = fallbackData.access_token;
+            if (fallbackData.expires_in) {
+              tokenExpiresIn = Number(fallbackData.expires_in);
+            }
+          }
         }
       } catch (e) {
         console.warn('Long-lived Instagram token exchange warning:', e);
@@ -197,12 +212,14 @@ export async function GET(req: NextRequest) {
           )}`
         );
         const profileData = await profileRes.json();
-        if (profileData.username) igUsername = profileData.username;
-        if (profileData.name) igDisplayName = profileData.name;
-        if (profileData.account_type) igAccountType = profileData.account_type;
-        if (profileData.id) verifiedIgId = profileData.id;
-        else if (profileData.user_id) verifiedIgId = profileData.user_id;
-        if (profileData.profile_picture_url) igAvatar = profileData.profile_picture_url;
+        const profileItem = Array.isArray(profileData?.data) ? profileData.data[0] : profileData;
+
+        if (profileItem?.username) igUsername = profileItem.username;
+        if (profileItem?.name) igDisplayName = profileItem.name;
+        if (profileItem?.account_type) igAccountType = profileItem.account_type;
+        if (profileItem?.id) verifiedIgId = profileItem.id;
+        else if (profileItem?.user_id) verifiedIgId = profileItem.user_id;
+        if (profileItem?.profile_picture_url) igAvatar = profileItem.profile_picture_url;
       } catch (e) {
         console.warn('Instagram v21.0 profile fetch warning:', e);
       }
@@ -215,12 +232,14 @@ export async function GET(req: NextRequest) {
             )}`
           );
           const legacyData = await legacyRes.json();
-          if (legacyData.username) igUsername = legacyData.username;
-          if (legacyData.name) igDisplayName = legacyData.name;
-          if (legacyData.account_type) igAccountType = legacyData.account_type;
-          if (legacyData.id) verifiedIgId = legacyData.id;
-          else if (legacyData.user_id) verifiedIgId = legacyData.user_id;
-          if (legacyData.profile_picture_url) igAvatar = legacyData.profile_picture_url;
+          const legacyItem = Array.isArray(legacyData?.data) ? legacyData.data[0] : legacyData;
+
+          if (legacyItem?.username) igUsername = legacyItem.username;
+          if (legacyItem?.name) igDisplayName = legacyItem.name;
+          if (legacyItem?.account_type) igAccountType = legacyItem.account_type;
+          if (legacyItem?.id) verifiedIgId = legacyItem.id;
+          else if (legacyItem?.user_id) verifiedIgId = legacyItem.user_id;
+          if (legacyItem?.profile_picture_url) igAvatar = legacyItem.profile_picture_url;
         } catch {}
       }
 
@@ -232,9 +251,11 @@ export async function GET(req: NextRequest) {
             )}`
           );
           const fbGraphData = await fbGraphRes.json();
-          if (fbGraphData.username) igUsername = fbGraphData.username;
-          if (fbGraphData.name) igDisplayName = fbGraphData.name;
-          if (fbGraphData.profile_picture_url) igAvatar = fbGraphData.profile_picture_url;
+          const fbItem = Array.isArray(fbGraphData?.data) ? fbGraphData.data[0] : fbGraphData;
+
+          if (fbItem?.username) igUsername = fbItem.username;
+          if (fbItem?.name) igDisplayName = fbItem.name;
+          if (fbItem?.profile_picture_url) igAvatar = fbItem.profile_picture_url;
         } catch {}
       }
 
@@ -242,7 +263,7 @@ export async function GET(req: NextRequest) {
       if (igAccountType && igAccountType.toUpperCase() === 'PERSONAL') {
         return makeRedirect({
           error:
-            'PERSONAL_ACCOUNT_DETECTED: Your Instagram account is currently a Personal account. Meta APIs strictly require a Professional (Business or Creator) account to connect. Please open Instagram on your phone, go to Settings > Account Type and Tools > Switch to Professional Account (it is 100% free and takes 10 seconds), and try again.',
+            'PERSONAL_ACCOUNT_DETECTED: Your Instagram account is currently set to Personal. Meta APIs require an Instagram Professional (Business or Creator) account to connect. Please open Instagram, go to Settings > Account Type and Tools > Switch to Professional Account (100% free), then connect again.',
         });
       }
 
@@ -262,7 +283,7 @@ export async function GET(req: NextRequest) {
       if (!igUsername) {
         return makeRedirect({
           error:
-            'PERSONAL_ACCOUNT_DETECTED: Unable to retrieve your Instagram username. Meta requires an Instagram Professional (Business or Creator) account to connect. Please open Instagram on your phone, go to Settings > Account Type and Tools > Switch to Professional Account (100% free), and try connecting again.',
+            'PERSONAL_ACCOUNT_DETECTED: Unable to retrieve your Instagram username. Meta requires an Instagram Professional (Business or Creator) account to connect. Please open Instagram, go to Settings > Account Type and Tools > Switch to Professional Account (free, takes 10 seconds), and try again.',
         });
       }
 
@@ -276,6 +297,7 @@ export async function GET(req: NextRequest) {
         accessToken: longToken,
         platform: 'instagram',
         instagramId: String(finalId),
+        tokenExpiresAt: new Date(Date.now() + tokenExpiresIn * 1000).toISOString(),
       });
     } else {
       // -------------------------------------------------------------------------
@@ -315,6 +337,8 @@ export async function GET(req: NextRequest) {
       const longLivedRes = await fetch(longLivedUrl);
       const longLivedData = await longLivedRes.json();
       const userToken = longLivedData.access_token || shortLivedToken;
+      const fbExpiresIn = longLivedData.expires_in ? Number(longLivedData.expires_in) : 60 * 24 * 60 * 60;
+      const fbTokenExpiresAt = new Date(Date.now() + fbExpiresIn * 1000).toISOString();
 
       // 3. Discover Instagram Business/Creator Accounts linked to Facebook Pages
       const pagesUrl = `https://graph.facebook.com/v20.0/me/accounts?fields=id,name,picture.type(large),access_token,instagram_business_account{id,username,name,profile_picture_url},page_backed_instagram_accounts,connected_instagram_account&access_token=${encodeURIComponent(
@@ -356,6 +380,7 @@ export async function GET(req: NextRequest) {
               accessToken: p.access_token || userToken,
               platform: 'instagram',
               instagramId: igId,
+              tokenExpiresAt: fbTokenExpiresAt,
             });
           }
         }
@@ -389,6 +414,7 @@ export async function GET(req: NextRequest) {
               accessToken: pData.access_token || userToken,
               platform: 'instagram',
               instagramId: igId,
+              tokenExpiresAt: fbTokenExpiresAt,
             });
           }
         } catch (e) {
@@ -433,6 +459,7 @@ export async function GET(req: NextRequest) {
         externalId: ch.id,
         accessToken: ch.accessToken,
         pageId: ch.id,
+        tokenExpiresAt: ch.tokenExpiresAt || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       };
 
       await DatabaseService.saveAccount(igAcc, userId, workspaceId);

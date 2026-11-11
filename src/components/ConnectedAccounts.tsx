@@ -228,6 +228,15 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
     // Check if returning from Meta OAuth
     if (typeof window !== 'undefined') {
+      const safeDecode = (val: string | null): string => {
+        if (!val) return '';
+        try {
+          return decodeURIComponent(val.replace(/\+/g, ' '));
+        } catch {
+          return val;
+        }
+      };
+
       const urlParams = new URLSearchParams(window.location.search);
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
@@ -264,16 +273,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           onRefreshAccount('all');
         }
       } else if (authError) {
-        setVerifyError(decodeURIComponent(authError));
+        const decodedError = safeDecode(authError);
+        setVerifyError(decodedError);
         setResultModal({
           isOpen: true,
           status: 'error',
           platform: returningPlatform,
-          errorMessage: decodeURIComponent(authError),
+          errorMessage: decodedError,
         });
         setConnectingPlatform(null);
       } else if (authNotice) {
-        setToastMessage(decodeURIComponent(authNotice));
+        const decodedNotice = safeDecode(authNotice);
+        setToastMessage(decodedNotice);
         setTimeout(() => setToastMessage(null), 4500);
       } else if (noIgFound) {
         setResultModal({
@@ -287,8 +298,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         setDiscoveredPages([]);
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected) {
-        window.history.replaceState({}, '', `${window.location.pathname}?tab=connections`);
+      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
+        try {
+          window.history.replaceState({}, '', `${window.location.pathname}?tab=connections`);
+        } catch {}
       }
     }
   }, []);

@@ -81,9 +81,14 @@ function LoginContent() {
       if (hashError) {
         setMode('reset-password');
         setHasValidSession(false);
-        const decoded = hashErrorDesc
-          ? decodeURIComponent(hashErrorDesc.replace(/\+/g, ' '))
-          : 'This recovery link is invalid or has expired.';
+        let decoded = 'This recovery link is invalid or has expired.';
+        if (hashErrorDesc) {
+          try {
+            decoded = decodeURIComponent(hashErrorDesc.replace(/\+/g, ' '));
+          } catch {
+            decoded = hashErrorDesc;
+          }
+        }
         setErrorMsg(decoded);
         return;
       }

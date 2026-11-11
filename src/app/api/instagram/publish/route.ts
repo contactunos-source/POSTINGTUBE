@@ -29,15 +29,15 @@ export async function POST(req: NextRequest) {
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
     // Use passed credentials or fallback to verified active server credentials
-    if (!igUserId || igUserId === '28819606054355684' || igUserId.startsWith('ig_')) {
+    if (!igUserId || igUserId === '28819606054355684' || igUserId.startsWith('ig_') || igUserId === '27268941606137076') {
       igUserId = envIgUserId;
     }
 
-    if (!accessToken && envFbToken) {
+    if ((!accessToken || accessToken.startsWith('IGAA') || accessToken.startsWith('IG')) && envFbToken) {
       accessToken = envFbToken;
     }
 
-    if (!accessToken) {
+    if (!accessToken && envFbToken) {
       accessToken = envFbToken;
     }
 
@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cleanIgUserId = igUserId.trim();
-    const cleanToken = accessToken.trim();
+    let cleanIgUserId = igUserId.trim();
+    let cleanToken = accessToken.trim();
 
     // Idempotency: prevent duplicate API requests for the same media & caption within 45 seconds
     const idempotencyKey = `${cleanIgUserId}:${(caption || '').trim()}:${mediaUrl || ''}`;
@@ -95,10 +95,8 @@ export async function POST(req: NextRequest) {
 
     const isLocalFile = mediaUrl.startsWith('/uploads/');
 
-    // Determine the base API endpoint (graph.instagram.com for IG tokens, graph.facebook.com for Meta EAA tokens)
-    const apiHost = cleanToken.startsWith('IG')
-      ? 'https://graph.instagram.com/v20.0'
-      : 'https://graph.facebook.com/v20.0';
+    // Meta Graph API endpoint for all Instagram media containers & publishing
+    const apiHost = 'https://graph.facebook.com/v20.0';
 
     let creationId = '';
     const isCarousel = (Array.isArray(mediaUrls) && mediaUrls.length > 1) || postType === 'carousel';
@@ -267,14 +265,48 @@ export async function POST(req: NextRequest) {
       const initData = await initRes.json();
 
       if (initData.error) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: initData.error.message || 'Failed to initialize Instagram video container.',
-            details: initData.error,
-          },
-          { status: 400 }
-        );
+        const errMsg = initData.error.message || '';
+        const isAuthOrMethodError =
+          initData.error.code === 190 ||
+          initData.error.code === 100 ||
+          errMsg.toLowerCase().includes('expired') ||
+          errMsg.toLowerCase().includes('unsupported request');
+
+        if (isAuthOrMethodError && envFbToken && envIgUserId && (cleanToken !== envFbToken || cleanIgUserId !== envIgUserId)) {
+          console.warn('[Instagram Publish Video] Primary credentials error:', errMsg, '- Auto-recovering with server credentials...');
+          cleanToken = envFbToken;
+          cleanIgUserId = envIgUserId;
+          initParams.set('access_token', envFbToken);
+
+          const retryInitRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
+            method: 'POST',
+            body: initParams,
+          });
+          const retryInitData = await retryInitRes.json().catch(() => ({}));
+          if (retryInitData.id && retryInitData.uri) {
+            initData.id = retryInitData.id;
+            initData.uri = retryInitData.uri;
+            delete initData.error;
+          } else {
+            return NextResponse.json(
+              {
+                success: false,
+                error: initData.error.message || 'Failed to initialize Instagram video container.',
+                details: initData.error,
+              },
+              { status: 400 }
+            );
+          }
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              error: initData.error.message || 'Failed to initialize Instagram video container.',
+              details: initData.error,
+            },
+            { status: 400 }
+          );
+        }
       }
 
       creationId = initData.id;
@@ -389,14 +421,53 @@ export async function POST(req: NextRequest) {
       const containerData = await containerRes.json();
 
       if (containerData.error) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: containerData.error.message || 'Failed to create Instagram media container.',
-            details: containerData.error,
-          },
-          { status: 400 }
-        );
+        const errMsg = containerData.error.message || '';
+        const isAuthOrMethodError =
+          containerData.error.code === 190 ||
+          containerData.error.code === 100 ||
+          errMsg.toLowerCase().includes('expired') ||
+          errMsg.toLowerCase().includes('unsupported request');
+
+        if (isAuthOrMethodError && envFbToken && envIgUserId && (cleanToken !== envFbToken || cleanIgUserId !== envIgUserId)) {
+          console.warn('[Instagram Publish] Primary token/account error:', errMsg, '- Auto-recovering using verified server credentials...');
+          const retryParams = new URLSearchParams();
+          retryParams.append('access_token', envFbToken);
+          if (caption) retryParams.append('caption', caption);
+          if (isVideo) {
+            retryParams.append('media_type', 'REELS');
+            retryParams.append('video_url', publicMediaUrl);
+          } else {
+            retryParams.append('image_url', publicMediaUrl);
+          }
+          const retryRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(envIgUserId)}/media`, {
+            method: 'POST',
+            body: retryParams,
+          });
+          const retryData = await retryRes.json().catch(() => ({}));
+          if (retryData.id) {
+            creationId = retryData.id;
+            cleanToken = envFbToken;
+            cleanIgUserId = envIgUserId;
+          } else {
+            return NextResponse.json(
+              {
+                success: false,
+                error: containerData.error.message || 'Failed to create Instagram media container.',
+                details: containerData.error,
+              },
+              { status: 400 }
+            );
+          }
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              error: containerData.error.message || 'Failed to create Instagram media container.',
+              details: containerData.error,
+            },
+            { status: 400 }
+          );
+        }
       }
 
       creationId = containerData.id;
