@@ -30,8 +30,8 @@ export const SecuritySettingsView: React.FC<SecuritySettingsViewProps> = ({
 
   const envSample = `# Owner Super Admin Credentials (in .env.local)
 OWNER_EMAIL=${ownerEmail}
-OWNER_ADMIN_KEY=PostingTubeOwner2026!#
-ADMIN_SESSION_SECRET=pt_sec_d870f5bb547efd0ab96464c9fb6db2cd868941086292404
+OWNER_ADMIN_KEY=your_secure_admin_key_here
+ADMIN_SESSION_SECRET=your_generated_random_session_secret
 OWNER_MFA_ENABLED=true`;
 
   const sqlSample = `-- PostingTube Private Owner Super Admin Migration

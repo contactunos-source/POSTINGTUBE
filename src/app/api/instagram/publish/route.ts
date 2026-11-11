@@ -41,10 +41,7 @@ export async function POST(req: NextRequest) {
       mediaUrl = mediaUrls[0];
     }
 
-    const envIgUserId =
-      process.env.INSTAGRAM_ACCOUNT_ID && process.env.INSTAGRAM_ACCOUNT_ID !== '2116988269210142'
-        ? process.env.INSTAGRAM_ACCOUNT_ID
-        : '17841417726295028';
+    const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '';
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
     // Strip 'ig_' database prefix if present
@@ -298,7 +295,7 @@ export async function POST(req: NextRequest) {
           errMsg.toLowerCase().includes('unsupported request');
 
         const isServerAccount =
-          cleanIgUserId === envIgUserId || cleanIgUserId === '17841417726295028';
+          Boolean(envIgUserId && cleanIgUserId === envIgUserId);
 
         if (isAuthOrMethodError && envFbToken && isServerAccount && cleanToken !== envFbToken) {
           console.warn('[Instagram Publish Video] Server account credential fallback...');
@@ -460,7 +457,7 @@ export async function POST(req: NextRequest) {
           errMsg.toLowerCase().includes('unsupported request');
 
         const isServerAccount =
-          cleanIgUserId === envIgUserId || cleanIgUserId === '17841417726295028';
+          Boolean(envIgUserId && cleanIgUserId === envIgUserId);
 
         if (isAuthOrMethodError && envFbToken && isServerAccount && cleanToken !== envFbToken) {
           console.warn('[Instagram Publish] Server account fallback using verified credentials...');

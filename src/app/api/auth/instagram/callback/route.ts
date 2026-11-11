@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
 
-  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '3482720281909354';
-  const fbAppSecret = process.env.FACEBOOK_APP_SECRET || 'b1433776560f5cf75695f4785a8c9fa6';
-  const igAppId = process.env.INSTAGRAM_APP_ID || '2116988269210142';
-  const igAppSecret = process.env.INSTAGRAM_APP_SECRET || 'd870f5bb547efd0ab96464c9fb6db2cd';
+  const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
+  const fbAppSecret = process.env.FACEBOOK_APP_SECRET || '';
+  const igAppId = process.env.INSTAGRAM_APP_ID || fbAppId;
+  const igAppSecret = process.env.INSTAGRAM_APP_SECRET || fbAppSecret;
 
   let workspaceId = '';
   let userId = '';
@@ -100,8 +100,8 @@ export async function GET(req: NextRequest) {
     // FLOW A: DIRECT INSTAGRAM LOGIN (via Instagram Login for Business)
     // -------------------------------------------------------------------------
     if (authMode === 'direct') {
-      const effectiveId = igAppId || '2116988269210142';
-      const effectiveSecret = igAppSecret || 'd870f5bb547efd0ab96464c9fb6db2cd';
+      const effectiveId = igAppId || fbAppId;
+      const effectiveSecret = igAppSecret || fbAppSecret;
 
       const directTokenForm = new URLSearchParams();
       directTokenForm.append('client_id', effectiveId);
