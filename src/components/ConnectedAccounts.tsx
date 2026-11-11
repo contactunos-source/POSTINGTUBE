@@ -769,29 +769,25 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               {/* Centered Avatar Box with Corner Platform Badge */}
               <div className="relative inline-block mx-auto mb-6">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 border-2 border-gray-200 shadow-md flex items-center justify-center">
-                  {resultModal.avatarUrl ? (
+                  {resultModal.avatarUrl && !resultModal.avatarUrl.includes('ig_27268941606137076') && !resultModal.avatarUrl.includes('name=user_') ? (
                     <img
-                      src={
-                        resultModal.avatarUrl && !resultModal.avatarUrl.includes('name=user_')
-                          ? resultModal.avatarUrl
-                          : 'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png'
-                      }
+                      src={resultModal.avatarUrl}
                       alt={resultModal.accountName || 'Channel avatar'}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-800 font-bold text-2xl">
+                    <div className="w-full h-full flex items-center justify-center">
                       {resultModal.platform === 'instagram' ? (
-                        <img
-                          src="https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png"
-                          alt="PlanPoster Logo"
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="w-full h-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] flex items-center justify-center text-white">
+                          <PlatformLogo platform="instagram" className="w-10 h-10 text-white" />
+                        </div>
                       ) : resultModal.accountName ? (
-                        resultModal.accountName.charAt(0).toUpperCase()
+                        <div className="w-full h-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-2xl">
+                          {resultModal.accountName.replace(/^@/, '').charAt(0).toUpperCase()}
+                        </div>
                       ) : (
-                        <PlatformLogo platform={resultModal.platform} className="w-8 h-8 text-gray-700" />
+                        <PlatformLogo platform={resultModal.platform} className="w-10 h-10 text-gray-700" />
                       )}
                     </div>
                   )}
@@ -1111,8 +1107,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                               {account.avatarUrl ? (
                                 <img
                                   src={
-                                    account.id === 'ig_27268941606137076' || account.avatarUrl.includes('name=user_')
-                                      ? 'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png'
+                                    account.avatarUrl.includes('name=user_') || account.avatarUrl.includes('ig_27268941606137076')
+                                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'IG')}&background=E1306C&color=fff&bold=true`
                                       : account.avatarUrl
                                   }
                                   alt={account.displayName}
@@ -1126,7 +1122,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                       return;
                                     }
                                     target.onerror = null;
-                                    target.src = 'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png';
+                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(account.displayName || account.username || 'IG')}&background=E1306C&color=fff&bold=true`;
                                   }}
                                 />
                               ) : (
@@ -1381,9 +1377,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
               {/* Centered Logo Interchange: Official PlanPoster Bird ⇄ Platform Logo (Balanced Size) */}
               <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center p-1.5 shadow-xs shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-white border border-gray-200/90 flex items-center justify-center p-1.5 shadow-2xs shrink-0">
                   <img
-                    src="/images/plan-poster-bird-white.png"
+                    src="/images/plan-poster-bird-black.png"
                     alt="Plan Poster"
                     className="w-5.5 h-5.5 object-contain select-none"
                     draggable={false}
@@ -1394,7 +1390,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs ${
                       connectingPlatform === 'instagram'
-                        ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600'
+                        ? 'bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888]'
                         : connectingPlatform === 'facebook'
                         ? 'bg-[#1877F2]'
                         : connectingPlatform === 'youtube'
@@ -1508,6 +1504,20 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   >
                     <span>Continue to Instagram</span>
                     <ArrowUpRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Direct Facebook Page linked alternative */}
+                <div className="pt-2.5 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}&mode=facebook`;
+                    }}
+                    className="text-[11px] text-gray-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <span>Have Instagram linked to your Facebook Page? Connect via Facebook</span>
+                    <ArrowUpRight className="w-3 h-3" />
                   </button>
                 </div>
 

@@ -205,9 +205,11 @@ export async function GET(req: NextRequest) {
       let igAccountType = '';
       let verifiedIgId = igUserId;
 
+      // 1. Fetch core supported fields from Instagram Platform API (v21.0)
+      // Note: Meta strictly requires valid field names; requesting non-existent fields causes code 100 errors.
       try {
         const profileRes = await fetch(
-          `https://graph.instagram.com/v21.0/me?fields=id,user_id,username,name,profile_picture_url,account_type&access_token=${encodeURIComponent(
+          `https://graph.instagram.com/v21.0/me?fields=id,username,account_type&access_token=${encodeURIComponent(
             longToken
           )}`
         );
@@ -215,19 +217,29 @@ export async function GET(req: NextRequest) {
         const profileItem = Array.isArray(profileData?.data) ? profileData.data[0] : profileData;
 
         if (profileItem?.username) igUsername = profileItem.username;
-        if (profileItem?.name) igDisplayName = profileItem.name;
         if (profileItem?.account_type) igAccountType = profileItem.account_type;
         if (profileItem?.id) verifiedIgId = profileItem.id;
-        else if (profileItem?.user_id) verifiedIgId = profileItem.user_id;
-        if (profileItem?.profile_picture_url) igAvatar = profileItem.profile_picture_url;
       } catch (e) {
         console.warn('Instagram v21.0 profile fetch warning:', e);
       }
 
+      // 2. Non-blocking attempt to retrieve profile picture if available
+      try {
+        const picRes = await fetch(
+          `https://graph.instagram.com/v21.0/me?fields=profile_picture_url&access_token=${encodeURIComponent(
+            longToken
+          )}`
+        );
+        const picData = await picRes.json();
+        const picItem = Array.isArray(picData?.data) ? picData.data[0] : picData;
+        if (picItem?.profile_picture_url) igAvatar = picItem.profile_picture_url;
+      } catch {}
+
+      // 3. Fallback to unversioned /me endpoint if username was not found
       if (!igUsername) {
         try {
           const legacyRes = await fetch(
-            `https://graph.instagram.com/me?fields=id,user_id,username,name,profile_picture_url,account_type&access_token=${encodeURIComponent(
+            `https://graph.instagram.com/me?fields=id,username,account_type&access_token=${encodeURIComponent(
               longToken
             )}`
           );
@@ -235,27 +247,25 @@ export async function GET(req: NextRequest) {
           const legacyItem = Array.isArray(legacyData?.data) ? legacyData.data[0] : legacyData;
 
           if (legacyItem?.username) igUsername = legacyItem.username;
-          if (legacyItem?.name) igDisplayName = legacyItem.name;
           if (legacyItem?.account_type) igAccountType = legacyItem.account_type;
           if (legacyItem?.id) verifiedIgId = legacyItem.id;
-          else if (legacyItem?.user_id) verifiedIgId = legacyItem.user_id;
-          if (legacyItem?.profile_picture_url) igAvatar = legacyItem.profile_picture_url;
         } catch {}
       }
 
+      // 4. Fallback by user ID if available
       if (!igUsername && igUserId) {
         try {
-          const fbGraphRes = await fetch(
-            `https://graph.facebook.com/v21.0/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(
+          const nodeRes = await fetch(
+            `https://graph.instagram.com/${igUserId}?fields=id,username,account_type&access_token=${encodeURIComponent(
               longToken
             )}`
           );
-          const fbGraphData = await fbGraphRes.json();
-          const fbItem = Array.isArray(fbGraphData?.data) ? fbGraphData.data[0] : fbGraphData;
+          const nodeData = await nodeRes.json();
+          const nodeItem = Array.isArray(nodeData?.data) ? nodeData.data[0] : nodeData;
 
-          if (fbItem?.username) igUsername = fbItem.username;
-          if (fbItem?.name) igDisplayName = fbItem.name;
-          if (fbItem?.profile_picture_url) igAvatar = fbItem.profile_picture_url;
+          if (nodeItem?.username) igUsername = nodeItem.username;
+          if (nodeItem?.account_type) igAccountType = nodeItem.account_type;
+          if (nodeItem?.id) verifiedIgId = nodeItem.id;
         } catch {}
       }
 
@@ -269,31 +279,28 @@ export async function GET(req: NextRequest) {
 
       const finalId = verifiedIgId || igUserId;
 
-      // Special resolution for Plan Poster Official account
-      if (finalId === '27268941606137076' || igUserId === '27268941606137076') {
-        if (!igUsername) igUsername = 'planposterofficial';
-        if (!igDisplayName) igDisplayName = 'Plan Poster Official';
-        if (!igAvatar) {
-          igAvatar =
-            'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png';
+      // Graceful username resolution for ANY account:
+      // Never block a successfully authorized user just because Meta delayed returning a username string!
+      if (!igUsername) {
+        if (finalId === '27268941606137076' || igUserId === '27268941606137076') {
+          igUsername = 'planposterofficial';
+          igDisplayName = 'Plan Poster Official';
+        } else {
+          igUsername = `instagram_${String(finalId).slice(-6)}`;
+          igDisplayName = `@${igUsername}`;
         }
       }
 
-      // If username is still not detected, this account lacks Instagram Professional API access
-      if (!igUsername) {
-        return makeRedirect({
-          error:
-            'PERSONAL_ACCOUNT_DETECTED: Unable to retrieve your Instagram username. Meta requires an Instagram Professional (Business or Creator) account to connect. Please open Instagram, go to Settings > Account Type and Tools > Switch to Professional Account (free, takes 10 seconds), and try again.',
-        });
-      }
+      const safeCleanName = igUsername.replace(/^@/, '');
+      const dynamicAvatar =
+        igAvatar ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(safeCleanName)}&background=E1306C&color=ffffff&bold=true`;
 
       detectedChannels.push({
         id: String(finalId || igUsername),
-        name: `@${igUsername}`,
-        displayName: igDisplayName || `@${igUsername}`,
-        avatarUrl:
-          igAvatar ||
-          'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png',
+        name: `@${safeCleanName}`,
+        displayName: igDisplayName || `@${safeCleanName}`,
+        avatarUrl: dynamicAvatar,
         accessToken: longToken,
         platform: 'instagram',
         instagramId: String(finalId),
@@ -452,7 +459,7 @@ export async function GET(req: NextRequest) {
         displayName: ch.displayName || `@${cleanUsername}`,
         avatarUrl:
           permAvatar ||
-          'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png',
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanUsername)}&background=E1306C&color=ffffff&bold=true`,
         accountType: 'business',
         status: 'connected',
         followersCount: 0,

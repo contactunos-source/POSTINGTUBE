@@ -130,17 +130,6 @@ export async function GET(
     }
   }
 
-  // Fallback to high-res branded avatar SVG
-  if (id === 'ig_27268941606137076' || matchedAccount?.platform === 'instagram') {
-    const officialLogo = 'https://mdykqpqhuwfpondyqnms.supabase.co/storage/v1/object/public/postingtube-media/avatars/ig_27268941606137076.png';
-    return NextResponse.redirect(officialLogo, {
-      status: 307,
-      headers: {
-        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
-      },
-    });
-  }
-
   const cleanName = (
     matchedAccount?.display_name ||
     matchedAccount?.username ||
