@@ -25,6 +25,11 @@ export const metadata: Metadata = {
     shortcut: "/plan-poster-bird.svg",
     apple: "/images/plan-poster-logo-dark.png",
   },
+  verification: {
+    other: {
+      "facebook-domain-verification": ["zminikzspmwfatpq2bwexmu1ffx908"],
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -35,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased font-sans`}
     >
       <head>
+        <meta name="facebook-domain-verification" content="zminikzspmwfatpq2bwexmu1ffx908" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
