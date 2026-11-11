@@ -25,24 +25,29 @@ export async function POST(req: NextRequest) {
       mediaUrl = mediaUrls[0];
     }
 
-    const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
+    const envIgUserId =
+      process.env.INSTAGRAM_ACCOUNT_ID && process.env.INSTAGRAM_ACCOUNT_ID !== '2116988269210142'
+        ? process.env.INSTAGRAM_ACCOUNT_ID
+        : '17841417726295028';
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
     // Strip 'ig_' database prefix if present
     let cleanIgUserId = (igUserId || '').replace(/^ig_/, '').trim();
     let cleanToken = (accessToken || '').trim();
 
-    // Check if targeting the server's default verified accounts
-    const isServerDefaultAccount =
-      !cleanIgUserId ||
-      cleanIgUserId === '28819606054355684' ||
-      cleanIgUserId === '27268941606137076' ||
-      cleanIgUserId === envIgUserId;
+    // If accessToken was stored as a JSON string (e.g. {"access_token":"IGAA...","expires_at":...}), extract raw token
+    if (cleanToken.startsWith('{') && cleanToken.includes('access_token')) {
+      try {
+        const parsed = JSON.parse(cleanToken);
+        cleanToken = (parsed.access_token || cleanToken).trim();
+      } catch {}
+    }
 
-    if (isServerDefaultAccount) {
-      if (envIgUserId) cleanIgUserId = envIgUserId;
-      if (envFbToken && (!cleanToken || cleanToken.startsWith('IG'))) {
-        cleanToken = envFbToken;
+    // Only fallback to server credentials if caller provided NO token and NO user ID
+    if (!cleanToken && envFbToken) {
+      cleanToken = envFbToken;
+      if (!cleanIgUserId) {
+        cleanIgUserId = envIgUserId;
       }
     }
 
@@ -276,16 +281,22 @@ export async function POST(req: NextRequest) {
           errMsg.toLowerCase().includes('expired') ||
           errMsg.toLowerCase().includes('unsupported request');
 
-        if (isAuthOrMethodError && envFbToken && envIgUserId && (cleanToken !== envFbToken || cleanIgUserId !== envIgUserId)) {
-          console.warn('[Instagram Publish Video] Primary credentials error:', errMsg, '- Auto-recovering with server credentials...');
+        const isServerAccount =
+          cleanIgUserId === envIgUserId || cleanIgUserId === '17841417726295028';
+
+        if (isAuthOrMethodError && envFbToken && isServerAccount && cleanToken !== envFbToken) {
+          console.warn('[Instagram Publish Video] Server account credential fallback...');
           cleanToken = envFbToken;
           cleanIgUserId = envIgUserId;
           initParams.set('access_token', envFbToken);
 
-          const retryInitRes = await fetch(`${apiHost}/${encodeURIComponent(cleanIgUserId)}/media`, {
-            method: 'POST',
-            body: initParams,
-          });
+          const retryInitRes = await fetch(
+            `https://graph.facebook.com/v20.0/${encodeURIComponent(envIgUserId)}/media`,
+            {
+              method: 'POST',
+              body: initParams,
+            }
+          );
           const retryInitData = await retryInitRes.json().catch(() => ({}));
           if (retryInitData.id && retryInitData.uri) {
             initData.id = retryInitData.id;
@@ -302,10 +313,13 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
+          const friendlyMsg = isAuthOrMethodError
+            ? `${errMsg || 'Instagram token is expired or unauthorized'}. Please go to the Connections tab and click 'Reconnect' on your Instagram account to renew authorization.`
+            : initData.error.message || 'Failed to initialize Instagram video container.';
           return NextResponse.json(
             {
               success: false,
-              error: initData.error.message || 'Failed to initialize Instagram video container.',
+              error: friendlyMsg,
               details: initData.error,
             },
             { status: 400 }
@@ -432,8 +446,11 @@ export async function POST(req: NextRequest) {
           errMsg.toLowerCase().includes('expired') ||
           errMsg.toLowerCase().includes('unsupported request');
 
-        if (isAuthOrMethodError && envFbToken && envIgUserId && (cleanToken !== envFbToken || cleanIgUserId !== envIgUserId)) {
-          console.warn('[Instagram Publish] Primary token/account error:', errMsg, '- Auto-recovering using verified server credentials...');
+        const isServerAccount =
+          cleanIgUserId === envIgUserId || cleanIgUserId === '17841417726295028';
+
+        if (isAuthOrMethodError && envFbToken && isServerAccount && cleanToken !== envFbToken) {
+          console.warn('[Instagram Publish] Server account fallback using verified credentials...');
           const retryParams = new URLSearchParams();
           retryParams.append('access_token', envFbToken);
           if (caption) retryParams.append('caption', caption);
@@ -463,10 +480,13 @@ export async function POST(req: NextRequest) {
             );
           }
         } else {
+          const friendlyMsg = isAuthOrMethodError
+            ? `${errMsg || 'Instagram token is expired or unauthorized'}. Please go to the Connections tab and click 'Reconnect' on your Instagram account to renew authorization.`
+            : containerData.error.message || 'Failed to create Instagram media container.';
           return NextResponse.json(
             {
               success: false,
-              error: containerData.error.message || 'Failed to create Instagram media container.',
+              error: friendlyMsg,
               details: containerData.error,
             },
             { status: 400 }
