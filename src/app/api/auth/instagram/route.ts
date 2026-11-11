@@ -47,10 +47,6 @@ export async function GET(req: NextRequest) {
   const proto = req.headers.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
   const requestOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
 
-  // Decide mode: use direct Instagram OAuth if an INSTAGRAM_APP_ID exists and mode is not forced to facebook
-  // Always default to direct Instagram OAuth (instagram.com) unless explicitly requested via Facebook
-  const useDirect = requestedMode !== 'facebook';
-
   // Compute compliant canonical redirect URI
   let redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
   if (!redirectUri) {
@@ -67,36 +63,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (useDirect) {
-    const stateObj = {
-      workspaceId,
-      userId,
-      platform: 'instagram',
-      mode: 'direct',
-      returnUrl: requestOrigin,
-      usedRedirectUri: redirectUri,
-    };
-    const state = encodeURIComponent(JSON.stringify(stateObj));
-    const scopes = DIRECT_IG_SCOPES.join(',');
-
-    const directUrl = `https://www.instagram.com/oauth/authorize?client_id=${encodeURIComponent(
-      igAppId
-    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
-      scopes
-    )}&response_type=code&state=${state}`;
-
-    return NextResponse.redirect(directUrl);
-  }
-
-  // Fallback to Meta Graph API via Facebook Login dialog
-  if (!fbAppId) {
-    return NextResponse.redirect(
-      `${requestOrigin}/dashboard?tab=connections&platform=instagram&error=${encodeURIComponent(
-        'Please configure FACEBOOK_APP_ID in your environment variables to enable Instagram Login.'
-      )}`
-    );
-  }
-
+  // Meta App 3482720281909354 is a live Meta Business App.
+  // Direct instagram.com/oauth/authorize with a Meta Business App ID throws "Invalid platform app".
+  // Official Meta Business OAuth Dialog (facebook.com/v20.0/dialog/oauth) seamlessly authorizes
+  // Instagram Professional accounts with instagram_basic and instagram_content_publish scopes.
   const scopes = META_GRAPH_IG_SCOPES.join(',');
   const stateObj = {
     workspaceId,
