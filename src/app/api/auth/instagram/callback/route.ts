@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
   const fbAppSecret = process.env.FACEBOOK_APP_SECRET || '';
-  const igAppId = process.env.INSTAGRAM_APP_ID || fbAppId;
+  const igAppId = process.env.INSTAGRAM_APP_ID || '2116988269210142';
   const igAppSecret = process.env.INSTAGRAM_APP_SECRET || fbAppSecret;
 
   let workspaceId = '';
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     // FLOW A: DIRECT INSTAGRAM LOGIN (via Instagram Login for Business)
     // -------------------------------------------------------------------------
     if (authMode === 'direct') {
-      const effectiveId = igAppId || fbAppId;
+      const effectiveId = igAppId || '2116988269210142';
       const effectiveSecret = igAppSecret || fbAppSecret;
 
       const directTokenForm = new URLSearchParams();
