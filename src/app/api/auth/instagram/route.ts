@@ -34,10 +34,7 @@ const DIRECT_IG_SCOPES = [
 
 export async function GET(req: NextRequest) {
   const fbAppId = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '3482720281909354';
-  const igAppId =
-    process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_ID !== '2116988269210142'
-      ? process.env.INSTAGRAM_APP_ID
-      : fbAppId;
+  const igAppId = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID || '2116988269210142';
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const userId = req.nextUrl.searchParams.get('user_id') || '';
   const requestedMode = req.nextUrl.searchParams.get('mode'); // 'direct' | 'facebook'
@@ -63,10 +60,32 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Meta App 3482720281909354 is a live Meta Business App.
-  // Direct instagram.com/oauth/authorize with a Meta Business App ID throws "Invalid platform app".
-  // Official Meta Business OAuth Dialog (facebook.com/v20.0/dialog/oauth) seamlessly authorizes
-  // Instagram Professional accounts with instagram_basic and instagram_content_publish scopes.
+  // Always use direct Instagram OAuth (instagram.com) with clean Allow/Cancel dialog matching Buffer
+  // unless explicitly requested via Facebook
+  const useDirect = requestedMode !== 'facebook';
+
+  if (useDirect) {
+    const stateObj = {
+      workspaceId,
+      userId,
+      platform: 'instagram',
+      mode: 'direct',
+      returnUrl: requestOrigin,
+      usedRedirectUri: redirectUri,
+    };
+    const state = encodeURIComponent(JSON.stringify(stateObj));
+    const scopes = DIRECT_IG_SCOPES.join(',');
+
+    const directUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&client_id=${encodeURIComponent(
+      igAppId
+    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
+      scopes
+    )}&response_type=code&state=${state}`;
+
+    return NextResponse.redirect(directUrl);
+  }
+
+  // Fallback to Meta Graph API via Facebook Login dialog if requested
   const scopes = META_GRAPH_IG_SCOPES.join(',');
   const stateObj = {
     workspaceId,
