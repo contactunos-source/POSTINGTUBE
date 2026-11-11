@@ -40,51 +40,159 @@ export async function POST(req: NextRequest) {
 
     let mediaContentPayload: any = null;
 
-    // Handle Media (Image) Upload
+    // Handle Media (Image or Video) Upload
     if (mediaUrl) {
       try {
-        // 1. Initialize image upload
-        const initRes = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'LinkedIn-Version': '202401',
-            'X-Restli-Protocol-Version': '2.0.0',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            initializeUploadRequest: {
-              owner: authorUrn,
+        // Fetch media binary first
+        let mediaBuffer: ArrayBuffer | null = null;
+        let contentType = 'image/jpeg';
+
+        if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+          const fetchMediaRes = await fetch(mediaUrl);
+          if (fetchMediaRes.ok) {
+            mediaBuffer = await fetchMediaRes.arrayBuffer();
+            contentType = fetchMediaRes.headers.get('content-type') || contentType;
+          }
+        }
+
+        const isVideo =
+          postType === 'video' ||
+          postType === 'reel' ||
+          contentType.startsWith('video/') ||
+          /\.(mp4|mov|webm|m4v|avi|mkv)(\?|$)/i.test(mediaUrl);
+
+        if (mediaBuffer && isVideo) {
+          // --- Official LinkedIn REST Videos API Flow ---
+          console.log('[LinkedIn Publish] Uploading video to LinkedIn REST API...');
+          const initRes = await fetch('https://api.linkedin.com/rest/videos?action=initializeUpload', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'LinkedIn-Version': '202401',
+              'X-Restli-Protocol-Version': '2.0.0',
+              'Content-Type': 'application/json',
             },
-          }),
-        });
+            body: JSON.stringify({
+              initializeUploadRequest: {
+                owner: authorUrn,
+                fileSizeBytes: mediaBuffer.byteLength,
+                uploadCaptions: false,
+                uploadThumbnail: false,
+              },
+            }),
+          });
 
-        if (initRes.ok) {
-          const initData = await initRes.json();
-          const uploadUrl = initData.value?.uploadUrl;
-          const imageUrn = initData.value?.image;
+          if (initRes.ok) {
+            const initData = await initRes.json();
+            const videoUrn = initData.value?.video;
+            const uploadToken = initData.value?.uploadToken || '';
+            const uploadInstructions = initData.value?.uploadInstructions || [];
 
-          if (uploadUrl && imageUrn) {
-            // Resolve media binary
-            let imageBuffer: ArrayBuffer | null = null;
-            let contentType = 'image/jpeg';
+            if (videoUrn && uploadInstructions.length > 0) {
+              const uploadedPartIds: string[] = [];
 
-            if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
-              const fetchMediaRes = await fetch(mediaUrl);
-              if (fetchMediaRes.ok) {
-                imageBuffer = await fetchMediaRes.arrayBuffer();
-                contentType = fetchMediaRes.headers.get('content-type') || 'image/jpeg';
+              for (const instruction of uploadInstructions) {
+                const chunk = mediaBuffer.slice(instruction.firstByte, instruction.lastByte + 1);
+                const chunkRes = await fetch(instruction.uploadUrl, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/octet-stream',
+                  },
+                  body: chunk,
+                });
+
+                if (!chunkRes.ok) {
+                  throw new Error(`Video chunk upload failed with HTTP ${chunkRes.status}`);
+                }
+
+                const rawEtag = chunkRes.headers.get('etag') || chunkRes.headers.get('ETag') || '';
+                uploadedPartIds.push(rawEtag);
+              }
+
+              // Finalize Video Upload
+              const finalizeRes = await fetch('https://api.linkedin.com/rest/videos?action=finalizeUpload', {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'LinkedIn-Version': '202401',
+                  'X-Restli-Protocol-Version': '2.0.0',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  finalizeUploadRequest: {
+                    video: videoUrn,
+                    uploadToken,
+                    uploadedPartIds,
+                  },
+                }),
+              });
+
+              if (finalizeRes.ok) {
+                // Poll video status briefly to ensure LinkedIn marks it ready/processing
+                for (let attempt = 0; attempt < 4; attempt++) {
+                  await new Promise((resolve) => setTimeout(resolve, 2000));
+                  try {
+                    const statusRes = await fetch(`https://api.linkedin.com/rest/videos/${encodeURIComponent(videoUrn)}`, {
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'LinkedIn-Version': '202401',
+                        'X-Restli-Protocol-Version': '2.0.0',
+                      },
+                    });
+                    if (statusRes.ok) {
+                      const statusData = await statusRes.json();
+                      if (statusData.status === 'AVAILABLE' || statusData.status === 'PROCESSING') {
+                        break;
+                      }
+                    }
+                  } catch {}
+                }
+
+                mediaContentPayload = {
+                  media: {
+                    title: title || 'Video',
+                    id: videoUrn,
+                  },
+                };
+                console.log('[LinkedIn Publish] Video successfully uploaded and finalized:', videoUrn);
+              } else {
+                const finalizeErr = await finalizeRes.text();
+                console.warn('[LinkedIn Publish] Video finalize returned error:', finalizeErr);
               }
             }
+          } else {
+            const initErr = await initRes.text();
+            console.warn('[LinkedIn Publish] Video initialize returned error:', initErr);
+          }
+        } else if (mediaBuffer) {
+          // --- Official LinkedIn REST Images API Flow ---
+          const initRes = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'LinkedIn-Version': '202401',
+              'X-Restli-Protocol-Version': '2.0.0',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              initializeUploadRequest: {
+                owner: authorUrn,
+              },
+            }),
+          });
 
-            if (imageBuffer) {
-              // 2. Upload binary bytes to uploadUrl
+          if (initRes.ok) {
+            const initData = await initRes.json();
+            const uploadUrl = initData.value?.uploadUrl;
+            const imageUrn = initData.value?.image;
+
+            if (uploadUrl && imageUrn) {
               const uploadRes = await fetch(uploadUrl, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': contentType,
                 },
-                body: imageBuffer,
+                body: mediaBuffer,
               });
 
               if (uploadRes.ok) {
@@ -98,10 +206,10 @@ export async function POST(req: NextRequest) {
                 console.warn('[LinkedIn Publish] Image binary upload returned status:', uploadRes.status);
               }
             }
+          } else {
+            const initErr = await initRes.text();
+            console.warn('[LinkedIn Publish] Initialize media upload skipped or returned:', initErr);
           }
-        } else {
-          const initErr = await initRes.text();
-          console.warn('[LinkedIn Publish] Initialize media upload skipped or returned:', initErr);
         }
       } catch (mediaErr) {
         console.warn('[LinkedIn Publish] Media processing error:', mediaErr);
