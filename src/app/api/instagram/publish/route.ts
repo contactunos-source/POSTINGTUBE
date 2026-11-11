@@ -28,20 +28,25 @@ export async function POST(req: NextRequest) {
     const envIgUserId = process.env.INSTAGRAM_ACCOUNT_ID || '17841417726295028';
     const envFbToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
-    // Use passed credentials or fallback to verified active server credentials
-    if (!igUserId || igUserId === '28819606054355684' || igUserId.startsWith('ig_') || igUserId === '27268941606137076') {
-      igUserId = envIgUserId;
+    // Strip 'ig_' database prefix if present
+    let cleanIgUserId = (igUserId || '').replace(/^ig_/, '').trim();
+    let cleanToken = (accessToken || '').trim();
+
+    // Check if targeting the server's default verified accounts
+    const isServerDefaultAccount =
+      !cleanIgUserId ||
+      cleanIgUserId === '28819606054355684' ||
+      cleanIgUserId === '27268941606137076' ||
+      cleanIgUserId === envIgUserId;
+
+    if (isServerDefaultAccount) {
+      if (envIgUserId) cleanIgUserId = envIgUserId;
+      if (envFbToken && (!cleanToken || cleanToken.startsWith('IG'))) {
+        cleanToken = envFbToken;
+      }
     }
 
-    if ((!accessToken || accessToken.startsWith('IGAA') || accessToken.startsWith('IG')) && envFbToken) {
-      accessToken = envFbToken;
-    }
-
-    if (!accessToken && envFbToken) {
-      accessToken = envFbToken;
-    }
-
-    if (!igUserId || !accessToken) {
+    if (!cleanIgUserId || !cleanToken) {
       return NextResponse.json(
         {
           success: false,
@@ -60,9 +65,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    let cleanIgUserId = igUserId.trim();
-    let cleanToken = accessToken.trim();
 
     // Idempotency: prevent duplicate API requests for the same media & caption within 45 seconds
     const idempotencyKey = `${cleanIgUserId}:${(caption || '').trim()}:${mediaUrl || ''}`;
@@ -95,8 +97,10 @@ export async function POST(req: NextRequest) {
 
     const isLocalFile = mediaUrl.startsWith('/uploads/');
 
-    // Meta Graph API endpoint for all Instagram media containers & publishing
-    const apiHost = 'https://graph.facebook.com/v20.0';
+    // Route dynamically based on token type: IG... tokens go to graph.instagram.com, EAA... tokens go to graph.facebook.com
+    const apiHost = cleanToken.startsWith('IG')
+      ? 'https://graph.instagram.com/v21.0'
+      : 'https://graph.facebook.com/v20.0';
 
     let creationId = '';
     const isCarousel = (Array.isArray(mediaUrls) && mediaUrls.length > 1) || postType === 'carousel';
