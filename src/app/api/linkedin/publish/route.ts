@@ -3,10 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * LinkedIn Official REST Posts API Publisher
  * Official API: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
- * Version: Active 202501 release (with automatic fallback on version sunset)
+ * Version: Active 2026 monthly release (e.g. 202610 / 202609) with auto-fallback
  */
-const DEFAULT_LINKEDIN_VERSION = process.env.LINKEDIN_API_VERSION || '202501';
-const CANDIDATE_VERSIONS = [DEFAULT_LINKEDIN_VERSION, '202512', '202506', '202501'];
+const DEFAULT_LINKEDIN_VERSION = process.env.LINKEDIN_API_VERSION || '202610';
+const CANDIDATE_VERSIONS = [
+  DEFAULT_LINKEDIN_VERSION,
+  '202610',
+  '202609',
+  '202608',
+  '202607',
+  '202606',
+  '202605',
+  '202604',
+  '202603',
+  '202602',
+  '202601',
+  '202611',
+  '202512',
+  '202511',
+];
 
 async function fetchLinkedInRest(
   url: string,
@@ -25,24 +40,45 @@ async function fetchLinkedInRest(
     'Content-Type': 'application/json',
   });
 
+  const bodyStr = options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined;
+
   let res = await fetch(url, {
     method: options.method,
     headers: buildHeaders(activeVersion),
-    body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
+    body: bodyStr,
   });
 
-  // If LinkedIn reports version is not active (HTTP 426 Upgrade Required or NONEXISTENT_VERSION)
-  if (res.status === 426) {
-    for (const fallbackVer of CANDIDATE_VERSIONS) {
-      if (fallbackVer === activeVersion) continue;
-      console.warn(`[LinkedIn REST] Version ${activeVersion} not active, retrying with ${fallbackVer}...`);
-      const retryRes = await fetch(url, {
-        method: options.method,
-        headers: buildHeaders(fallbackVer),
-        body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
-      });
-      if (retryRes.status !== 426) {
-        return retryRes;
+  // If LinkedIn reports version is not active (HTTP 426 Upgrade Required or NONEXISTENT_VERSION / 400)
+  if (res.status === 426 || res.status === 400) {
+    let clonedText = '';
+    try {
+      clonedText = await res.clone().text();
+    } catch {}
+
+    const isVersionError =
+      res.status === 426 ||
+      clonedText.includes('is not active') ||
+      clonedText.includes('NONEXISTENT_VERSION');
+
+    if (isVersionError) {
+      for (const fallbackVer of CANDIDATE_VERSIONS) {
+        if (fallbackVer === activeVersion) continue;
+        console.warn(`[LinkedIn REST] Version ${activeVersion} not active, retrying with ${fallbackVer}...`);
+        const retryRes = await fetch(url, {
+          method: options.method,
+          headers: buildHeaders(fallbackVer),
+          body: bodyStr,
+        });
+
+        if (retryRes.status !== 426) {
+          let retryText = '';
+          try {
+            retryText = await retryRes.clone().text();
+          } catch {}
+          if (!retryText.includes('is not active') && !retryText.includes('NONEXISTENT_VERSION')) {
+            return retryRes;
+          }
+        }
       }
     }
   }
