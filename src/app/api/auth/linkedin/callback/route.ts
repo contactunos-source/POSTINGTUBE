@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Exchange authorization code for LinkedIn Access Token
-    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    let tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -98,7 +98,39 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    const tokenData = await tokenRes.json();
+    let tokenData = await tokenRes.json();
+
+    // Dual-App Fallback: If exchange failed and alternate credentials exist, retry with alternate client
+    if (tokenData.error && process.env.LINKEDIN_COMMUNITY_CLIENT_ID && process.env.LINKEDIN_CLIENT_ID) {
+      const altClientId =
+        clientId === process.env.LINKEDIN_COMMUNITY_CLIENT_ID
+          ? process.env.LINKEDIN_CLIENT_ID
+          : process.env.LINKEDIN_COMMUNITY_CLIENT_ID;
+      const altClientSecret =
+        clientId === process.env.LINKEDIN_COMMUNITY_CLIENT_ID
+          ? process.env.LINKEDIN_CLIENT_SECRET
+          : process.env.LINKEDIN_COMMUNITY_CLIENT_SECRET;
+
+      if (altClientId && altClientSecret) {
+        try {
+          const retryRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'authorization_code',
+              code,
+              client_id: altClientId,
+              client_secret: altClientSecret,
+              redirect_uri: redirectUri,
+            }),
+          });
+          const retryData = await retryRes.json();
+          if (!retryData.error) {
+            tokenData = retryData;
+          }
+        } catch {}
+      }
+    }
 
     if (tokenData.error) {
       console.error('[LinkedIn OAuth] Token exchange error:', tokenData);
