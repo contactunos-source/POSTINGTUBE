@@ -217,6 +217,10 @@ export default function DashboardPage() {
   const [previousTab, setPreviousTab] = useState<ActiveTab>('new-post');
   const [selectedInsightsAccountId, setSelectedInsightsAccountId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('postingtube_insights_account');
+        if (stored) return stored;
+      } catch (e) {}
       const params = new URLSearchParams(window.location.search);
       return params.get('accountId') || 'all';
     }
@@ -390,6 +394,13 @@ export default function DashboardPage() {
           window.history.replaceState(null, '', url.pathname + url.search);
         }
       }
+
+      // Immediately purge dirty, lingering, or sensitive account IDs from the browser URL address bar (Buffer style)
+      if (params.has('accountId')) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('accountId');
+        window.history.replaceState(null, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : ''));
+      }
     }
   }, []);
 
@@ -510,10 +521,19 @@ export default function DashboardPage() {
 
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
+      // Clean up sensitive, lingering, or transient parameters (clean, professional Buffer-style URLs)
+      url.searchParams.delete('accountId');
+      url.searchParams.delete('type');
+      url.searchParams.delete('postId');
+      url.searchParams.delete('fb_connect_success');
+      url.searchParams.delete('ig_connect_success');
+      url.searchParams.delete('youtube_connect_success');
+      url.searchParams.delete('li_connect_success');
+      url.searchParams.delete('error');
+      url.searchParams.delete('notice');
+
       if (tab === 'new-post') {
         url.searchParams.delete('tab');
-        url.searchParams.delete('type');
-        url.searchParams.delete('postId');
       } else {
         url.searchParams.set('tab', tab);
       }
@@ -541,6 +561,13 @@ export default function DashboardPage() {
       url.searchParams.delete('tab');
       url.searchParams.delete('type');
       url.searchParams.delete('postId');
+      url.searchParams.delete('accountId');
+      url.searchParams.delete('fb_connect_success');
+      url.searchParams.delete('ig_connect_success');
+      url.searchParams.delete('youtube_connect_success');
+      url.searchParams.delete('li_connect_success');
+      url.searchParams.delete('error');
+      url.searchParams.delete('notice');
       const cleanUrl = url.pathname + (url.search ? url.search : '');
       window.history.pushState(null, '', cleanUrl);
     }
@@ -570,6 +597,7 @@ export default function DashboardPage() {
 
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
+      url.searchParams.delete('accountId');
       url.searchParams.set('tab', 'create-composer');
       url.searchParams.set('type', type);
       window.history.pushState(null, '', url.pathname + url.search);
@@ -591,6 +619,7 @@ export default function DashboardPage() {
 
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
+      url.searchParams.delete('accountId');
       url.searchParams.set('tab', 'create-composer');
       url.searchParams.set('type', type);
       window.history.pushState(null, '', url.pathname + url.search);
@@ -739,6 +768,7 @@ export default function DashboardPage() {
 
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
+      url.searchParams.delete('accountId');
       url.searchParams.set('tab', 'create-composer');
       url.searchParams.set('type', pType);
       url.searchParams.set('postId', post.id);
@@ -941,15 +971,14 @@ export default function DashboardPage() {
         selectedInsightsAccountId={selectedInsightsAccountId}
         onSelectInsightsAccount={(accId) => {
           setSelectedInsightsAccountId(accId);
+          try {
+            sessionStorage.setItem('postingtube_insights_account', accId);
+          } catch {}
           if (activeTab === 'insights' && typeof window !== 'undefined') {
             const url = new URL(window.location.href);
             url.searchParams.set('tab', 'insights');
-            if (accId && accId !== 'all') {
-              url.searchParams.set('accountId', accId);
-            } else {
-              url.searchParams.delete('accountId');
-            }
-            window.history.replaceState(null, '', url.pathname + url.search);
+            url.searchParams.delete('accountId');
+            window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
           }
         }}
         isMobileOpen={isMobileMenuOpen}
@@ -1081,6 +1110,7 @@ export default function DashboardPage() {
               } catch (e) {}
               if (typeof window !== 'undefined') {
                 const url = new URL(window.location.href);
+                url.searchParams.delete('accountId');
                 url.searchParams.set('tab', 'create-composer');
                 url.searchParams.set('type', 'image');
                 window.history.pushState(null, '', url.pathname + url.search);
