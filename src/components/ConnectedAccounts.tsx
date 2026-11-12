@@ -261,7 +261,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           const parsed = JSON.parse(discoveredJson);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setDiscoveredPages(parsed);
-            setSelectedPageIds(parsed.map((p: any) => p.id));
+            setSelectedPageIds([]);
             setLiStep('confirm');
             setConnectingPlatform('linkedin');
             if (onRefreshAccount) onRefreshAccount('all');
@@ -1511,6 +1511,27 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                 )
+              ) : connectingPlatform === 'linkedin' ? (
+                liStep === 'confirm' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium"
+                  >
+                    Switch Account
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConnectingPlatform(null)}
+                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )
               ) : (
                 <button
                   type="button"
@@ -2152,8 +2173,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             }`}
                           >
                             <div className="flex items-center space-x-3.5">
-                              <div className="w-11 h-11 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
-                                {acc.avatarUrl ? (
+                              <div className="w-11 h-11 rounded-xl bg-[#0A66C2]/15 border border-[#0A66C2]/25 overflow-hidden flex items-center justify-center shrink-0">
+                                {acc.avatarUrl && !acc.avatarUrl.includes('plan-poster-avatar.png') && !acc.avatarUrl.includes('ui-avatars.com') ? (
                                   <img
                                     src={acc.avatarUrl}
                                     alt={acc.name}
@@ -2162,14 +2183,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                     onError={(e) => {
                                       const target = e.currentTarget;
                                       target.onerror = null;
-                                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}&background=0A66C2&color=fff&size=256&bold=true`;
+                                      target.style.display = 'none';
+                                      if (target.nextElementSibling) {
+                                        (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                                      }
                                     }}
                                   />
-                                ) : (
-                                  <div className="w-full h-full bg-[#0A66C2] text-white font-bold flex items-center justify-center text-sm">
-                                    {acc.name.charAt(0).toUpperCase()}
-                                  </div>
-                                )}
+                                ) : null}
+                                <div className={`w-full h-full items-center justify-center ${acc.avatarUrl && !acc.avatarUrl.includes('plan-poster-avatar.png') && !acc.avatarUrl.includes('ui-avatars.com') ? 'hidden' : 'flex'}`}>
+                                  <User className="w-5 h-5 text-[#0A66C2]" />
+                                </div>
                               </div>
                               <div>
                                 <div className="text-sm font-bold text-gray-950 leading-tight">

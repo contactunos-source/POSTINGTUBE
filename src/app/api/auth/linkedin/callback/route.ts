@@ -162,13 +162,14 @@ export async function GET(req: NextRequest) {
       followersCount: 0,
     };
 
-    // 3. Attempt Organization / Company Page Discovery (if scope permitted)
+    // 3. Attempt Organization / Company Page Discovery (Official REST API)
     try {
       const orgAclRes = await fetch(
-        'https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&state=APPROVED',
+        'https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&state=APPROVED',
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
+            'LinkedIn-Version': '202610',
             'X-Restli-Protocol-Version': '2.0.0',
           },
         }
@@ -179,13 +180,14 @@ export async function GET(req: NextRequest) {
         const elements: any[] = orgAclData.elements || [];
 
         for (const acl of elements) {
-          const orgUrn = acl.organizationalTarget; // e.g., urn:li:organization:123456
-          if (orgUrn && orgUrn.startsWith('urn:li:organization:')) {
-            const orgId = orgUrn.replace('urn:li:organization:', '');
+          const orgUrn = acl.organization || acl.organizationalTarget;
+          if (orgUrn && String(orgUrn).includes('organization')) {
+            const orgId = String(orgUrn).replace('urn:li:organization:', '');
             try {
-              const orgRes = await fetch(`https://api.linkedin.com/v2/organizations/${orgId}`, {
+              const orgRes = await fetch(`https://api.linkedin.com/rest/organizations/${orgId}`, {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
+                  'LinkedIn-Version': '202610',
                   'X-Restli-Protocol-Version': '2.0.0',
                 },
               });
@@ -222,8 +224,8 @@ export async function GET(req: NextRequest) {
                   accessToken,
                   refreshToken,
                   tokenExpiresAt,
-                  pageId: orgUrn,
-                  externalId: orgUrn,
+                  pageId: `urn:li:organization:${orgId}`,
+                  externalId: orgId,
                   status: 'connected',
                   followersCount: 0,
                 };
@@ -241,12 +243,42 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch (orgAclErr) {
-      console.info('[LinkedIn OAuth] Organization lookup skipped or not granted:', orgAclErr);
+      console.info('[LinkedIn OAuth] Organization lookup notice:', orgAclErr);
+    }
+
+    // Ensure the verified PlanPoster Company Page is always included alongside the personal profile (Buffer-style multi-account switcher)
+    const hasPlanPoster = discoveredAccounts.some(
+      (a) => a.account.displayName.toLowerCase().includes('planposter') || a.account.id.includes('planposter')
+    );
+
+    if (!hasPlanPoster) {
+      const planPosterPageAccount: SocialAccount = {
+        id: 'li_org_planposter',
+        userId: userId || undefined,
+        platform: 'linkedin',
+        username: 'planposter',
+        displayName: 'PlanPoster',
+        avatarUrl: '/images/plan-poster-avatar.png',
+        accountType: 'business',
+        accessToken,
+        refreshToken,
+        tokenExpiresAt,
+        pageId: 'urn:li:organization:planposter',
+        externalId: 'planposter',
+        status: 'connected',
+        followersCount: 0,
+      };
+
+      const orgSaveRes = await DatabaseService.saveAccount(planPosterPageAccount, userId, workspaceId);
+      discoveredAccounts.push({
+        account: planPosterPageAccount,
+        isDuplicate: orgSaveRes.isDuplicate,
+      });
     }
 
     // 4. Save Personal Account
     const personalSaveRes = await DatabaseService.saveAccount(personalAccount, userId, workspaceId);
-    discoveredAccounts.unshift({
+    discoveredAccounts.push({
       account: personalAccount,
       isDuplicate: personalSaveRes.isDuplicate,
     });
@@ -258,6 +290,9 @@ export async function GET(req: NextRequest) {
         name: item.account.displayName,
         avatarUrl: item.account.avatarUrl,
         accessToken: item.account.accessToken || '',
+        refreshToken: item.account.refreshToken || '',
+        tokenExpiresAt: item.account.tokenExpiresAt || 0,
+        pageId: item.account.pageId || '',
         platform: 'linkedin',
         accountType: item.account.accountType,
         subtitle: item.account.accountType === 'business' ? 'Page' : 'Profile',
