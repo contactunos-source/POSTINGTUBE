@@ -219,6 +219,18 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     'pinterest',
   ];
 
+  // Clean up any legacy synthetic or invalid mocked accounts
+  useEffect(() => {
+    const invalidAccounts = accounts.filter(
+      (a) => a.id === 'li_org_planposter' || a.pageId === 'urn:li:organization:planposter'
+    );
+    if (invalidAccounts.length > 0) {
+      invalidAccounts.forEach((inv) => {
+        onRemoveAccount(inv.id);
+      });
+    }
+  }, [accounts, onRemoveAccount]);
+
   // Auto-check for server environment token and OAuth redirect callback
   useEffect(() => {
     fetch('/api/facebook/saved-config')
@@ -843,19 +855,10 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               <div className="relative inline-block mx-auto mb-6">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 border-2 border-gray-200 shadow-md flex items-center justify-center">
                   {(() => {
-                    const isPlanPoster =
-                      resultModal.accountName?.toLowerCase().includes('planposter') ||
-                      resultModal.accountName?.toLowerCase().includes('plan poster') ||
-                      resultModal.accountName?.includes('27268941606137076') ||
-                      resultModal.avatarUrl?.includes('planposter') ||
-                      resultModal.avatarUrl?.includes('27268941606137076');
-
-                    const avatarSrc = isPlanPoster
-                      ? '/images/plan-poster-avatar.png'
-                      : resultModal.avatarUrl && !resultModal.avatarUrl.includes('name=user_')
+                    const avatarSrc = resultModal.avatarUrl &&
+                      !resultModal.avatarUrl.includes('name=user_') &&
+                      !resultModal.avatarUrl.includes('ui-avatars.com')
                       ? resultModal.avatarUrl
-                      : resultModal.platform === 'linkedin' && resultModal.accountName
-                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(resultModal.accountName)}&background=0A66C2&color=fff&size=256&bold=true`
                       : null;
 
                     if (avatarSrc) {
@@ -915,17 +918,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                   </h2>
                   {resultModal.accountName && (
                     <p className="text-sm font-bold text-emerald-600 mb-2">
-                      &apos;
-                      {resultModal.accountName.startsWith('@user_') ||
-                      resultModal.accountName.startsWith('user_') ||
-                      resultModal.accountName.startsWith('@instagram_') ||
-                      resultModal.accountName.startsWith('instagram_') ||
-                      resultModal.accountName.includes('27268941606137076') ||
-                      resultModal.accountName.toLowerCase().includes('plan poster') ||
-                      resultModal.accountName.toLowerCase().includes('planposter')
-                        ? 'Plan Poster Official (@planposterofficial)'
-                        : resultModal.accountName}
-                      &apos;
+                      &apos;{resultModal.accountName}&apos;
                     </p>
                   )}
                 </>
@@ -1166,30 +1159,36 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           )}
         </div>
 
-        {accounts.length === 0 ? (
-          /* Empty State */
-          <div className="bg-white border border-gray-200/80 rounded-2xl p-8 sm:p-12 text-center shadow-2xs">
-            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-2xs">
-              <Sparkles className="w-8 h-8" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900 mb-1">No channels connected yet</h3>
-            <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
-              Connect your YouTube channel, Facebook Page, or Instagram account below to start scheduling and publishing high-performing content.
-            </p>
-            <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Free Plan includes up to 3 connected channels (30 shared posts/mo)</span>
-            </div>
-          </div>
-        ) : (
-          /* Active Account Cards Grid */
-          (() => {
-            const isFreePlan = subscriptionData?.planId === 'free' || !subscriptionData?.planId;
-            const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, accounts, isFreePlan ? 'free' : 'pro');
+        {(() => {
+          const validAccounts = accounts.filter(
+            (a) => a.id !== 'li_org_planposter' && a.pageId !== 'urn:li:organization:planposter'
+          );
 
+          if (validAccounts.length === 0) {
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {accounts.map((account) => {
+              /* Empty State */
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-8 sm:p-12 text-center shadow-2xs">
+                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-2xs">
+                  <Sparkles className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900 mb-1">No channels connected yet</h3>
+                <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
+                  Connect your YouTube channel, Facebook Page, or Instagram account below to start scheduling and publishing high-performing content.
+                </p>
+                <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Free Plan includes up to 3 connected channels (30 shared posts/mo)</span>
+                </div>
+              </div>
+            );
+          }
+
+          const isFreePlan = subscriptionData?.planId === 'free' || !subscriptionData?.planId;
+          const monthlyUsage = SubscriptionService.calculateMonthlyUsage(posts, validAccounts, isFreePlan ? 'free' : 'pro');
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {validAccounts.map((account) => {
                   const config = PLATFORM_CONFIGS[account.platform];
                   const accUsage = monthlyUsage.accounts[account.id] || {
                     usedCount: 0,
@@ -1212,20 +1211,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                             {/* Profile Picture with Platform Overlay */}
                             <div className="relative shrink-0">
                               {(() => {
-                                const isPlanPoster =
-                                  account.id === 'ig_27268941606137076' ||
-                                  account.id?.includes('27268941606137076') ||
-                                  account.username === 'planposterofficial' ||
-                                  account.displayName?.toLowerCase().includes('plan poster') ||
-                                  account.displayName?.toLowerCase().includes('planposter') ||
-                                  account.avatarUrl?.includes('planposterofficial') ||
-                                  account.avatarUrl?.includes('27268941606137076');
-
-                                const avatarSrc = isPlanPoster
-                                  ? '/images/plan-poster-avatar.png'
-                                  : account.avatarUrl &&
-                                    !account.avatarUrl.includes('name=user_') &&
-                                    !account.avatarUrl.includes('ui-avatars.com')
+                                const avatarSrc = account.avatarUrl &&
+                                  !account.avatarUrl.includes('name=user_') &&
+                                  !account.avatarUrl.includes('ui-avatars.com')
                                   ? account.avatarUrl
                                   : null;
 
@@ -1238,11 +1226,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                       className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-100 shadow-2xs"
                                       onError={(e) => {
                                         const target = e.target as HTMLImageElement;
-                                        if (isPlanPoster) {
-                                          target.onerror = null;
-                                          target.src = '/images/plan-poster-avatar.png';
-                                          return;
-                                        }
                                         if (!target.dataset.retried && account.id) {
                                           target.dataset.retried = 'true';
                                           target.src = `/api/accounts/avatar/${encodeURIComponent(account.id)}`;
@@ -1283,31 +1266,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                 className="text-sm font-bold text-gray-950 truncate tracking-tight group-hover:text-emerald-700 transition-colors"
                                 title={account.displayName}
                               >
-                                {account.id === 'ig_27268941606137076' ||
-                                account.id?.includes('27268941606137076') ||
-                                account.displayName?.startsWith('@user_') ||
-                                account.displayName?.startsWith('user_') ||
-                                account.displayName?.startsWith('@instagram_') ||
-                                account.displayName?.startsWith('instagram_') ||
-                                account.displayName?.toLowerCase().includes('plan poster') ||
-                                account.displayName?.toLowerCase().includes('planposter')
-                                  ? 'Plan Poster Official'
-                                  : account.displayName}
+                                {account.displayName}
                               </h4>
                               <p className="text-xs text-gray-400 truncate mt-0.5">
-                                {account.id === 'ig_27268941606137076' ||
-                                account.id?.includes('27268941606137076') ||
-                                account.username?.startsWith('user_') ||
-                                account.username?.startsWith('instagram_') ||
-                                account.username?.toLowerCase().includes('planposter')
-                                  ? '@planposterofficial'
-                                  : account.username
+                                {account.username
                                   ? account.username.startsWith('@')
                                     ? account.username
                                     : `@${account.username}`
                                   : account.platform === 'facebook'
                                   ? 'Facebook Page'
-                                  : account.platform}
+                                  : `@${account.displayName}`}
                               </p>
                               <div className="mt-1.5">
                                 <span className="inline-flex items-center text-[10px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
@@ -1371,8 +1339,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 })}
               </div>
             );
-          })()
-        )}
+          })()}
       </div>
 
       {/* SECTION 2: Available Platforms Integration Hub */}
@@ -1387,7 +1354,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {platforms.map((platform) => {
             const config = PLATFORM_CONFIGS[platform];
-            const platformAccounts = accounts.filter((a) => a.platform === platform);
+            const platformAccounts = accounts.filter(
+              (a) => a.platform === platform && a.id !== 'li_org_planposter' && a.pageId !== 'urn:li:organization:planposter'
+            );
             const isConnected = platformAccounts.length > 0;
 
             const formatSummary =

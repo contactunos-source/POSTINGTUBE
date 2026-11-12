@@ -111,6 +111,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (authorUrn.startsWith('urn:li:organization:')) {
+      const orgId = authorUrn.replace('urn:li:organization:', '');
+      if (!/^\d+$/.test(orgId)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid LinkedIn Organization URN: "${authorUrn}". LinkedIn requires a numeric organization ID (e.g. urn:li:organization:12345678). Please connect your LinkedIn account with Community Management API enabled in Developer Portal.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     if (!message && !mediaUrl) {
       return NextResponse.json(
         { success: false, error: 'LinkedIn post requires commentary text or media.' },

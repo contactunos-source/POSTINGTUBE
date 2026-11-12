@@ -246,36 +246,6 @@ export async function GET(req: NextRequest) {
       console.info('[LinkedIn OAuth] Organization lookup notice:', orgAclErr);
     }
 
-    // Ensure the verified PlanPoster Company Page is always included alongside the personal profile (Buffer-style multi-account switcher)
-    const hasPlanPoster = discoveredAccounts.some(
-      (a) => a.account.displayName.toLowerCase().includes('planposter') || a.account.id.includes('planposter')
-    );
-
-    if (!hasPlanPoster) {
-      const planPosterPageAccount: SocialAccount = {
-        id: 'li_org_planposter',
-        userId: userId || undefined,
-        platform: 'linkedin',
-        username: 'planposter',
-        displayName: 'PlanPoster',
-        avatarUrl: '/images/plan-poster-avatar.png',
-        accountType: 'business',
-        accessToken,
-        refreshToken,
-        tokenExpiresAt,
-        pageId: 'urn:li:organization:planposter',
-        externalId: 'planposter',
-        status: 'connected',
-        followersCount: 0,
-      };
-
-      const orgSaveRes = await DatabaseService.saveAccount(planPosterPageAccount, userId, workspaceId);
-      discoveredAccounts.push({
-        account: planPosterPageAccount,
-        isDuplicate: orgSaveRes.isDuplicate,
-      });
-    }
-
     // 4. Save Personal Account
     const personalSaveRes = await DatabaseService.saveAccount(personalAccount, userId, workspaceId);
     discoveredAccounts.push({
