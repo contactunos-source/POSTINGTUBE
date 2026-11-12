@@ -26,6 +26,7 @@ import {
   Layers,
   ArrowUpRight,
   Radio,
+  User,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 import { DeleteChannelModal } from './DeleteChannelModal';
@@ -867,25 +868,22 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           onError={(e) => {
                             const target = e.currentTarget;
                             target.onerror = null;
-                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(resultModal.accountName || 'LinkedIn')}&background=0A66C2&color=fff&size=256&bold=true`;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector('.modal-avatar-fallback')) {
+                              const avatarDiv = document.createElement('div');
+                              avatarDiv.className = 'modal-avatar-fallback w-full h-full bg-gray-100 flex items-center justify-center text-gray-400';
+                              avatarDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                              parent.appendChild(avatarDiv);
+                            }
                           }}
                         />
                       );
                     }
 
                     return (
-                      <div className="w-full h-full flex items-center justify-center">
-                        {resultModal.platform === 'instagram' ? (
-                          <div className="w-full h-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] flex items-center justify-center text-white">
-                            <PlatformLogo platform="instagram" className="w-10 h-10 text-white" />
-                          </div>
-                        ) : resultModal.accountName ? (
-                          <div className="w-full h-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-2xl">
-                            {resultModal.accountName.replace(/^@/, '').charAt(0).toUpperCase()}
-                          </div>
-                        ) : (
-                          <PlatformLogo platform={resultModal.platform} className="w-10 h-10 text-gray-700" />
-                        )}
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                        <User className="w-10 h-10 text-gray-400" />
                       </div>
                     );
                   })()}
@@ -1251,18 +1249,22 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                                           return;
                                         }
                                         target.onerror = null;
-                                        const cleanName = (account.displayName || account.username || 'P').replace(/^@/, '');
-                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=E1306C&color=fff&bold=true`;
+                                        target.style.display = 'none';
+                                        const parent = target.parentElement;
+                                        if (parent && !parent.querySelector('.account-avatar-fallback')) {
+                                          const avatarDiv = document.createElement('div');
+                                          avatarDiv.className = 'account-avatar-fallback w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 shadow-2xs';
+                                          avatarDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                                          parent.appendChild(avatarDiv);
+                                        }
                                       }}
                                     />
                                   );
                                 }
 
-                                const cleanInitial = (account.displayName || account.username || 'P').replace(/^@/, '').charAt(0).toUpperCase();
-
                                 return (
-                                  <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-2xs">
-                                    {cleanInitial}
+                                  <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 text-gray-500 flex items-center justify-center shadow-2xs">
+                                    <User className="w-6 h-6 text-gray-500" />
                                   </div>
                                 );
                               })()}
