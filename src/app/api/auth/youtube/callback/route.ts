@@ -181,11 +181,13 @@ export async function GET(req: NextRequest) {
     for (const ch of discoveredChannels) {
       const cleanHandle = (ch.username || ch.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
       const accountId = `yt_${ch.id}`;
-      let channelAvatar = ch.avatarUrl;
-      if (channelAvatar) {
-        try {
-          channelAvatar = await mirrorAvatarToPermanentStorage(accountId, channelAvatar);
-        } catch {}
+      const channelAvatar = ch.avatarUrl;
+
+      // Non-blocking mirror to permanent storage in background; save raw avatar immediately for instant redirect
+      if (channelAvatar && !channelAvatar.includes('supabase.co/storage')) {
+        mirrorAvatarToPermanentStorage(accountId, channelAvatar).catch((err) => {
+          console.warn('[YouTubeOAuth] Background avatar mirror notice:', err);
+        });
       }
       const ytAcc: SocialAccount = {
         id: accountId,

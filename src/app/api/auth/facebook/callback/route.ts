@@ -204,15 +204,16 @@ export async function GET(req: NextRequest) {
     for (const ch of detectedChannels) {
       const cleanUsername = (ch.name || 'facebook_page').toLowerCase().replace(/\s+/g, '_');
       const accountId = `fb_${ch.id}`;
-      let pageAvatar =
+      const pageAvatar =
         ch.avatarUrl ||
         `https://graph.facebook.com/${ch.id}/picture?type=large` ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(ch.name || 'Facebook Page')}&background=1877F2&color=fff&size=256&bold=true`;
 
-      if (pageAvatar) {
-        try {
-          pageAvatar = await mirrorAvatarToPermanentStorage(accountId, pageAvatar);
-        } catch {}
+      // Non-blocking mirror to permanent storage in background; save raw avatar immediately for instant redirect
+      if (pageAvatar && !pageAvatar.includes('supabase.co/storage')) {
+        mirrorAvatarToPermanentStorage(accountId, pageAvatar).catch((err) => {
+          console.warn('[FacebookOAuth] Background avatar mirror notice:', err);
+        });
       }
 
       const fbAcc: SocialAccount = {

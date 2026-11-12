@@ -494,14 +494,10 @@ export default function DashboardPage() {
   const draftCount = posts.filter((p) => p.status === 'draft').length;
   const failedCount = posts.filter((p) => p.status === 'failed').length;
 
-  // Centralized tab changer: Synchronizes URL and localStorage across refresh
+  // Centralized tab changer: Synchronizes URL and localStorage across refresh with 0ms latency
   const handleTabChange = (tab: ActiveTab) => {
     if (activeTab !== tab) setPreviousTab(activeTab);
     setActiveTab(tab);
-
-    if (tab === 'calendar' || tab === 'posts-all' || tab === 'connections') {
-      handleRefreshUserData();
-    }
 
     try {
       localStorage.setItem('postingtube_active_tab', tab);
@@ -885,25 +881,24 @@ export default function DashboardPage() {
       setAccounts(dbAccounts);
       setPosts(dbPosts);
 
-      // Also trigger official avatar sync
-      try {
-        const syncRes = await fetch('/api/accounts/sync-avatars', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: userWs, userId: authUser.id }),
-        });
-        const syncData = await syncRes.json();
-        if (syncData?.success && Array.isArray(syncData.accounts)) {
-          setAccounts((prev) =>
-            prev.map((acc) => {
-              const matched = syncData.accounts.find((a: any) => a.id === acc.id);
-              return matched?.avatarUrl ? { ...acc, avatarUrl: matched.avatarUrl } : acc;
-            })
-          );
-        }
-      } catch (e) {
-        console.warn('Avatar sync refresh notice:', e);
-      }
+      // Trigger official avatar sync in the background without blocking the UI
+      fetch('/api/accounts/sync-avatars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: userWs, userId: authUser.id }),
+      })
+        .then((res) => res.json())
+        .then((syncData) => {
+          if (syncData?.success && Array.isArray(syncData.accounts)) {
+            setAccounts((prev) =>
+              prev.map((acc) => {
+                const matched = syncData.accounts.find((a: any) => a.id === acc.id);
+                return matched?.avatarUrl ? { ...acc, avatarUrl: matched.avatarUrl } : acc;
+              })
+            );
+          }
+        })
+        .catch((e) => console.warn('Avatar sync background notice:', e));
     } catch (err) {
       console.warn('Failed to refresh user data:', err);
     }

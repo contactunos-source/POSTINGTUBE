@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
   Radio,
   User,
+  Loader2,
 } from 'lucide-react';
 import { PLATFORM_CONFIGS } from '@/lib/constants';
 import { DeleteChannelModal } from './DeleteChannelModal';
@@ -112,6 +113,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   const [genericHandle, setGenericHandle] = useState('');
   const [genericToken, setGenericToken] = useState('');
   const [includeLinkedInOrg, setIncludeLinkedInOrg] = useState(false);
+
+  // Fast OAuth Redirect in-flight state to eliminate perceived latency and duplicate clicks
+  const [redirectingPlatform, setRedirectingPlatform] = useState<string | null>(null);
+
+  const handleOAuthRedirect = (platform: string, url: string) => {
+    setRedirectingPlatform(platform);
+    window.location.href = url;
+  };
 
   // Subscription and Limit Enforcement State
   const [subscriptionData, setSubscriptionData] = useState<{ planId: string; channelsCount: number } | null>(null);
@@ -1454,12 +1463,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 fbStep === 'confirm' ? (
                   <button
                     type="button"
+                    disabled={redirectingPlatform !== null}
                     onClick={() => {
-                      window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                      handleOAuthRedirect(
+                        'facebook',
+                        `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                      );
                     }}
-                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium"
+                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium disabled:opacity-50"
                   >
-                    Switch Account
+                    {redirectingPlatform === 'facebook' ? 'Redirecting...' : 'Switch Account'}
                   </button>
                 ) : fbStep === 'auth' ? (
                   <button
@@ -1484,12 +1497,16 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 liStep === 'confirm' ? (
                   <button
                     type="button"
+                    disabled={redirectingPlatform !== null}
                     onClick={() => {
-                      window.location.href = `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                      handleOAuthRedirect(
+                        'linkedin',
+                        `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                      );
                     }}
-                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium"
+                    className="text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer font-medium disabled:opacity-50"
                   >
-                    Switch Account
+                    {redirectingPlatform === 'linkedin' ? 'Redirecting...' : 'Switch Account'}
                   </button>
                 ) : (
                   <button
@@ -1634,13 +1651,26 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
+                    disabled={redirectingPlatform !== null}
                     onClick={() => {
-                      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                      handleOAuthRedirect(
+                        'instagram',
+                        `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                      );
                     }}
-                    className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-75 disabled:cursor-not-allowed text-white transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
                   >
-                    <span>Continue to Instagram</span>
-                    <ArrowUpRight className="w-4 h-4" />
+                    {redirectingPlatform === 'instagram' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Redirecting to Instagram...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Continue to Instagram</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -1648,13 +1678,26 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 <div className="pt-2.5 text-center">
                   <button
                     type="button"
+                    disabled={redirectingPlatform !== null}
                     onClick={() => {
-                      window.location.href = `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}&mode=facebook`;
+                      handleOAuthRedirect(
+                        'instagram-fb',
+                        `/api/auth/instagram?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}&mode=facebook`
+                      );
                     }}
-                    className="text-[11px] text-gray-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
+                    className="text-[11px] text-gray-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer inline-flex items-center gap-1 disabled:opacity-60"
                   >
-                    <span>Have Instagram linked to your Facebook Page? Connect via Facebook</span>
-                    <ArrowUpRight className="w-3 h-3" />
+                    {redirectingPlatform === 'instagram-fb' ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                        <span>Redirecting to Meta...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Have Instagram linked to your Facebook Page? Connect via Facebook</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -1742,12 +1785,23 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                       <button
                         type="button"
+                        disabled={redirectingPlatform !== null}
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                          handleOAuthRedirect(
+                            'facebook',
+                            `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                          );
                         }}
-                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-colors cursor-pointer shadow-sm"
+                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-75 disabled:cursor-not-allowed text-white transition-colors cursor-pointer shadow-sm flex items-center space-x-1.5"
                       >
-                        Continue to Facebook
+                        {redirectingPlatform === 'facebook' ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            <span>Redirecting to Facebook...</span>
+                          </>
+                        ) : (
+                          <span>Continue to Facebook</span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1775,13 +1829,26 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                     <div className="space-y-4">
                       {/* Primary 1-Click Button */}
                       <button
+                        disabled={redirectingPlatform !== null}
                         onClick={() => {
-                          window.location.href = `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`;
+                          handleOAuthRedirect(
+                            'facebook',
+                            `/api/auth/facebook?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                          );
                         }}
-                        className="w-full py-3 px-4 rounded-xl font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white flex items-center justify-center space-x-2 text-sm shadow-sm transition-all cursor-pointer"
+                        className="w-full py-3 px-4 rounded-xl font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] disabled:opacity-75 disabled:cursor-not-allowed text-white flex items-center justify-center space-x-2 text-sm shadow-sm transition-all cursor-pointer"
                       >
-                        <PlatformLogo platform="facebook" className="w-5 h-5 text-white" />
-                        <span>Continue with Facebook</span>
+                        {redirectingPlatform === 'facebook' ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin text-white" />
+                            <span>Connecting to Facebook...</span>
+                          </>
+                        ) : (
+                          <>
+                            <PlatformLogo platform="facebook" className="w-5 h-5 text-white" />
+                            <span>Continue with Facebook</span>
+                          </>
+                        )}
                       </button>
 
                       <div className="flex items-center my-3 text-gray-400 text-xs">
@@ -2057,13 +2124,29 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </div>
                     </div>
 
-                    <a
-                      href={`/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`}
-                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                    <button
+                      type="button"
+                      disabled={redirectingPlatform !== null}
+                      onClick={() => {
+                        handleOAuthRedirect(
+                          'youtube',
+                          `/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
+                        );
+                      }}
+                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-75 disabled:cursor-not-allowed text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                     >
-                      <PlatformLogo platform="youtube" className="w-4 h-4" />
-                      <span>Sign in with Google / YouTube</span>
-                    </a>
+                      {redirectingPlatform === 'youtube' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Redirecting to Google / YouTube...</span>
+                        </>
+                      ) : (
+                        <>
+                          <PlatformLogo platform="youtube" className="w-4 h-4" />
+                          <span>Sign in with Google / YouTube</span>
+                        </>
+                      )}
+                    </button>
 
                     <div className="text-center pt-2 border-t border-gray-100">
                       <button
@@ -2250,13 +2333,29 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         </label>
                       </div>
 
-                      <a
-                        href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`}
-                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                      <button
+                        type="button"
+                        disabled={redirectingPlatform !== null}
+                        onClick={() => {
+                          handleOAuthRedirect(
+                            'linkedin',
+                            `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`
+                          );
+                        }}
+                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] active:bg-[#074786] disabled:opacity-75 disabled:cursor-not-allowed text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                       >
-                        <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
-                        <span>Authorize with Official LinkedIn OAuth</span>
-                      </a>
+                        {redirectingPlatform === 'linkedin' ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            <span>Redirecting to LinkedIn...</span>
+                          </>
+                        ) : (
+                          <>
+                            <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
+                            <span>Authorize with Official LinkedIn OAuth</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     <div className="text-center pt-2 border-t border-gray-100">

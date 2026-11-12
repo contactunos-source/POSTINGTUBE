@@ -295,14 +295,44 @@ export async function getResolvedUserId(userId?: string): Promise<string | null>
   return null;
 }
 
+// High-performance in-memory caching with 3-minute TTL to eliminate repetitive network roundtrips
+const CACHE_TTL_MS = 3 * 60 * 1000;
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+const userPrimaryWorkspaceCache = new Map<string, CacheEntry<string>>();
+const userAllWorkspacesCache = new Map<string, CacheEntry<string[]>>();
+const userOwnerStatusCache = new Map<string, CacheEntry<boolean>>();
+
+/**
+ * Invalidates cached workspace metadata for a user or globally.
+ */
+export function invalidateUserWorkspaceCaches(userId?: string): void {
+  if (userId) {
+    userPrimaryWorkspaceCache.delete(userId);
+    userAllWorkspacesCache.delete(userId);
+    userOwnerStatusCache.delete(userId);
+  } else {
+    userPrimaryWorkspaceCache.clear();
+    userAllWorkspacesCache.clear();
+    userOwnerStatusCache.clear();
+  }
+}
+
 /**
  * Resolves or creates a dedicated workspace for the active user.
- * Ensures complete multi-tenant database isolation.
+ * Ensures complete multi-tenant database isolation with 0ms in-memory cache hits.
  */
 export async function getUserWorkspaceId(userId?: string): Promise<string> {
   const resolvedUser = await getResolvedUserId(userId);
   if (!resolvedUser) {
     return DEFAULT_WORKSPACE_ID;
+  }
+
+  const cached = userPrimaryWorkspaceCache.get(resolvedUser);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
   }
 
   if (supabase) {
@@ -318,6 +348,7 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
         if (!defWs.user_id && UUID_REGEX.test(resolvedUser)) {
           await supabase.from('workspaces').update({ user_id: resolvedUser }).eq('id', DEFAULT_WORKSPACE_ID);
         }
+        userPrimaryWorkspaceCache.set(resolvedUser, { value: DEFAULT_WORKSPACE_ID, expiresAt: Date.now() + CACHE_TTL_MS });
         return DEFAULT_WORKSPACE_ID;
       }
 
@@ -329,40 +360,51 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
         .limit(1);
 
       if (!wsErr && wsRows && wsRows.length > 0 && wsRows[0]?.id) {
+        userPrimaryWorkspaceCache.set(resolvedUser, { value: wsRows[0].id, expiresAt: Date.now() + CACHE_TTL_MS });
         return wsRows[0].id;
       }
 
       // Check if user is platform owner
-      let userEmail = '';
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id === resolvedUser) {
-          userEmail = session.user.email || '';
-        }
-      } catch {}
-
-      if (!userEmail) {
+      let isOwner = false;
+      const ownerCached = userOwnerStatusCache.get(resolvedUser);
+      if (ownerCached && Date.now() < ownerCached.expiresAt) {
+        isOwner = ownerCached.value;
+      } else {
+        let userEmail = '';
         try {
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('email')
-            .eq('id', resolvedUser)
-            .maybeSingle();
-          if (profile?.email) {
-            userEmail = profile.email;
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id === resolvedUser) {
+            userEmail = session.user.email || '';
           }
         } catch {}
+
+        if (!userEmail) {
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('email')
+              .eq('id', resolvedUser)
+              .maybeSingle();
+            if (profile?.email) {
+              userEmail = profile.email;
+            }
+          } catch {}
+        }
+
+        const ownerEmails = [
+          'planposter.team@gmail.com',
+          'noobsonu001@gmail.com',
+          'admin@postingtube.com',
+          ...(process.env.OWNER_EMAILS ? process.env.OWNER_EMAILS.split(',') : []),
+          ...(process.env.NEXT_PUBLIC_OWNER_EMAIL ? [process.env.NEXT_PUBLIC_OWNER_EMAIL] : []),
+        ].map((e) => e.trim().toLowerCase());
+
+        isOwner = Boolean(userEmail && ownerEmails.includes(userEmail.toLowerCase()));
+        userOwnerStatusCache.set(resolvedUser, { value: isOwner, expiresAt: Date.now() + CACHE_TTL_MS });
       }
 
-      const ownerEmails = [
-        'planposter.team@gmail.com',
-        'noobsonu001@gmail.com',
-        'admin@postingtube.com',
-        ...(process.env.OWNER_EMAILS ? process.env.OWNER_EMAILS.split(',') : []),
-        ...(process.env.NEXT_PUBLIC_OWNER_EMAIL ? [process.env.NEXT_PUBLIC_OWNER_EMAIL] : []),
-      ].map((e) => e.trim().toLowerCase());
-
-      if (userEmail && ownerEmails.includes(userEmail.toLowerCase())) {
+      if (isOwner) {
+        userPrimaryWorkspaceCache.set(resolvedUser, { value: DEFAULT_WORKSPACE_ID, expiresAt: Date.now() + CACHE_TTL_MS });
         return DEFAULT_WORKSPACE_ID;
       }
 
@@ -383,6 +425,7 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
           .maybeSingle();
 
         if (!insertErr && newWs?.id) {
+          userPrimaryWorkspaceCache.set(resolvedUser, { value: newWs.id, expiresAt: Date.now() + CACHE_TTL_MS });
           return newWs.id;
         }
       }
@@ -391,7 +434,86 @@ export async function getUserWorkspaceId(userId?: string): Promise<string> {
     }
   }
 
+  userPrimaryWorkspaceCache.set(resolvedUser, { value: DEFAULT_WORKSPACE_ID, expiresAt: Date.now() + CACHE_TTL_MS });
   return DEFAULT_WORKSPACE_ID;
+}
+
+/**
+ * Resolves all workspace IDs accessible by the user, with high-speed in-memory caching.
+ * Prevents redundant roundtrips across getPosts and getAccounts.
+ */
+export async function getUserAccessibleWorkspaceIds(resolvedUser: string, targetWsId?: string): Promise<string[]> {
+  const cacheKey = `${resolvedUser}:${targetWsId || ''}`;
+  const cached = userAllWorkspacesCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
+  }
+
+  const wsIdSet = new Set<string>();
+  if (targetWsId) wsIdSet.add(targetWsId);
+
+  if (supabase) {
+    try {
+      const { data: userWsList } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('user_id', resolvedUser);
+
+      if (userWsList && Array.isArray(userWsList)) {
+        for (const w of userWsList) {
+          if (w.id) wsIdSet.add(w.id);
+        }
+      }
+
+      // Check owner status (using cached check)
+      let isOwner = false;
+      const ownerCached = userOwnerStatusCache.get(resolvedUser);
+      if (ownerCached && Date.now() < ownerCached.expiresAt) {
+        isOwner = ownerCached.value;
+      } else {
+        const ownerEmails = [
+          (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase().trim(),
+          'planposter.team@gmail.com',
+          'noobsonu001@gmail.com',
+          'admin@postingtube.com',
+        ];
+
+        let userEmail = '';
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id === resolvedUser) {
+            userEmail = session.user.email || '';
+          }
+        } catch {}
+
+        if (!userEmail) {
+          try {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('email')
+              .eq('id', resolvedUser)
+              .maybeSingle();
+            if (profile?.email) {
+              userEmail = profile.email;
+            }
+          } catch {}
+        }
+
+        isOwner = Boolean(userEmail && ownerEmails.includes(userEmail.toLowerCase()));
+        userOwnerStatusCache.set(resolvedUser, { value: isOwner, expiresAt: Date.now() + CACHE_TTL_MS });
+      }
+
+      if (isOwner) {
+        wsIdSet.add(DEFAULT_WORKSPACE_ID);
+      }
+    } catch (e) {
+      console.warn('[DatabaseService] getUserAccessibleWorkspaceIds notice:', e);
+    }
+  }
+
+  const result = Array.from(wsIdSet);
+  userAllWorkspacesCache.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
+  return result;
 }
 
 export const DatabaseService = {
@@ -452,54 +574,7 @@ export const DatabaseService = {
 
     if (supabase) {
       try {
-        const wsIdSet = new Set<string>();
-        if (targetWsId) wsIdSet.add(targetWsId);
-
-        const { data: userWsList } = await supabase
-          .from('workspaces')
-          .select('id')
-          .eq('user_id', resolvedUser);
-
-        if (userWsList && Array.isArray(userWsList)) {
-          for (const w of userWsList) {
-            if (w.id) wsIdSet.add(w.id);
-          }
-        }
-
-        // For owner accounts, also include DEFAULT_WORKSPACE_ID
-        const ownerEmails = [
-          (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase().trim(),
-          'planposter.team@gmail.com',
-          'noobsonu001@gmail.com',
-          'admin@postingtube.com',
-        ];
-
-        let isOwner = false;
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id === resolvedUser && ownerEmails.includes((session.user.email || '').toLowerCase())) {
-            isOwner = true;
-          }
-        } catch {}
-
-        if (!isOwner) {
-          try {
-            const { data: profile } = await supabase
-              .from('user_profiles')
-              .select('email')
-              .eq('id', resolvedUser)
-              .maybeSingle();
-            if (profile?.email && ownerEmails.includes(profile.email.toLowerCase())) {
-              isOwner = true;
-            }
-          } catch {}
-        }
-
-        if (isOwner) {
-          wsIdSet.add(DEFAULT_WORKSPACE_ID);
-        }
-
-        const wsIds = Array.from(wsIdSet);
+        const wsIds = await getUserAccessibleWorkspaceIds(resolvedUser, targetWsId);
         let query = supabase.from('posts').select('*').order('created_at', { ascending: false });
 
         if (wsIds.length === 1) {
@@ -655,53 +730,7 @@ export const DatabaseService = {
 
     if (supabase) {
       try {
-        const wsIdSet = new Set<string>();
-        if (targetWsId) wsIdSet.add(targetWsId);
-
-        const { data: userWsList } = await supabase
-          .from('workspaces')
-          .select('id')
-          .eq('user_id', resolvedUser);
-
-        if (userWsList && Array.isArray(userWsList)) {
-          for (const w of userWsList) {
-            if (w.id) wsIdSet.add(w.id);
-          }
-        }
-
-        const ownerEmails = [
-          (process.env.OWNER_EMAIL || 'planposter.team@gmail.com').toLowerCase().trim(),
-          'planposter.team@gmail.com',
-          'noobsonu001@gmail.com',
-          'admin@postingtube.com',
-        ];
-
-        let isOwner = false;
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id === resolvedUser && ownerEmails.includes((session.user.email || '').toLowerCase())) {
-            isOwner = true;
-          }
-        } catch {}
-
-        if (!isOwner) {
-          try {
-            const { data: profile } = await supabase
-              .from('user_profiles')
-              .select('email')
-              .eq('id', resolvedUser)
-              .maybeSingle();
-            if (profile?.email && ownerEmails.includes(profile.email.toLowerCase())) {
-              isOwner = true;
-            }
-          } catch {}
-        }
-
-        if (isOwner) {
-          wsIdSet.add(DEFAULT_WORKSPACE_ID);
-        }
-
-        const wsIds = Array.from(wsIdSet);
+        const wsIds = await getUserAccessibleWorkspaceIds(resolvedUser, targetWsId);
         let query = supabase.from('connected_accounts').select('*').order('created_at', { ascending: false });
 
         if (wsIds.length === 1) {
@@ -900,6 +929,7 @@ export const DatabaseService = {
     }
     const defaultAccs = StorageService.getAccounts().filter((a) => a.id !== id);
     StorageService.saveAccounts(defaultAccs);
+    invalidateUserWorkspaceCaches(resolvedUser || undefined);
   },
 
   /**

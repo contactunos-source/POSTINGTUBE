@@ -169,17 +169,12 @@ export async function GET(req: NextRequest) {
     const username = (profile.email ? profile.email.split('@')[0] : profile.sub) || 'linkedin_user';
     const personalAccountId = `li_${profile.sub}`;
 
-    // Mirror avatar to permanent storage or fallback to proxy
-    let personalAvatarUrl = '';
-    if (rawAvatarUrl) {
-      try {
-        personalAvatarUrl = await mirrorAvatarToPermanentStorage(personalAccountId, rawAvatarUrl);
-      } catch {
-        personalAvatarUrl = rawAvatarUrl;
-      }
-    }
-    if (!personalAvatarUrl) {
-      personalAvatarUrl = `/api/accounts/avatar/${encodeURIComponent(personalAccountId)}`;
+    // Use raw avatar immediately for 0-latency redirect and mirror permanently in background
+    let personalAvatarUrl = rawAvatarUrl || `/api/accounts/avatar/${encodeURIComponent(personalAccountId)}`;
+    if (rawAvatarUrl && !rawAvatarUrl.includes('supabase.co/storage')) {
+      mirrorAvatarToPermanentStorage(personalAccountId, rawAvatarUrl).catch((err) => {
+        console.warn('[LinkedInOAuth] Background personal avatar mirror notice:', err);
+      });
     }
 
     const discoveredAccounts: DiscoveredAccount[] = [];
@@ -241,16 +236,11 @@ export async function GET(req: NextRequest) {
                   '';
 
                 const orgAccountId = `li_org_${orgId}`;
-                let orgAvatarUrl = '';
-                if (rawOrgAvatar) {
-                  try {
-                    orgAvatarUrl = await mirrorAvatarToPermanentStorage(orgAccountId, rawOrgAvatar);
-                  } catch {
-                    orgAvatarUrl = rawOrgAvatar;
-                  }
-                }
-                if (!orgAvatarUrl) {
-                  orgAvatarUrl = `/api/accounts/avatar/${encodeURIComponent(orgAccountId)}`;
+                let orgAvatarUrl = rawOrgAvatar || `/api/accounts/avatar/${encodeURIComponent(orgAccountId)}`;
+                if (rawOrgAvatar && !rawOrgAvatar.includes('supabase.co/storage')) {
+                  mirrorAvatarToPermanentStorage(orgAccountId, rawOrgAvatar).catch((err) => {
+                    console.warn('[LinkedInOAuth] Background org avatar mirror notice:', err);
+                  });
                 }
 
                 const orgAccount: SocialAccount = {

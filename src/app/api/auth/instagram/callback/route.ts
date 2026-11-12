@@ -447,11 +447,13 @@ export async function GET(req: NextRequest) {
     for (const ch of detectedChannels) {
       const cleanUsername = (ch.name || 'instagram_account').replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
       const accountId = `ig_${ch.id}`;
-      let permAvatar = ch.avatarUrl;
-      if (permAvatar) {
-        try {
-          permAvatar = await mirrorAvatarToPermanentStorage(accountId, permAvatar);
-        } catch {}
+      const permAvatar = ch.avatarUrl;
+
+      // Non-blocking mirror to permanent storage in background; save raw avatar immediately for instant redirect
+      if (permAvatar && !permAvatar.includes('supabase.co/storage')) {
+        mirrorAvatarToPermanentStorage(accountId, permAvatar).catch((err) => {
+          console.warn('[InstagramOAuth] Background avatar mirror notice:', err);
+        });
       }
       const igAcc: SocialAccount = {
         id: accountId,
