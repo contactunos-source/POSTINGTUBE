@@ -875,27 +875,31 @@ export const DatabaseService = {
    */
   async deleteAccount(id: string, userId?: string, workspaceId?: string): Promise<void> {
     const resolvedUser = await getResolvedUserId(userId);
-    const targetWsId = (workspaceId && UUID_REGEX.test(workspaceId))
-      ? workspaceId
-      : await getUserWorkspaceId(resolvedUser || undefined);
 
     if (supabase) {
       try {
+        // Unconditionally delete the account by its primary key ID from Supabase
         const { error } = await supabase
           .from('connected_accounts')
           .delete()
-          .eq('id', id)
-          .eq('workspace_id', targetWsId);
-        if (error) console.error('Failed to delete account from Supabase:', error);
+          .eq('id', id);
+        if (error) {
+          console.error('[DatabaseService] Failed to delete account from Supabase:', error);
+        } else {
+          console.log('[DatabaseService] Successfully deleted account from Supabase:', id);
+        }
       } catch (err) {
-        console.error('Failed to delete account from Supabase:', err);
+        console.error('[DatabaseService] Exception deleting account from Supabase:', err);
       }
     }
 
+    // Purge from both user-scoped cache and global/default cache
     if (resolvedUser) {
       const current = StorageService.getAccounts(resolvedUser).filter((a) => a.id !== id);
       StorageService.saveAccounts(current, resolvedUser);
     }
+    const defaultAccs = StorageService.getAccounts().filter((a) => a.id !== id);
+    StorageService.saveAccounts(defaultAccs);
   },
 
   /**
