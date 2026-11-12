@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
 
   let workspaceId = '';
   let userId = '';
+  let isIncludeOrg = false;
   let returnBaseUrl = defaultBaseUrl;
 
   if (stateRaw) {
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
       userId = parsed.userId || '';
+      isIncludeOrg = parsed.includeOrg === true;
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
     } catch {
       workspaceId = stateRaw;
@@ -64,8 +66,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID;
-  const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+  const clientId =
+    isIncludeOrg && process.env.LINKEDIN_COMMUNITY_CLIENT_ID
+      ? process.env.LINKEDIN_COMMUNITY_CLIENT_ID
+      : process.env.LINKEDIN_CLIENT_ID;
+  const clientSecret =
+    isIncludeOrg && process.env.LINKEDIN_COMMUNITY_CLIENT_SECRET
+      ? process.env.LINKEDIN_COMMUNITY_CLIENT_SECRET
+      : process.env.LINKEDIN_CLIENT_SECRET;
   const redirectUri =
     process.env.LINKEDIN_REDIRECT_URI ||
     `${defaultBaseUrl}/api/auth/linkedin/callback`;

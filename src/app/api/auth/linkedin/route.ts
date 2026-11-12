@@ -24,10 +24,13 @@ const ORGANIZATION_SCOPES = [
 ];
 
 export async function GET(req: NextRequest) {
-  const clientId = process.env.LINKEDIN_CLIENT_ID;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
   const userId = req.nextUrl.searchParams.get('user_id') || '';
   const includeOrg = req.nextUrl.searchParams.get('include_org') === 'true';
+
+  const clientId = (includeOrg && process.env.LINKEDIN_COMMUNITY_CLIENT_ID)
+    ? process.env.LINKEDIN_COMMUNITY_CLIENT_ID
+    : process.env.LINKEDIN_CLIENT_ID;
 
   // Determine host and protocol dynamically
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
