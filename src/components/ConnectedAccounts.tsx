@@ -49,11 +49,13 @@ interface DetectedPage {
   name: string;
   avatarUrl: string;
   accessToken: string;
-  platform?: 'facebook' | 'instagram' | 'youtube';
+  platform?: 'facebook' | 'instagram' | 'youtube' | 'linkedin';
   username?: string;
   refreshToken?: string;
   tokenExpiresAt?: string;
   followersCount?: number;
+  accountType?: 'profile' | 'business' | 'page' | 'channel';
+  subtitle?: string;
 }
 
 export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
@@ -84,6 +86,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   // 4: 'confirm' (Confirm your Account / Discovered Instagram Accounts)
   const [igStep, setIgStep] = useState<'select_type' | 'check_account' | 'convert_guide' | 'confirm'>('select_type');
   const [ytStep, setYtStep] = useState<'auth' | 'confirm'>('auth');
+  const [liStep, setLiStep] = useState<'auth' | 'confirm'>('auth');
 
 
   // Facebook Token and Form state
@@ -242,16 +245,28 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const isIgSuccess = urlParams.get('ig_connect_success');
       const isYtSuccess = urlParams.get('youtube_connect_success');
       const isLiSuccess = urlParams.get('li_connect_success');
+      const isLiSelect = urlParams.get('li_select_accounts');
       const isAlreadyConnected = urlParams.get('already_connected');
       const connectedName = urlParams.get('connected_account_name') || 'LinkedIn Account';
       const connectedAvatar = urlParams.get('connected_account_avatar') || '';
       const noIgFound = urlParams.get('no_instagram_found');
       const discoveredJson = urlParams.get('discovered_pages') || urlParams.get('discovered_channels');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : isLiSuccess || isAlreadyConnected ? 'linkedin' : 'facebook');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : isLiSuccess || isAlreadyConnected || isLiSelect ? 'linkedin' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
-      if (isAlreadyConnected) {
+      if (isLiSelect && discoveredJson) {
+        try {
+          const parsed = JSON.parse(discoveredJson);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDiscoveredPages(parsed);
+            setSelectedPageIds(parsed.map((p: any) => p.id));
+            setLiStep('confirm');
+            setConnectingPlatform('linkedin');
+            if (onRefreshAccount) onRefreshAccount('all');
+          }
+        } catch {}
+      } else if (isAlreadyConnected) {
         setResultModal({
           isOpen: true,
           status: 'already_connected',
@@ -260,6 +275,9 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
           avatarUrl: connectedAvatar,
         });
         setConnectingPlatform(null);
+        if (onRefreshAccount) {
+          onRefreshAccount('all');
+        }
       } else if (isLiSuccess || isFbSuccess || isIgSuccess || isYtSuccess) {
         setResultModal({
           isOpen: true,
@@ -571,7 +589,61 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       return;
     }
 
-    // 3. Facebook Flow
+    // 3. LinkedIn Multi-Account Selector Flow (Buffer Style)
+    if (connectingPlatform === 'linkedin') {
+      const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
+      if (selected.length === 0) {
+        setVerifyError('Please select at least one LinkedIn account or page to connect.');
+        return;
+      }
+
+      for (const target of selected) {
+        const isOrg = target.accountType === 'business' || target.id.startsWith('li_org_');
+        const cleanUsername = (target.username || target.name || 'linkedin_account').replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+        const newAcc: SocialAccount = {
+          id: target.id,
+          userId: authUser?.id,
+          platform: 'linkedin',
+          username: cleanUsername,
+          displayName: target.name,
+          avatarUrl: target.avatarUrl || `/api/accounts/avatar/${encodeURIComponent(target.id)}`,
+          accountType: isOrg ? 'business' : 'profile',
+          status: 'connected',
+          followersCount: target.followersCount || 0,
+          externalId: target.id.replace('li_', '').replace('li_org_', ''),
+          accessToken: target.accessToken,
+          refreshToken: target.refreshToken,
+          tokenExpiresAt: target.tokenExpiresAt,
+          pageId: isOrg ? `urn:li:organization:${target.id.replace('li_org_', '')}` : `urn:li:person:${target.id.replace('li_', '')}`,
+        };
+
+        await onAddAccount(newAcc);
+      }
+
+      setConnectingPlatform(null);
+      setLiStep('auth');
+      setDiscoveredPages([]);
+      setSelectedPageIds([]);
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', '/dashboard?tab=connections');
+      }
+
+      setResultModal({
+        isOpen: true,
+        status: 'success',
+        platform: 'linkedin',
+        accountName: selected.length === 1 ? selected[0].name : `${selected.length} LinkedIn Accounts`,
+        avatarUrl: selected[0]?.avatarUrl || '',
+      });
+
+      if (onRefreshAccount) {
+        onRefreshAccount('all');
+      }
+      return;
+    }
+
+    // 4. Facebook Flow
     const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
     if (selected.length === 0) {
       setVerifyError('Please select at least one Account or Page to connect.');
@@ -781,6 +853,8 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       ? '/images/plan-poster-avatar.png'
                       : resultModal.avatarUrl && !resultModal.avatarUrl.includes('name=user_')
                       ? resultModal.avatarUrl
+                      : resultModal.platform === 'linkedin' && resultModal.accountName
+                      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(resultModal.accountName)}&background=0A66C2&color=fff&size=256&bold=true`
                       : null;
 
                     if (avatarSrc) {
@@ -790,6 +864,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                           alt={resultModal.accountName || 'Channel avatar'}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.onerror = null;
+                            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(resultModal.accountName || 'LinkedIn')}&background=0A66C2&color=fff&size=256&bold=true`;
+                          }}
                         />
                       );
                     }
@@ -926,7 +1005,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
               ) : resultModal.status === 'success' ? (
                 <button
                   type="button"
-                  onClick={() => setResultModal(null)}
+                  onClick={() => {
+                    setResultModal(null);
+                    if (onRefreshAccount) {
+                      onRefreshAccount('all');
+                    }
+                  }}
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
                 >
                   Save / Continue
@@ -2002,64 +2086,196 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 )}
               </div>
             ) : connectingPlatform === 'linkedin' ? (
-              /* LINKEDIN DEDICATED FLOW */
+              /* LINKEDIN DEDICATED FLOW (BUFFER-STYLE MULTI-ACCOUNT SELECTOR) */
               <div className="p-6 space-y-5">
-                <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center mx-auto mb-3 border border-[#0A66C2]/20 shadow-xs">
-                    <PlatformLogo platform="linkedin" className="w-6 h-6 text-[#0A66C2]" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect LinkedIn Account</h2>
-                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                    Publish professional articles, image posts, and company updates via the official free Share on LinkedIn API.
-                  </p>
-                </div>
+                {liStep === 'confirm' && discoveredPages.length > 0 ? (
+                  <div className="space-y-5">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center mx-auto mb-2 border border-[#0A66C2]/20 shadow-xs">
+                        <PlatformLogo platform="linkedin" className="w-6 h-6 text-[#0A66C2]" />
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Select accounts</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Choose the LinkedIn Profile and Company Pages you want to connect to PlanPoster.
+                      </p>
+                    </div>
 
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
-                  <div className="flex items-start space-x-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Official Microsoft LinkedIn Community Management &amp; Share APIs (100% Free).</span>
-                  </div>
-                  <div className="flex items-start space-x-2.5">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Supports Company Pages, Creator profiles, and multi-image posts up to 3,000 characters.</span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-1">
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id="include_li_org"
-                      checked={includeLinkedInOrg}
-                      onChange={(e) => setIncludeLinkedInOrg(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
-                    />
-                    <label htmlFor="include_li_org" className="text-xs text-gray-700 cursor-pointer select-none">
-                      <span className="font-semibold text-gray-950 block">Include LinkedIn Company Pages</span>
-                      <span className="text-[11px] text-gray-500 block mt-0.5">
-                        Requests permissions to also connect Company Pages you administer. Requires Community Management API approval in your LinkedIn Developer Portal.
+                    {/* Blue Info Notice (Buffer Standard) */}
+                    <div className="p-3.5 bg-[#004182]/10 border border-[#004182]/20 rounded-xl flex items-start space-x-2.5 text-xs text-[#004182]">
+                      <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">
+                        Make sure you&apos;re signing in with the LinkedIn account that has <strong>Super Admin permissions</strong> for the Pages you&apos;re looking to connect.
                       </span>
-                    </label>
+                    </div>
+
+                    {/* Selection Header Ribbon */}
+                    <div className="flex items-center justify-between text-xs text-gray-600 px-1 font-medium">
+                      <span>{selectedPageIds.length} selected</span>
+                      <label className="flex items-center space-x-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={discoveredPages.length > 0 && selectedPageIds.length === discoveredPages.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPageIds(discoveredPages.map((p) => p.id));
+                            } else {
+                              setSelectedPageIds([]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-[#0A66C2] focus:ring-0 cursor-pointer"
+                        />
+                        <span>Select All</span>
+                      </label>
+                    </div>
+
+                    {/* Accounts Cards List */}
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                      {discoveredPages.map((acc) => {
+                        const isChecked = selectedPageIds.includes(acc.id);
+                        const isPage = acc.accountType === 'business' || acc.id.startsWith('li_org_');
+                        return (
+                          <div
+                            key={acc.id}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedPageIds(selectedPageIds.filter((id) => id !== acc.id));
+                              } else {
+                                setSelectedPageIds([...selectedPageIds, acc.id]);
+                              }
+                            }}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                              isChecked
+                                ? 'border-[#0A66C2] bg-[#0A66C2]/5 ring-1 ring-[#0A66C2]/50 shadow-xs'
+                                : 'border-gray-200 bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3.5">
+                              <div className="w-11 h-11 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {acc.avatarUrl ? (
+                                  <img
+                                    src={acc.avatarUrl}
+                                    alt={acc.name}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      target.onerror = null;
+                                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}&background=0A66C2&color=fff&size=256&bold=true`;
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-[#0A66C2] text-white font-bold flex items-center justify-center text-sm">
+                                    {acc.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-gray-950 leading-tight">
+                                  {acc.name}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-0.5 font-medium">
+                                  {isPage ? 'Page' : 'Profile'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Checkbox */}
+                            <div
+                              className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                                isChecked
+                                  ? 'border-[#0A66C2] bg-[#0A66C2] text-white font-bold'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConnectingPlatform(null);
+                          setLiStep('auth');
+                        }}
+                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFinishConnection}
+                        disabled={selectedPageIds.length === 0}
+                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        Connect {selectedPageIds.length > 0 ? `${selectedPageIds.length} ` : ''}Account{selectedPageIds.length > 1 ? 's' : ''}
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center mx-auto mb-3 border border-[#0A66C2]/20 shadow-xs">
+                        <PlatformLogo platform="linkedin" className="w-6 h-6 text-[#0A66C2]" />
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect LinkedIn Account</h2>
+                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                        Publish professional articles, image posts, and company updates via the official free Share on LinkedIn API.
+                      </p>
+                    </div>
 
-                  <a
-                    href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
-                    <span>Authorize with Official LinkedIn OAuth</span>
-                  </a>
-                </div>
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
+                      <div className="flex items-start space-x-2.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>Official Microsoft LinkedIn Community Management &amp; Share APIs (100% Free).</span>
+                      </div>
+                      <div className="flex items-start space-x-2.5">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>Supports Company Pages, Creator profiles, and multi-image posts up to 3,000 characters.</span>
+                      </div>
+                    </div>
 
-                <div className="text-center pt-2 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setConnectingPlatform(null)}
-                    className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                    <div className="space-y-4 pt-1">
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start space-x-3">
+                        <input
+                          type="checkbox"
+                          id="include_li_org"
+                          checked={includeLinkedInOrg}
+                          onChange={(e) => setIncludeLinkedInOrg(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
+                        />
+                        <label htmlFor="include_li_org" className="text-xs text-gray-700 cursor-pointer select-none">
+                          <span className="font-semibold text-gray-950 block">Include LinkedIn Company Pages</span>
+                          <span className="text-[11px] text-gray-500 block mt-0.5">
+                            Requests permissions to also connect Company Pages you administer. Requires Community Management API in your LinkedIn Developer Portal.
+                          </span>
+                        </label>
+                      </div>
+
+                      <a
+                        href={`/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`}
+                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
+                        <span>Authorize with Official LinkedIn OAuth</span>
+                      </a>
+                    </div>
+
+                    <div className="text-center pt-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setConnectingPlatform(null)}
+                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : connectingPlatform === 'threads' ? (
               /* THREADS DEDICATED FLOW */

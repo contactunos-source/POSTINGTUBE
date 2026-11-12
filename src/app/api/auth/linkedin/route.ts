@@ -26,6 +26,7 @@ const ORGANIZATION_SCOPES = [
 export async function GET(req: NextRequest) {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
   const workspaceId = req.nextUrl.searchParams.get('workspace_id') || '';
+  const userId = req.nextUrl.searchParams.get('user_id') || '';
   const includeOrg = req.nextUrl.searchParams.get('include_org') === 'true';
 
   // Determine host and protocol dynamically
@@ -50,9 +51,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Create state parameter with workspace ID and CSRF random salt
+  // Create state parameter with workspace ID, user ID, and CSRF random salt
   const stateObj = {
     workspaceId,
+    userId,
     platform: 'linkedin',
     csrf: Math.random().toString(36).substring(2, 15),
     returnUrl: baseUrl,

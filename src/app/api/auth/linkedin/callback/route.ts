@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/db';
 import { SocialAccount } from '@/types/social';
+import { mirrorAvatarToPermanentStorage } from '@/lib/avatarStorage';
 
 interface DiscoveredAccount {
   account: SocialAccount;
@@ -25,12 +26,14 @@ export async function GET(req: NextRequest) {
     requestOrigin;
 
   let workspaceId = '';
+  let userId = '';
   let returnBaseUrl = defaultBaseUrl;
 
   if (stateRaw) {
     try {
       const parsed = JSON.parse(decodeURIComponent(stateRaw));
       workspaceId = parsed.workspaceId || '';
+      userId = parsed.userId || '';
       if (parsed.returnUrl) returnBaseUrl = parsed.returnUrl;
     } catch {
       workspaceId = stateRaw;
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
     target.searchParams.set('tab', 'connections');
     target.searchParams.set('platform', 'linkedin');
     if (workspaceId) target.searchParams.set('workspace_id', workspaceId);
+    if (userId) target.searchParams.set('user_id', userId);
     for (const [k, v] of Object.entries(params)) {
       target.searchParams.set(k, v);
     }
@@ -121,18 +125,33 @@ export async function GET(req: NextRequest) {
     const profile = await userinfoRes.json();
     const personUrn = `urn:li:person:${profile.sub}`;
     const displayName = profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim() || 'LinkedIn Member';
-    const avatarUrl = profile.picture || '';
+    const rawAvatarUrl = profile.picture || '';
     const username = (profile.email ? profile.email.split('@')[0] : profile.sub) || 'linkedin_user';
+    const personalAccountId = `li_${profile.sub}`;
+
+    // Mirror avatar to permanent storage or fallback to proxy
+    let personalAvatarUrl = '';
+    if (rawAvatarUrl) {
+      try {
+        personalAvatarUrl = await mirrorAvatarToPermanentStorage(personalAccountId, rawAvatarUrl);
+      } catch {
+        personalAvatarUrl = rawAvatarUrl;
+      }
+    }
+    if (!personalAvatarUrl) {
+      personalAvatarUrl = `/api/accounts/avatar/${encodeURIComponent(personalAccountId)}`;
+    }
 
     const discoveredAccounts: DiscoveredAccount[] = [];
 
     // Personal Profile Account Model
     const personalAccount: SocialAccount = {
-      id: `li_${profile.sub}`,
+      id: personalAccountId,
+      userId: userId || undefined,
       platform: 'linkedin',
       username,
       displayName,
-      avatarUrl,
+      avatarUrl: personalAvatarUrl,
       accountType: 'profile',
       accessToken,
       refreshToken,
@@ -174,17 +193,31 @@ export async function GET(req: NextRequest) {
                 const orgData = await orgRes.json();
                 const orgName = orgData.localizedName || orgData.vanityName || `Company (${orgId})`;
                 const orgUsername = orgData.vanityName || `org_${orgId}`;
-                const orgAvatar =
+                const rawOrgAvatar =
                   orgData.logoV2?.['cropped~']?.elements?.[0]?.identifiers?.[0]?.identifier ||
                   orgData.coverPhotoV2?.['cropped~']?.elements?.[0]?.identifiers?.[0]?.identifier ||
                   '';
 
+                const orgAccountId = `li_org_${orgId}`;
+                let orgAvatarUrl = '';
+                if (rawOrgAvatar) {
+                  try {
+                    orgAvatarUrl = await mirrorAvatarToPermanentStorage(orgAccountId, rawOrgAvatar);
+                  } catch {
+                    orgAvatarUrl = rawOrgAvatar;
+                  }
+                }
+                if (!orgAvatarUrl) {
+                  orgAvatarUrl = `/api/accounts/avatar/${encodeURIComponent(orgAccountId)}`;
+                }
+
                 const orgAccount: SocialAccount = {
-                  id: `li_org_${orgId}`,
+                  id: orgAccountId,
+                  userId: userId || undefined,
                   platform: 'linkedin',
                   username: orgUsername,
-                  displayName: `${orgName} (Company Page)`,
-                  avatarUrl: orgAvatar,
+                  displayName: orgName,
+                  avatarUrl: orgAvatarUrl,
                   accountType: 'business',
                   accessToken,
                   refreshToken,
@@ -195,7 +228,7 @@ export async function GET(req: NextRequest) {
                   followersCount: 0,
                 };
 
-                const orgSaveRes = await DatabaseService.saveAccount(orgAccount, workspaceId);
+                const orgSaveRes = await DatabaseService.saveAccount(orgAccount, userId, workspaceId);
                 discoveredAccounts.push({
                   account: orgAccount,
                   isDuplicate: orgSaveRes.isDuplicate,
@@ -212,11 +245,32 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Save Personal Account
-    const personalSaveRes = await DatabaseService.saveAccount(personalAccount, workspaceId);
+    const personalSaveRes = await DatabaseService.saveAccount(personalAccount, userId, workspaceId);
     discoveredAccounts.unshift({
       account: personalAccount,
       isDuplicate: personalSaveRes.isDuplicate,
     });
+
+    // Check if multiple accounts were discovered (e.g. Profile + Page(s), Buffer style)
+    if (discoveredAccounts.length > 1) {
+      const uiPages = discoveredAccounts.map((item) => ({
+        id: item.account.id,
+        name: item.account.displayName,
+        avatarUrl: item.account.avatarUrl,
+        accessToken: item.account.accessToken || '',
+        platform: 'linkedin',
+        accountType: item.account.accountType,
+        subtitle: item.account.accountType === 'business' ? 'Page' : 'Profile',
+      }));
+
+      return makeRedirect({
+        li_select_accounts: 'true',
+        platform: 'linkedin',
+        discovered_pages: JSON.stringify(uiPages),
+        connected_account_name: personalAccount.displayName,
+        connected_account_avatar: personalAccount.avatarUrl || '',
+      });
+    }
 
     const primaryAccount = discoveredAccounts[0].account;
     const allWereDuplicate = discoveredAccounts.every((a) => a.isDuplicate);
@@ -224,6 +278,7 @@ export async function GET(req: NextRequest) {
     if (allWereDuplicate) {
       return makeRedirect({
         already_connected: 'true',
+        platform: 'linkedin',
         connected_account_name: primaryAccount.displayName,
         connected_account_avatar: primaryAccount.avatarUrl || '',
       });
@@ -231,6 +286,7 @@ export async function GET(req: NextRequest) {
 
     return makeRedirect({
       li_connect_success: 'true',
+      platform: 'linkedin',
       connected_account_name: primaryAccount.displayName,
       connected_account_avatar: primaryAccount.avatarUrl || '',
     });

@@ -124,6 +124,38 @@ export async function GET(
           }
         }
 
+        // LinkedIn
+        if (account.platform === 'linkedin' && token) {
+          try {
+            if (account.account_type === 'business' || id.startsWith('li_org_')) {
+              const orgId = String(account.page_id || id).replace(/^li_org_/, '').replace('urn:li:organization:', '');
+              const orgRes = await fetch(`https://api.linkedin.com/v2/organizations/${orgId}`, {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'X-Restli-Protocol-Version': '2.0.0',
+                },
+              });
+              if (orgRes.ok) {
+                const orgData = await orgRes.json();
+                freshAvatarUrl =
+                  orgData.logoV2?.['cropped~']?.elements?.[0]?.identifiers?.[0]?.identifier ||
+                  orgData.coverPhotoV2?.['cropped~']?.elements?.[0]?.identifiers?.[0]?.identifier ||
+                  null;
+              }
+            } else {
+              const userRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (userRes.ok) {
+                const userData = await userRes.json();
+                freshAvatarUrl = userData.picture || null;
+              }
+            }
+          } catch (liErr) {
+            console.warn('[AvatarProxy] LinkedIn avatar fetch error:', liErr);
+          }
+        }
+
         // Mirror fresh avatar to permanent storage
         if (freshAvatarUrl) {
           const permanentUrl = await mirrorAvatarToPermanentStorage(account.id, freshAvatarUrl);
