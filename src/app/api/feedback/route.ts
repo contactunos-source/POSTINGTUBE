@@ -82,11 +82,13 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { tryingToDo, gotInWay, attachmentUrl, pageUrl, userId, userEmail } = body;
+    const { message, tryingToDo, gotInWay, attachmentUrl, pageUrl, userId, userEmail } = body;
 
-    if (!tryingToDo?.trim() || !gotInWay?.trim()) {
+    const feedbackContent = message?.trim() || tryingToDo?.trim() || '';
+
+    if (!feedbackContent) {
       return NextResponse.json(
-        { success: false, error: 'Please answer both questions before submitting.' },
+        { success: false, error: 'Please describe your problem or feedback before submitting.' },
         { status: 400 }
       );
     }
@@ -103,8 +105,9 @@ export async function POST(req: NextRequest) {
           .insert({
             user_id: userId || null,
             user_email: userEmail || null,
-            trying_to_do: tryingToDo.trim(),
-            got_in_way: gotInWay.trim(),
+            message: feedbackContent,
+            trying_to_do: tryingToDo?.trim() || feedbackContent,
+            got_in_way: gotInWay?.trim() || null,
             attachment_url: attachmentUrl || null,
             page_url: pageUrl || null,
             user_agent: req.headers.get('user-agent') || null,
@@ -131,18 +134,21 @@ export async function POST(req: NextRequest) {
       .map((e) => e.trim())
       .filter((e) => e.includes('@'));
 
-    const emailPayload = {
+    const emailPayload: Record<string, string> = {
       _subject: `[PlanPoster Issue/Feedback] Report from ${userEmail || 'User'}`,
       _template: 'table',
       _captcha: 'false',
-      'What were you trying to do': tryingToDo.trim(),
-      'What got in your way, and what might help': gotInWay.trim(),
+      'Reported Problem / Feedback': feedbackContent,
       'Attachment / Screenshot': attachmentUrl || 'None',
       'Submitted From Page': pageUrl || 'PlanPoster Dashboard',
       'User Email': userEmail || 'Not provided',
       'User ID': userId || 'Guest',
       'Submitted At': new Date().toLocaleString('en-US', { timeZoneName: 'short' }),
     };
+
+    if (gotInWay?.trim()) {
+      emailPayload['What got in your way'] = gotInWay.trim();
+    }
 
     // Send asynchronously without blocking the user response
     ownerEmails.forEach((email) => {

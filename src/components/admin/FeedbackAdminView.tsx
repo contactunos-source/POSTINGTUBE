@@ -20,8 +20,9 @@ interface FeedbackItem {
   id: string;
   user_id?: string;
   user_email?: string;
-  trying_to_do: string;
-  got_in_way: string;
+  message?: string;
+  trying_to_do?: string;
+  got_in_way?: string;
   attachment_url?: string;
   page_url?: string;
   user_agent?: string;
@@ -228,28 +229,37 @@ export const FeedbackAdminView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Questions & Answers Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Question 1: What were you trying to do? */}
-                <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-3.5 space-y-1.5">
+              {/* Feedback Content */}
+              {item.message ? (
+                <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-1.5">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
-                    What were you trying to do?
+                    Reported Problem / Issue:
                   </span>
                   <p className="text-xs text-gray-900 leading-relaxed font-medium whitespace-pre-wrap">
-                    {item.trying_to_do}
+                    {item.message}
                   </p>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-3.5 space-y-1.5">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                      What were you trying to do?
+                    </span>
+                    <p className="text-xs text-gray-900 leading-relaxed font-medium whitespace-pre-wrap">
+                      {item.trying_to_do}
+                    </p>
+                  </div>
 
-                {/* Question 2: What got in your way, and what might help? */}
-                <div className="bg-amber-50/40 border border-amber-200/70 rounded-xl p-3.5 space-y-1.5">
-                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
-                    What got in your way, and what might help?
-                  </span>
-                  <p className="text-xs text-gray-900 leading-relaxed font-medium whitespace-pre-wrap">
-                    {item.got_in_way}
-                  </p>
+                  <div className="bg-amber-50/40 border border-amber-200/70 rounded-xl p-3.5 space-y-1.5">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                      What got in your way, and what might help?
+                    </span>
+                    <p className="text-xs text-gray-900 leading-relaxed font-medium whitespace-pre-wrap">
+                      {item.got_in_way}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Screenshot Attachment Preview if attached */}
               {item.attachment_url && (

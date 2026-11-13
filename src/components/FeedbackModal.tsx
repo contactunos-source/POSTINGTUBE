@@ -9,7 +9,6 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  FileText,
   Image as ImageIcon,
 } from 'lucide-react';
 
@@ -26,8 +25,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   authUser,
   currentPageName,
 }) => {
-  const [tryingToDo, setTryingToDo] = useState('');
-  const [gotInWay, setGotInWay] = useState('');
+  const [feedbackText, setFeedbackText] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -59,8 +57,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   if (!isOpen) return null;
 
   const handleClose = () => {
-    setTryingToDo('');
-    setGotInWay('');
+    setFeedbackText('');
     setAttachmentUrl(null);
     setAttachmentName(null);
     setErrorMessage(null);
@@ -106,13 +103,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!tryingToDo.trim()) {
-      setErrorMessage('Please tell us what you were trying to do.');
-      return;
-    }
-
-    if (!gotInWay.trim()) {
-      setErrorMessage('Please describe what got in your way or what might help.');
+    if (!feedbackText.trim()) {
+      setErrorMessage('Please describe the problem or feedback before submitting.');
       return;
     }
 
@@ -126,8 +118,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tryingToDo: tryingToDo.trim(),
-          gotInWay: gotInWay.trim(),
+          message: feedbackText.trim(),
           attachmentUrl: attachmentUrl || undefined,
           pageUrl,
           userId: authUser?.id || undefined,
@@ -143,7 +134,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
       setIsSuccess(true);
       setTimeout(() => {
         handleClose();
-      }, 2600);
+      }, 2400);
     } catch (err: any) {
       console.error('[FeedbackModal] Submission failed:', err);
       setErrorMessage(err?.message || 'Failed to submit feedback. Please check your internet connection.');
@@ -193,10 +184,10 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 </div>
                 <div>
                   <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">
-                    What would help PlanPoster work better for you?
+                    How can we improve PlanPoster?
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Found an issue, bug, or have a suggestion? Let us know below.
+                    Facing an issue, found a bug, or need help? Let us know below.
                   </p>
                 </div>
               </div>
@@ -219,60 +210,30 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 </div>
               )}
 
-              {/* Question 1: What were you trying to do? */}
+              {/* Single Question: Are you facing problems? */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-gray-900">
-                    What were you trying to do?
-                  </label>
-                  <span className="text-[11px] font-semibold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                    Required
-                  </span>
-                </div>
+                <label className="text-xs font-bold text-gray-900 block">
+                  Are you facing problems?
+                </label>
                 <div className="relative">
                   <textarea
-                    rows={3}
-                    maxLength={300}
-                    value={tryingToDo}
-                    onChange={(e) => setTryingToDo(e.target.value)}
-                    placeholder="e.g. Schedule a post for my Instagram page, create a carousel, or connect a channel..."
-                    className="w-full px-3.5 py-2.5 text-xs text-gray-900 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-gray-400 transition-all resize-none"
-                  />
-                  <span className="absolute bottom-2 right-2.5 text-[10px] font-mono text-gray-400">
-                    {tryingToDo.length}/300
-                  </span>
-                </div>
-              </div>
-
-              {/* Question 2: What got in your way, and what might help? */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-gray-900">
-                    What got in your way, and what might help?
-                  </label>
-                  <span className="text-[11px] font-semibold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                    Required
-                  </span>
-                </div>
-                <div className="relative">
-                  <textarea
-                    rows={3}
-                    maxLength={300}
-                    value={gotInWay}
-                    onChange={(e) => setGotInWay(e.target.value)}
-                    placeholder="e.g. The page felt slow, the preview showed an error, or the button didn't respond..."
-                    className="w-full px-3.5 py-2.5 text-xs text-gray-900 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-gray-400 transition-all resize-none"
+                    rows={6}
+                    maxLength={600}
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="Tell us what problem or issue you are facing, what went wrong, or what feature you need..."
+                    className="w-full px-3.5 py-3 text-xs text-gray-900 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-gray-400 transition-all resize-none leading-relaxed"
                   />
                   <div className="flex items-center justify-between mt-1 px-0.5">
-                    <span className="text-[11px] text-gray-400">Let us know what would help.</span>
+                    <span className="text-[11px] text-gray-400">Please describe in detail so we can resolve it quickly.</span>
                     <span className="text-[10px] font-mono text-gray-400">
-                      {gotInWay.length}/300
+                      {feedbackText.length}/600
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Optional Screenshot / Attachment Upload Box */}
+              {/* Screenshot / File Upload Box */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
                   Screenshot or File (Optional)
@@ -362,7 +323,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || isUploading || !tryingToDo.trim() || !gotInWay.trim()}
+                disabled={isSubmitting || isUploading || !feedbackText.trim()}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white transition-all shadow-xs hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center space-x-1.5"
               >
                 {isSubmitting ? (
