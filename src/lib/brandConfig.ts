@@ -11,7 +11,7 @@ export const BRAND = {
   supportEmail: 'support@planposter.com',
   adminEmail: 'admin@planposter.com',
   tagline: 'Multi-Platform Social Media Scheduling, Management & Publishing',
-  description: 'Schedule, edit, and publish content seamlessly across Instagram, Facebook, YouTube, LinkedIn, and Twitter from one unified workspace.',
+  description: 'Schedule, edit, and publish content seamlessly across Instagram, Facebook, LinkedIn, and Twitter from one unified workspace.',
   copyright: `© ${new Date().getFullYear()} Plan Poster. All rights reserved.`,
   assets: {
     logoBlack: '/images/plan-poster-bird-black.png',

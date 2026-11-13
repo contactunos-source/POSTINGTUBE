@@ -87,7 +87,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   // 3: 'convert_guide' (Image 3: Change to professional account?)
   // 4: 'confirm' (Confirm your Account / Discovered Instagram Accounts)
   const [igStep, setIgStep] = useState<'select_type' | 'check_account' | 'convert_guide' | 'confirm'>('select_type');
-  const [ytStep, setYtStep] = useState<'auth' | 'confirm'>('auth');
   const [liStep, setLiStep] = useState<'auth' | 'confirm'>('auth');
 
 
@@ -222,7 +221,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
   const platforms: SocialPlatform[] = [
     'facebook',
     'instagram',
-    'youtube',
     'linkedin',
     'threads',
     'pinterest',
@@ -265,15 +263,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const urlParams = new URLSearchParams(window.location.search);
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
-      const isYtSuccess = urlParams.get('youtube_connect_success');
       const isLiSuccess = urlParams.get('li_connect_success');
       const isLiSelect = urlParams.get('li_select_accounts');
       const isAlreadyConnected = urlParams.get('already_connected');
       const connectedName = urlParams.get('connected_account_name') || 'LinkedIn Account';
       const connectedAvatar = urlParams.get('connected_account_avatar') || '';
       const noIgFound = urlParams.get('no_instagram_found');
-      const discoveredJson = urlParams.get('discovered_pages') || urlParams.get('discovered_channels');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isYtSuccess ? 'youtube' : isLiSuccess || isAlreadyConnected || isLiSelect ? 'linkedin' : 'facebook');
+      const discoveredJson = urlParams.get('discovered_pages');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isLiSuccess || isAlreadyConnected || isLiSelect ? 'linkedin' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
@@ -300,12 +297,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         if (onRefreshAccount) {
           onRefreshAccount('all');
         }
-      } else if (isLiSuccess || isFbSuccess || isIgSuccess || isYtSuccess) {
+      } else if (isLiSuccess || isFbSuccess || isIgSuccess) {
         setResultModal({
           isOpen: true,
           status: 'success',
           platform: returningPlatform,
-          accountName: connectedName || (returningPlatform === 'facebook' ? 'Facebook Page' : returningPlatform === 'instagram' ? 'Instagram Account' : returningPlatform === 'youtube' ? 'YouTube Channel' : 'Account'),
+          accountName: connectedName || (returningPlatform === 'facebook' ? 'Facebook Page' : returningPlatform === 'instagram' ? 'Instagram Account' : 'LinkedIn Account'),
           avatarUrl: connectedAvatar,
         });
         setConnectingPlatform(null);
@@ -338,7 +335,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         setDiscoveredPages([]);
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
         try {
           window.history.replaceState({}, '', '/channels');
         } catch {}
@@ -395,8 +392,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
     if (platform === 'facebook') {
       setFbStep('select_type');
-    } else if (platform === 'youtube') {
-      setYtStep('auth');
     }
   };
 
@@ -532,86 +527,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       return;
     }
 
-    // 2. YouTube Flow
-    if (connectingPlatform === 'youtube') {
-      const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
-      const target = selected[0] || discoveredPages[0];
-
-      if (!target) {
-        setVerifyError('Please select a YouTube channel to connect.');
-        return;
-      }
-
-      const cleanHandle = (target.username || target.name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
-      const newAcc: SocialAccount = {
-        id: `yt_${target.id}`,
-        userId: authUser?.id,
-        platform: 'youtube',
-        username: cleanHandle,
-        displayName: target.name,
-        avatarUrl:
-          target.avatarUrl ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(target.name || 'YouTube Channel')}&background=FF0000&color=fff&size=256&bold=true`,
-        accountType: 'channel',
-        status: 'connected',
-        followersCount: target.followersCount || 0,
-        externalId: target.id,
-        accessToken: target.accessToken,
-        refreshToken: target.refreshToken,
-        tokenExpiresAt: target.tokenExpiresAt,
-        pageId: target.id,
-      };
-
-      // Duplicate check
-      if (isAccountDuplicate(newAcc)) {
-        setResultModal({
-          isOpen: true,
-          status: 'already_connected',
-          platform: 'youtube',
-          accountName: target.name,
-          avatarUrl: target.avatarUrl,
-        });
-        setConnectingPlatform(null);
-        return;
-      }
-
-      const result = await onAddAccount(newAcc);
-      if (result && result.isDuplicate) {
-        setResultModal({
-          isOpen: true,
-          status: 'already_connected',
-          platform: 'youtube',
-          accountName: target.name,
-          avatarUrl: target.avatarUrl,
-        });
-        setConnectingPlatform(null);
-        return;
-      }
-
-      setConnectingPlatform(null);
-      setDiscoveredPages([]);
-      setSelectedPageIds([]);
-
-      if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/channels');
-      }
-
-      setResultModal({
-        isOpen: true,
-        status: 'success',
-        platform: 'youtube',
-        accountName: target.name,
-        avatarUrl: target.avatarUrl,
-      });
-
-      // Strictly stay on Connections page
-      if (onNavigateToTab) {
-        onNavigateToTab('connections');
-      }
-      return;
-    }
-
-    // 3. LinkedIn Multi-Account Selector Flow (Buffer Style)
+    // 2. LinkedIn Multi-Account Selector Flow (Buffer Style)
     if (connectingPlatform === 'linkedin') {
       const selected = discoveredPages.filter((p) => selectedPageIds.includes(p.id));
       if (selected.length === 0) {
@@ -1182,7 +1098,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                 </div>
                 <h3 className="text-base font-bold text-gray-900 mb-1">No channels connected yet</h3>
                 <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto mb-6">
-                  Connect your YouTube channel, Facebook Page, or Instagram account below to start scheduling and publishing high-performing content.
+                  Connect your Facebook Page, Instagram account, or LinkedIn profile/company page below to start scheduling and publishing high-performing content.
                 </p>
                 <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -1369,9 +1285,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
             const isConnected = platformAccounts.length > 0;
 
             const formatSummary =
-              platform === 'youtube'
-                ? 'YouTube Shorts vertical publishing'
-                : platform === 'instagram'
+              platform === 'instagram'
                 ? 'Reels, Stories & Feed posts'
                 : platform === 'facebook'
                 ? 'Page feed posts, Reels & videos'
@@ -2001,160 +1915,6 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                         className="px-7 py-2.5 rounded-xl text-xs font-bold bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464cf] text-white transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                       >
                         Save Facebook Page
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : connectingPlatform === 'youtube' ? (
-              /* YouTube Flow */
-              <div className="p-6 space-y-5">
-                {ytStep === 'confirm' && discoveredPages.length > 0 ? (
-                  /* YouTube Step: Confirm Channel */
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-100">
-                        <PlatformLogo platform="youtube" className="w-6 h-6" />
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Confirm YouTube Channel</h2>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Select the YouTube channel you want to connect to your account.
-                      </p>
-                    </div>
-
-                    {verifyError && (
-                      <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-xl">
-                        {verifyError}
-                      </div>
-                    )}
-
-                    <div className="space-y-2.5 max-h-60 overflow-y-auto">
-                      {discoveredPages.map((channel) => {
-                        const isChecked = selectedPageIds.includes(channel.id);
-                        return (
-                          <div
-                            key={channel.id}
-                            onClick={() => setSelectedPageIds([channel.id])}
-                            className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                              isChecked
-                                ? 'bg-red-50/60 border-red-500 ring-1 ring-red-500/40 shadow-xs'
-                                : 'bg-white border-gray-200 hover:border-gray-300'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3 min-w-0">
-                              {channel.avatarUrl ? (
-                                <img referrerPolicy="no-referrer"
-                                  src={channel.avatarUrl}
-                                  alt={channel.name}
-                                  className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold">
-                                  {channel.name.charAt(0)}
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <h4 className="text-sm font-bold text-gray-950 truncate">{channel.name}</h4>
-                                <p className="text-xs text-gray-500">
-                                  {channel.username || '@channel'}
-                                  {typeof channel.followersCount === 'number' && (
-                                    <span className="ml-2 text-gray-400">• {channel.followersCount.toLocaleString()} subscribers</span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                            <div
-                              className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
-                                isChecked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300'
-                              }`}
-                            >
-                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100">
-                      <button
-                        onClick={() => {
-                          setConnectingPlatform(null);
-                          setDiscoveredPages([]);
-                        }}
-                        className="px-4 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleFinishConnection}
-                        disabled={selectedPageIds.length === 0}
-                        className="px-6 py-2.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center space-x-1.5"
-                      >
-                        <span>Confirm & Connect Channel</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* YouTube Step: Connect OAuth Initiation */
-                  <div className="space-y-5">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 border border-red-100">
-                        <PlatformLogo platform="youtube" className="w-6 h-6" />
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect YouTube Channel</h2>
-                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                        Authorize Plan Poster to upload videos, schedule YouTube Shorts, and publish content to your channel via the official YouTube Data API v3.
-                      </p>
-                    </div>
-
-                    {verifyError && (
-                      <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-xl">
-                        {verifyError}
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
-                      <div className="flex items-start space-x-2.5 text-xs text-gray-700">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Google OAuth 2.0 Web Server authorization with offline access &amp; automatic token refresh.</span>
-                      </div>
-                      <div className="flex items-start space-x-2.5 text-xs text-gray-700">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Full support for standard videos (16:9) and YouTube Shorts (&le;60s vertical).</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={redirectingPlatform !== null}
-                      onClick={() => {
-                        handleOAuthRedirect(
-                          'youtube',
-                          `/api/auth/youtube?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}`
-                        );
-                      }}
-                      className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-75 disabled:cursor-not-allowed text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      {redirectingPlatform === 'youtube' ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin text-white" />
-                          <span>Redirecting to Google / YouTube...</span>
-                        </>
-                      ) : (
-                        <>
-                          <PlatformLogo platform="youtube" className="w-4 h-4" />
-                          <span>Sign in with Google / YouTube</span>
-                        </>
-                      )}
-                    </button>
-
-                    <div className="text-center pt-2 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
-                      >
-                        Cancel
                       </button>
                     </div>
                   </div>

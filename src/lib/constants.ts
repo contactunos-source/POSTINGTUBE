@@ -3,7 +3,6 @@ import { SocialPlatform, PlatformConfig } from '@/types/social';
 export const INITIAL_SUPPORTED_PLATFORMS: SocialPlatform[] = [
   'facebook',
   'instagram',
-  'youtube',
   'linkedin',
   'threads',
   'pinterest',
