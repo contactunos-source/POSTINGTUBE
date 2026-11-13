@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SubscriptionService, OFFICIAL_PLANS } from '@/lib/subscription';
 import { DatabaseService } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
     const userId = searchParams.get('userId') || '';
     const email = searchParams.get('email') || '';
     const workspaceId = searchParams.get('workspaceId') || '';
@@ -74,6 +72,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('[BillingSubscriptionAPI] Error:', err);
     return NextResponse.json(
       { success: false, error: err?.message || 'Failed to fetch subscription' },

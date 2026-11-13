@@ -340,7 +340,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
       if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isYtSuccess || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
         try {
-          window.history.replaceState({}, '', `${window.location.pathname}?tab=connections`);
+          window.history.replaceState({}, '', '/channels');
         } catch {}
       }
     }
@@ -515,7 +515,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       setNoInstagramFound(false);
 
       if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/dashboard?tab=connections');
+        window.history.replaceState({}, '', '/channels');
       }
 
       setResultModal({
@@ -593,7 +593,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       setSelectedPageIds([]);
 
       if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/dashboard?tab=connections');
+        window.history.replaceState({}, '', '/channels');
       }
 
       setResultModal({
@@ -648,7 +648,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       setSelectedPageIds([]);
 
       if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/dashboard?tab=connections');
+        window.history.replaceState({}, '', '/channels');
       }
 
       setResultModal({
@@ -712,7 +712,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     setSelectedPageIds([]);
 
     if (typeof window !== 'undefined') {
-      window.history.replaceState({}, '', '/dashboard?tab=connections');
+      window.history.replaceState({}, '', '/channels');
     }
 
     if (duplicateCount > 0 && addedCount === 0) {
@@ -789,7 +789,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     setGenericToken('');
 
     if (typeof window !== 'undefined') {
-      window.history.replaceState({}, '', '/dashboard?tab=connections');
+      window.history.replaceState({}, '', '/channels');
     }
 
     setResultModal({

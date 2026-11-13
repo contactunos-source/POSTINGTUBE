@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { SubscriptionService, OFFICIAL_PLANS } from '@/lib/subscription';
 
-export const dynamic = 'force-dynamic';
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
     const userId = searchParams.get('userId') || '';
     const email = searchParams.get('email') || '';
     const workspaceId = searchParams.get('workspaceId') || '';
@@ -144,6 +142,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_')) throw err;
     console.error('[ProfileMenuAPI] Error:', err);
     return NextResponse.json(
       { error: err?.message || 'Failed to fetch profile menu data' },
