@@ -40,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased font-sans`}
     >
       <head>
-        {/* Google Tag Manager (GTM-KPWPPCT4) */}
+        {/* Google Tag Manager / Google Analytics (GTM-KPWPPCT4) */}
         <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-KPWPPCT4" />
         <script
           dangerouslySetInnerHTML={{
@@ -48,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
+              gtag('config', 'GTM-KPWPPCT4');
             `,
           }}
         />
@@ -66,7 +67,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {/* Google Tag Manager (noscript fallback) */}
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-KPWPPCT4"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
+        {children}
+      </body>
     </html>
   );
 }
