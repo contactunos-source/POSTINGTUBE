@@ -34,8 +34,10 @@ import {
   Calendar,
   TrendingUp,
   Plus,
+  MessageSquareHeart,
 } from 'lucide-react';
 import Link from 'next/link';
+import { FeedbackModal } from '@/components/FeedbackModal';
 
 const ViewLoadingSkeleton = () => (
   <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-4 animate-pulse">
@@ -117,6 +119,7 @@ export default function DashboardPage({ initialTab }: { initialTab?: ActiveTab }
   const [isLoaded, setIsLoaded] = useState(false);
   const [authUser, setAuthUser] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const currentUserIdRef = React.useRef<string | null>(null);
 
   // User Initialization: strictly loads only this authenticated user's isolated data
@@ -1010,7 +1013,34 @@ export default function DashboardPage({ initialTab }: { initialTab?: ActiveTab }
               />
             </div>
           </div>
+
+          {activeTab !== 'settings' && (
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 shadow-2xs active:bg-gray-100 transition-colors cursor-pointer"
+              title="Share feedback or report an issue"
+            >
+              <MessageSquareHeart className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Feedback</span>
+            </button>
+          )}
         </div>
+
+        {/* Top Desktop Floating Action Bar for Feedback (All views except Settings) */}
+        {activeTab !== 'settings' && (
+          <div className="hidden lg:flex absolute top-4 right-6 sm:right-8 z-30 items-center">
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-gray-700 hover:text-gray-950 bg-white/95 hover:bg-white backdrop-blur-xs border border-gray-200/90 hover:border-gray-300 shadow-2xs hover:shadow-xs transition-all cursor-pointer select-none group"
+              title="Share feedback or report an issue"
+            >
+              <MessageSquareHeart className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <span>Share Feedback</span>
+            </button>
+          </div>
+        )}
 
         <div className="flex-1">
         {activeTab === 'new-post' && (
@@ -1027,6 +1057,7 @@ export default function DashboardPage({ initialTab }: { initialTab?: ActiveTab }
             accounts={accounts}
             allPosts={posts}
             initialPost={editingPost || undefined}
+            onOpenFeedback={() => setIsFeedbackOpen(true)}
             onSave={async (postData, action, onProgress) => {
               const res = await handleSavePost(postData, action, onProgress);
               if (action !== 'publish-now') {
@@ -1252,6 +1283,14 @@ export default function DashboardPage({ initialTab }: { initialTab?: ActiveTab }
             <span className="mt-0.5 leading-none">Menu</span>
           </button>
         </nav>
+
+        {/* Buffer-Style White Feedback Modal */}
+        <FeedbackModal
+          isOpen={isFeedbackOpen}
+          onClose={() => setIsFeedbackOpen(false)}
+          authUser={authUser}
+          currentPageName={activeTab}
+        />
       </main>
     </div>
   );

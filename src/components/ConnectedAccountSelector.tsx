@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { SocialAccount } from '@/types/social';
 import { PlatformLogo } from './SocialIcons';
-import { Plus } from 'lucide-react';
+import { Plus, MessageSquareHeart } from 'lucide-react';
 
 export const isPlatformSupportedForPostType = (platform: string, type: 'image' | 'video' | 'text' = 'image'): boolean => {
   if (platform === 'youtube') {
@@ -40,6 +40,7 @@ interface ConnectedAccountSelectorProps {
   onClearAll: () => void;
   onGoToConnections?: () => void;
   onShowNotice?: (msg: string) => void;
+  onOpenFeedback?: () => void;
 }
 
 export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> = ({
@@ -52,6 +53,7 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
   onClearAll,
   onGoToConnections,
   onShowNotice,
+  onOpenFeedback,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -81,6 +83,17 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
           <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
             {activeSelectedCount} of {accounts.length} selected
           </span>
+          {onOpenFeedback && (
+            <button
+              type="button"
+              onClick={onOpenFeedback}
+              title="Share feedback or report an issue"
+              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-gray-600 hover:text-emerald-700 bg-gray-50 hover:bg-emerald-50 border border-gray-200/90 hover:border-emerald-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs ml-1.5 select-none"
+            >
+              <MessageSquareHeart className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Share Feedback</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center space-x-3 text-xs">
