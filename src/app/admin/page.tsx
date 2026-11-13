@@ -10,6 +10,7 @@ import { DevicesView } from '@/components/admin/DevicesView';
 import { ActivityLogsView } from '@/components/admin/ActivityLogsView';
 import { SystemHealthView } from '@/components/admin/SystemHealthView';
 import { SecuritySettingsView } from '@/components/admin/SecuritySettingsView';
+import { FeedbackAdminView } from '@/components/admin/FeedbackAdminView';
 import { UserDetailModal } from '@/components/admin/UserDetailModal';
 import { AdminOverviewStats, AdminCustomerProfile } from '@/lib/admin/service';
 import { Loader2 } from 'lucide-react';
@@ -29,6 +30,7 @@ export default function AdminPage() {
         'users',
         'billing',
         'devices',
+        'feedback',
         'activity',
         'system',
         'security',
@@ -70,6 +72,7 @@ export default function AdminPage() {
         'users',
         'billing',
         'devices',
+        'feedback',
         'activity',
         'system',
         'security',
@@ -537,6 +540,10 @@ export default function AdminPage() {
               isLoading={isDevicesLoading}
               onRefresh={fetchDevices}
             />
+          )}
+
+          {activeTab === 'feedback' && (
+            <FeedbackAdminView />
           )}
 
           {activeTab === 'activity' && (

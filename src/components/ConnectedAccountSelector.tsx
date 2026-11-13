@@ -88,10 +88,10 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
               type="button"
               onClick={onOpenFeedback}
               title="Share feedback or report an issue"
-              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-gray-600 hover:text-emerald-700 bg-gray-50 hover:bg-emerald-50 border border-gray-200/90 hover:border-emerald-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs ml-1.5 select-none"
+              aria-label="Share Feedback"
+              className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-50 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 hover:scale-105 active:scale-95 border border-gray-200/90 hover:border-emerald-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs ml-1.5 select-none"
             >
               <MessageSquareHeart className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Share Feedback</span>
             </button>
           )}
         </div>

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ExternalLink,
   Crown,
+  MessageSquareHeart,
 } from 'lucide-react';
 import { PlanPosterLogo } from '@/components/PlanPosterLogo';
 
@@ -22,6 +23,7 @@ export type AdminTab =
   | 'users'
   | 'billing'
   | 'devices'
+  | 'feedback'
   | 'activity'
   | 'system'
   | 'security';
@@ -52,6 +54,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'users', label: 'Users', icon: Users },
     { id: 'billing', label: 'Subscriptions & Billing', icon: CreditCard },
     { id: 'devices', label: 'Analytics & Devices', icon: Smartphone },
+    { id: 'feedback', label: 'User Feedback', icon: MessageSquareHeart },
     { id: 'activity', label: 'Activity Logs', icon: History },
     { id: 'system', label: 'System Health', icon: Activity },
     { id: 'security', label: 'Security & Settings', icon: ShieldCheck },
