@@ -89,7 +89,6 @@ interface CreatePostDashboardProps {
   ) => Promise<any>;
   onBack: () => void;
   onGoToConnections?: () => void;
-  onOpenFeedback?: () => void;
 }
 
 // 4 Primary Supported Social Platforms with Brand Specifications
@@ -364,7 +363,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   onSave,
   onBack,
   onGoToConnections,
-  onOpenFeedback,
 }) => {
   // Subscription and scheduling limit states
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -2405,7 +2403,6 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             monthlyUsageByAccount={monthlyUsage.accounts}
             onToggleAccount={handleToggleAccount}
             onShowNotice={showToast}
-            onOpenFeedback={onOpenFeedback}
             onSelectAll={() => {
               const supportedAccIds = accounts
                 .filter((a) => isPlatformSupportedForPostType(a.platform, currentPostType))

@@ -1057,7 +1057,6 @@ export default function DashboardPage({ initialTab }: { initialTab?: ActiveTab }
             accounts={accounts}
             allPosts={posts}
             initialPost={editingPost || undefined}
-            onOpenFeedback={() => setIsFeedbackOpen(true)}
             onSave={async (postData, action, onProgress) => {
               const res = await handleSavePost(postData, action, onProgress);
               if (action !== 'publish-now') {
