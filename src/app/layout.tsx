@@ -40,6 +40,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased font-sans`}
     >
       <head>
+        {/* Google Tag Manager (GTM-KPWPPCT4) */}
+        <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-KPWPPCT4" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+            `,
+          }}
+        />
         <meta name="facebook-domain-verification" content="zminikzspmwfatpq2bwexmu1ffx908" />
         <script
           dangerouslySetInnerHTML={{
