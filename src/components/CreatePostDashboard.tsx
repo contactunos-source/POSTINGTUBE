@@ -380,20 +380,30 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
   const [editingMediaTarget, setEditingMediaTarget] = useState<{ accId?: string; isPerPlatform?: boolean } | null>(null);
 
   const handleSaveEditedMedia = async (updatedMedia: PostMedia[]) => {
+    // Strictly preserve and enforce sequence order on all slides
+    const orderedMedia = updatedMedia.map((m, idx) => ({ ...m, order: idx }));
+
     if (editingMediaTarget?.isPerPlatform && editingMediaTarget.accId) {
       setPlatformMediaMap((prev) => ({
         ...prev,
-        [editingMediaTarget.accId!]: updatedMedia,
+        [editingMediaTarget.accId!]: orderedMedia,
       }));
     } else {
-      setMediaList(updatedMedia);
+      setMediaList(orderedMedia);
       if (editingMediaTarget?.accId) {
         setPlatformMediaMap((prev) => ({
           ...prev,
-          [editingMediaTarget.accId!]: updatedMedia,
+          [editingMediaTarget.accId!]: orderedMedia,
         }));
       }
     }
+
+    // Reset slide index so the user is positioned on the primary/first slide of the new sequence
+    setActiveSlideIndices((prev) => ({
+      ...prev,
+      global: 0,
+      ...(editingMediaTarget?.accId ? { [editingMediaTarget.accId]: 0 } : {}),
+    }));
 
     // Synchronize aspect ratio state for live previews
     const primaryRatio = updatedMedia[0]?.editMetadata?.aspectRatio;
@@ -799,7 +809,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
             url: uploadRes.url,
             thumbnailUrl: uploadRes.thumbnailUrl || uploadRes.url,
           };
-          const liveList = [...currentList, ...newItems];
+          const liveList = [...currentList, ...newItems].map((item, idx) => ({ ...item, order: idx }));
           if (isPerPlatform) {
             setPlatformMediaMap((prev) => ({ ...prev, [accId]: liveList }));
           } else {
@@ -1767,6 +1777,14 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
     const isReplacing = isReplacingRef.current;
     isReplacingRef.current = false;
 
+    // If already in image mode with existing media and NOT explicitly replacing:
+    // Append as additional carousel slide so previous image(s) are preserved as main slides
+    if (!isReplacing && mediaList.length > 0 && currentPostType === 'image' && !fileArray.some(f => f.type.startsWith('video/'))) {
+      carouselActionRef.current = { mode: 'add' };
+      handleCarouselFilesSelected(files);
+      return;
+    }
+
     const isVideoFile = chosenFile.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(chosenFile.name);
     const localBlobUrl = URL.createObjectURL(chosenFile);
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -2068,7 +2086,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
       // Ensure strict slide order indexing on all carousel items
       finalMediaList = finalMediaList.map((m, idx) => ({
         ...m,
-        order: typeof m.order === 'number' ? m.order : idx,
+        order: idx,
       }));
 
       const scheduledIso =
@@ -2115,7 +2133,7 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
           collaborator: collab,
           media: getEffectiveMediaForAccount(accId).map((m, idx) => ({
             ...m,
-            order: typeof m.order === 'number' ? m.order : idx,
+            order: idx,
           })),
           postType:
             acc.platform === 'youtube'
@@ -3090,23 +3108,23 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
                                         )}
                                       </div>
 
-                                      {/* Reorder Arrows */}
+                                      {/* Carousel Slide Navigation Arrows (Previous Slide / Next Slide) */}
                                       <div className="flex items-center space-x-1 shrink-0">
                                         <button
                                           type="button"
                                           disabled={activeSlide === 0}
-                                          onClick={() => handleCarouselMoveLeft(accId)}
+                                          onClick={() => setActiveSlideIndices((prev) => ({ ...prev, [accId]: activeSlide - 1, global: activeSlide - 1 }))}
                                           className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
-                                          title="Move slide left"
+                                          title="Previous slide"
                                         >
                                           <ChevronLeft className="w-3.5 h-3.5" />
                                         </button>
                                         <button
                                           type="button"
                                           disabled={activeSlide === effectiveMedia.length - 1}
-                                          onClick={() => handleCarouselMoveRight(accId)}
+                                          onClick={() => setActiveSlideIndices((prev) => ({ ...prev, [accId]: activeSlide + 1, global: activeSlide + 1 }))}
                                           className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 transition-colors border border-gray-200/80 shadow-2xs cursor-pointer"
-                                          title="Move slide right"
+                                          title="Next slide"
                                         >
                                           <ChevronRight className="w-3.5 h-3.5" />
                                         </button>
@@ -3115,6 +3133,19 @@ export const CreatePostDashboard: React.FC<CreatePostDashboardProps> = ({
 
                                     {/* Bottom Row: Actions (Edit Media, Replace, Remove, + Add Slide) */}
                                     <div className="flex items-center gap-1.5 pt-2 border-t border-gray-100">
+                                      {/* Edit Media Studio */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingMediaTarget({ accId, isPerPlatform: customizeMediaPerPlatform });
+                                          setIsEditMediaStudioOpen(true);
+                                        }}
+                                        className="flex-1 py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 border border-emerald-200/80 shadow-2xs"
+                                        title="Crop, transform or reorder slides in Edit Media studio"
+                                      >
+                                        <Sliders className="w-3 h-3 text-emerald-600" />
+                                        <span>Edit Media</span>
+                                      </button>
                                       
                                       {/* Replace Slide */}
                                       <button

@@ -19,6 +19,9 @@ import {
   Pencil,
   RotateCcw as ResetIcon,
   Sliders,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
 } from 'lucide-react';
 
 export interface EditMediaStudioProps {
@@ -197,6 +200,14 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     );
   }, [mediaList]);
 
+  // Maintain local reorderable items list
+  const [itemsList, setItemsList] = useState<PostMedia[]>(() => [...imageMediaList]);
+
+  // Sync if external mediaList changes
+  useEffect(() => {
+    setItemsList([...imageMediaList]);
+  }, [imageMediaList]);
+
   const [activeIndex, setActiveIndex] = useState<number>(() => {
     return initialIndex >= 0 && initialIndex < imageMediaList.length ? initialIndex : 0;
   });
@@ -206,8 +217,34 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
   const [isApplying, setIsApplying] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
+  // Drag-and-drop state for reordering carousel slides
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Move item from one position to another (drag-and-drop or move buttons)
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (
+      fromIndex < 0 ||
+      fromIndex >= itemsList.length ||
+      toIndex < 0 ||
+      toIndex >= itemsList.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+    setItemsList((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next.map((item, idx) => ({ ...item, order: idx }));
+    });
+    setActiveIndex(toIndex);
+  };
+
+  const isMultiple = itemsList.length > 1;
+
   // Active Image reference - always use current active media URL so applied crops persist on canvas
-  const activeMedia = imageMediaList[activeIndex];
+  const activeMedia = itemsList[activeIndex] || itemsList[0];
   const activeMediaId = activeMedia?.id;
   const activeMediaUrl = activeMedia?.url;
 
@@ -576,13 +613,16 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
         cleanFileName: string;
       }> = [];
 
-      // 1. Process all modified images via canvas instantly in memory (< 25ms total)
-      for (let i = 0; i < imageMediaList.length; i++) {
-        const item = imageMediaList[i];
+      // 1. Process all images in their chosen reordered sequence instantly
+      for (let i = 0; i < itemsList.length; i++) {
+        const item = itemsList[i];
         const editState = editsMap[item.id];
 
         if (!editState || !editState.isModified) {
-          optimisticMediaList.push(item);
+          optimisticMediaList.push({
+            ...item,
+            order: i,
+          });
           continue;
         }
 
@@ -610,6 +650,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             originalUrl: localBlobUrl,
             thumbnailUrl: localBlobUrl,
             aspectRatio: editState.aspectRatio,
+            order: i,
             editMetadata: {
               aspectRatio: editState.aspectRatio,
               rotation: editState.rotation,
@@ -621,7 +662,10 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             },
           });
         } else {
-          optimisticMediaList.push(item);
+          optimisticMediaList.push({
+            ...item,
+            order: i,
+          });
         }
       }
 
@@ -660,14 +704,13 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
     }
   };
 
-  if (!isOpen || imageMediaList.length === 0) return null;
+  if (!isOpen || itemsList.length === 0) return null;
 
   // Compute CSS transform for live interactive preview canvas
   const totalRotation = currentEdit.rotation + currentEdit.straighten;
   const scaleX = (currentEdit.flipH ? -1 : 1) * currentEdit.zoom;
   const scaleY = (currentEdit.flipV ? -1 : 1) * currentEdit.zoom;
 
-  const isMultiple = imageMediaList.length > 1;
   const isDragging = dragInteraction !== null;
 
   return (
@@ -687,7 +730,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
             </div>
             <p className="text-[11px] text-gray-500 font-medium">
               {isMultiple
-                ? `Slide ${activeIndex + 1} of ${imageMediaList.length} · ${activeMedia?.name || 'Image'}`
+                ? `Slide ${activeIndex + 1} of ${itemsList.length} · ${activeMedia?.name || 'Image'}`
                 : activeMedia?.name || 'Adjust crop, aspect ratio and orientation'}
             </p>
           </div>
@@ -843,39 +886,107 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
 
           {/* Bottom Carousel Thumbnail Strip (Multiple images only) */}
           {isMultiple && (
-            <div className="absolute bottom-4 inset-x-0 z-20 flex items-center justify-center pointer-events-auto">
-              <div className="bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-gray-200/90 shadow-lg flex items-center gap-2 max-w-[90vw] overflow-x-auto">
-                {imageMediaList.map((media, idx) => {
-                  const isCur = idx === activeIndex;
-                  const itemEd = editsMap[media.id];
-                  const hasEdits = itemEd?.isModified;
-
-                  return (
+            <div className="absolute bottom-4 inset-x-0 z-20 flex flex-col items-center justify-center pointer-events-auto px-4">
+              <div className="bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-gray-200/90 shadow-xl flex flex-col gap-2 max-w-[92vw]">
+                {/* Header bar with Move Controls */}
+                <div className="flex items-center justify-between text-[11px] font-semibold text-gray-700 px-1 gap-4">
+                  <div className="flex items-center space-x-1.5 min-w-0">
+                    <span className="text-gray-400 font-normal">Rearrange:</span>
+                    <span className="font-bold text-gray-900 truncate">Slide {activeIndex + 1} of {itemsList.length}</span>
+                    <span className="text-[10px] text-gray-400 hidden sm:inline">(drag tabs or click arrows)</span>
+                  </div>
+                  <div className="flex items-center space-x-1 shrink-0">
                     <button
-                      key={media.id || idx}
                       type="button"
-                      onClick={() => setActiveIndex(idx)}
-                      className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 transition-all cursor-pointer ${
-                        isCur
-                          ? 'ring-2 ring-emerald-500 ring-offset-2 border-2 border-emerald-600 scale-105 shadow-md'
-                          : 'border border-gray-200/90 opacity-70 hover:opacity-100 hover:scale-102'
-                      }`}
-                      title={`Slide ${idx + 1}`}
+                      disabled={activeIndex === 0}
+                      onClick={() => moveItem(activeIndex, activeIndex - 1)}
+                      className="p-1 px-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 text-[10px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                      title="Move slide left"
                     >
-                      <img
-                        src={media.thumbnailUrl || media.url}
-                        alt={`Slide ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="absolute bottom-0.5 right-1 text-[9px] font-bold text-white bg-black/60 px-1 rounded-sm">
-                        {idx + 1}
-                      </span>
-                      {hasEdits && (
-                        <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1.5 ring-white" />
-                      )}
+                      <ChevronLeft className="w-3 h-3" />
+                      <span>Move Left</span>
                     </button>
-                  );
-                })}
+                    <button
+                      type="button"
+                      disabled={activeIndex === itemsList.length - 1}
+                      onClick={() => moveItem(activeIndex, activeIndex + 1)}
+                      className="p-1 px-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700 text-[10px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                      title="Move slide right"
+                    >
+                      <span>Move Right</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Thumbnails Row */}
+                <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+                  {itemsList.map((media, idx) => {
+                    const isCur = idx === activeIndex;
+                    const itemEd = editsMap[media.id];
+                    const hasEdits = itemEd?.isModified;
+                    const isDragOver = dragOverIndex === idx;
+                    const isBeingDragged = draggedIndex === idx;
+
+                    return (
+                      <button
+                        key={media.id || idx}
+                        type="button"
+                        draggable={isMultiple}
+                        onDragStart={(e) => {
+                          setDraggedIndex(idx);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', String(idx));
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (dragOverIndex !== idx) {
+                            setDragOverIndex(idx);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverIndex === idx) {
+                            setDragOverIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedIndex !== null && draggedIndex !== idx) {
+                            moveItem(draggedIndex, idx);
+                          }
+                          setDraggedIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        onClick={() => setActiveIndex(idx)}
+                        className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 transition-all cursor-grab active:cursor-grabbing select-none ${
+                          isCur
+                            ? 'ring-2 ring-emerald-500 ring-offset-2 border-2 border-emerald-600 scale-105 shadow-md'
+                            : 'border border-gray-200/90 opacity-70 hover:opacity-100 hover:scale-102'
+                        } ${isDragOver ? 'ring-2 ring-amber-500 ring-offset-1 scale-110 bg-amber-50' : ''} ${
+                          isBeingDragged ? 'opacity-35 scale-95' : ''
+                        }`}
+                        title={`Slide ${idx + 1} (Drag to reorder)`}
+                      >
+                        <img
+                          src={media.thumbnailUrl || media.url}
+                          alt={`Slide ${idx + 1}`}
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        <span className="absolute bottom-0.5 right-1 text-[9px] font-bold text-white bg-black/60 px-1 rounded-sm pointer-events-none">
+                          {idx + 1}
+                        </span>
+                        {hasEdits && (
+                          <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1.5 ring-white pointer-events-none" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1078,11 +1189,7 @@ export const EditMediaStudio: React.FC<EditMediaStudioProps> = ({
                   <>
                     <Check className="w-4 h-4 stroke-[3]" />
                     <span>
-                      {isMultiple
-                        ? `Apply Changes to ${modifiedCount > 0 ? modifiedCount : 1} Item${
-                            modifiedCount > 1 ? 's' : ''
-                          }`
-                        : 'Apply Changes to 1 Item'}
+                      {isMultiple ? 'Apply Changes' : 'Apply Changes to 1 Item'}
                     </span>
                   </>
                 )}
