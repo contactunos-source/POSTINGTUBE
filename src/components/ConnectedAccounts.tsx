@@ -264,13 +264,14 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
       const isFbSuccess = urlParams.get('fb_connect_success');
       const isIgSuccess = urlParams.get('ig_connect_success');
       const isLiSuccess = urlParams.get('li_connect_success');
+      const isThSuccess = urlParams.get('th_connect_success');
       const isLiSelect = urlParams.get('li_select_accounts');
       const isAlreadyConnected = urlParams.get('already_connected');
-      const connectedName = urlParams.get('connected_account_name') || 'LinkedIn Account';
+      const connectedName = urlParams.get('connected_account_name') || 'Social Account';
       const connectedAvatar = urlParams.get('connected_account_avatar') || '';
       const noIgFound = urlParams.get('no_instagram_found');
       const discoveredJson = urlParams.get('discovered_pages');
-      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isLiSuccess || isAlreadyConnected || isLiSelect ? 'linkedin' : 'facebook');
+      const returningPlatform = (urlParams.get('platform') as SocialPlatform) || (isIgSuccess || noIgFound ? 'instagram' : isThSuccess ? 'threads' : isLiSuccess || isAlreadyConnected || isLiSelect ? 'linkedin' : 'facebook');
       const authError = urlParams.get('error');
       const authNotice = urlParams.get('notice');
 
@@ -297,12 +298,12 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         if (onRefreshAccount) {
           onRefreshAccount('all');
         }
-      } else if (isLiSuccess || isFbSuccess || isIgSuccess) {
+      } else if (isLiSuccess || isFbSuccess || isIgSuccess || isThSuccess) {
         setResultModal({
           isOpen: true,
           status: 'success',
           platform: returningPlatform,
-          accountName: connectedName || (returningPlatform === 'facebook' ? 'Facebook Page' : returningPlatform === 'instagram' ? 'Instagram Account' : 'LinkedIn Account'),
+          accountName: connectedName || (returningPlatform === 'facebook' ? 'Facebook Page' : returningPlatform === 'instagram' ? 'Instagram Account' : returningPlatform === 'threads' ? 'Threads Profile' : 'LinkedIn Account'),
           avatarUrl: connectedAvatar,
         });
         setConnectingPlatform(null);
@@ -335,7 +336,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
         setDiscoveredPages([]);
       }
 
-      if (authError || authNotice || isFbSuccess || isIgSuccess || noIgFound || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
+      if (authError || authNotice || isFbSuccess || isIgSuccess || isThSuccess || noIgFound || isLiSuccess || isAlreadyConnected || urlParams.get('workspace_id') || urlParams.get('platform')) {
         try {
           window.history.replaceState({}, '', '/channels');
         } catch {}
@@ -360,14 +361,34 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
   const handleStartConnect = (platform: SocialPlatform) => {
     // Enforce channel limits based on plan (Free: 3 channels, Pro: purchased channelsCount)
-    const planId = (subscriptionData?.planId || 'free').toLowerCase(); const maxChannels = (subscriptionData as any)?.channelsLimit || subscriptionData?.channelsCount || (planId === 'agency' ? 50 : planId === 'growth' ? 15 : planId === 'pro' ? 10 : planId === 'starter' ? 5 : 3);
-    if (accounts.length >= maxChannels) {
+    const planId = (subscriptionData?.planId || 'free').toLowerCase();
+    const maxChannels = (subscriptionData as any)?.channelsLimit || subscriptionData?.channelsCount || (planId === 'agency' ? 50 : planId === 'growth' ? 15 : planId === 'pro' ? 10 : planId === 'starter' ? 5 : 3);
+    const isExistingAccount = accounts.some((a) => a.platform === platform);
+    if (!isExistingAccount && accounts.length >= maxChannels) {
       setChannelLimitModal({
         isOpen: true,
         limit: maxChannels,
         current: accounts.length,
         planId: subscriptionData?.planId || 'free',
       });
+      return;
+    }
+
+    // Direct OAuth redirect for LinkedIn (bypass intermediate rules modal, go straight to official sign-in)
+    if (platform === 'linkedin') {
+      handleOAuthRedirect(
+        'linkedin',
+        `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`
+      );
+      return;
+    }
+
+    // Direct OAuth redirect for Threads (bypass intermediate rules modal, go straight to official sign-in)
+    if (platform === 'threads') {
+      handleOAuthRedirect(
+        'threads',
+        `/api/auth/threads?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`
+      );
       return;
     }
 
@@ -1336,11 +1357,21 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
+                    disabled={redirectingPlatform !== null}
                     onClick={() => handleStartConnect(platform)}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black active:bg-gray-800 text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs hover:shadow-xs"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black active:bg-gray-800 disabled:opacity-75 disabled:cursor-wait text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs hover:shadow-xs"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{isConnected ? `+ Add ${config.name}` : `Connect ${config.name}`}</span>
+                    {redirectingPlatform === platform ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Redirecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>{isConnected ? `+ Add ${config.name}` : `Connect ${config.name}`}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2053,190 +2084,7 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-5">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2] flex items-center justify-center mx-auto mb-3 border border-[#0A66C2]/20 shadow-xs">
-                        <PlatformLogo platform="linkedin" className="w-6 h-6 text-[#0A66C2]" />
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect LinkedIn Account</h2>
-                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                        Publish professional articles, image posts, and company updates via the official free Share on LinkedIn API.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
-                      <div className="flex items-start space-x-2.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Official Microsoft LinkedIn Community Management &amp; Share APIs (100% Free).</span>
-                      </div>
-                      <div className="flex items-start space-x-2.5">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Supports Company Pages, Creator profiles, and multi-image posts up to 3,000 characters.</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-1">
-                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start space-x-3">
-                        <input
-                          type="checkbox"
-                          id="include_li_org"
-                          checked={includeLinkedInOrg}
-                          onChange={(e) => setIncludeLinkedInOrg(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-[#0A66C2] focus:ring-0 focus:outline-hidden cursor-pointer"
-                        />
-                        <label htmlFor="include_li_org" className="text-xs text-gray-700 cursor-pointer select-none">
-                          <span className="font-semibold text-gray-950 block">Include LinkedIn Company Pages</span>
-                          <span className="text-[11px] text-gray-500 block mt-0.5">
-                            Requests permissions to also connect Company Pages you administer. Requires Community Management API in your LinkedIn Developer Portal.
-                          </span>
-                        </label>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={redirectingPlatform !== null}
-                        onClick={() => {
-                          handleOAuthRedirect(
-                            'linkedin',
-                            `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || "")}&user_id=${encodeURIComponent(authUser?.id || "")}${includeLinkedInOrg ? '&include_org=true' : ''}`
-                          );
-                        }}
-                        className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-[#0A66C2] hover:bg-[#08529c] active:bg-[#074786] disabled:opacity-75 disabled:cursor-not-allowed text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
-                      >
-                        {redirectingPlatform === 'linkedin' ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin text-white" />
-                            <span>Redirecting to LinkedIn...</span>
-                          </>
-                        ) : (
-                          <>
-                            <PlatformLogo platform="linkedin" className="w-4 h-4 text-white" />
-                            <span>Authorize with Official LinkedIn OAuth</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <div className="text-center pt-2 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => setConnectingPlatform(null)}
-                        className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : connectingPlatform === 'threads' ? (
-              /* THREADS DEDICATED FLOW */
-              <div className="p-6 space-y-5">
-                <div className="text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
-                    <PlatformLogo platform="threads" className="w-6 h-6 text-white" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-950 tracking-tight">Connect Threads Profile</h2>
-                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                    Publish fast short-form threads, photos, and videos using the official 100% free Meta Threads API.
-                  </p>
-                </div>
-
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2.5 text-xs text-gray-700">
-                  <div className="flex items-start space-x-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Official Meta Graph Threads API (100% Free with zero API credit fees).</span>
-                  </div>
-                  <div className="flex items-start space-x-2.5">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>500-character posts with photos, carousels, and video publishing.</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                      Threads Handle
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. @yourbrand or @creator"
-                      value={genericHandle}
-                      onChange={(e) => setGenericHandle(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-hidden focus:border-black"
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const clean = genericHandle.trim().replace(/^@/, '') || 'threads_user';
-                      const newAcc: SocialAccount = {
-                        id: `th_${clean.toLowerCase()}`,
-                        userId: authUser?.id,
-                        platform: 'threads',
-                        username: clean,
-                        displayName: `@${clean}`,
-                        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&background=000000&color=fff&size=256&bold=true`,
-                        accountType: 'creator',
-                        status: 'connected',
-                        followersCount: 890,
-                        externalId: `th_${clean.toLowerCase()}`,
-                      };
-
-                      if (isAccountDuplicate(newAcc)) {
-                        setResultModal({
-                          isOpen: true,
-                          status: 'already_connected',
-                          platform: 'threads',
-                          accountName: newAcc.displayName,
-                          avatarUrl: newAcc.avatarUrl,
-                        });
-                        setConnectingPlatform(null);
-                        return;
-                      }
-
-                      const res = await onAddAccount(newAcc);
-                      if (res && res.isDuplicate) {
-                        setResultModal({
-                          isOpen: true,
-                          status: 'already_connected',
-                          platform: 'threads',
-                          accountName: newAcc.displayName,
-                          avatarUrl: newAcc.avatarUrl,
-                        });
-                        setConnectingPlatform(null);
-                        return;
-                      }
-
-                      setConnectingPlatform(null);
-                      setGenericHandle('');
-                      setResultModal({
-                        isOpen: true,
-                        status: 'success',
-                        platform: 'threads',
-                        accountName: newAcc.displayName,
-                        avatarUrl: newAcc.avatarUrl,
-                      });
-                      if (onNavigateToTab) onNavigateToTab('connections');
-                    }}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-black hover:bg-gray-800 text-white transition-colors shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    <PlatformLogo platform="threads" className="w-4 h-4 text-white" />
-                    <span>Authorize Threads Profile</span>
-                  </button>
-                </div>
-
-                <div className="text-center pt-2 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setConnectingPlatform(null)}
-                    className="text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                ) : null}
               </div>
             ) : connectingPlatform === 'pinterest' ? (
               /* PINTEREST DEDICATED FLOW */

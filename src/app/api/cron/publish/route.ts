@@ -263,6 +263,48 @@ async function handlePublishCron(req: NextRequest) {
                   };
                   logs.push(`Failed post #${post.id} on YouTube: ${data.error}`);
                 }
+              } else if (account.platform === 'threads') {
+                const res = await fetch(`${appUrl}/api/threads/publish`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    threadsUserId: account.external_id || account.id.replace(/^th_/, ''),
+                    accessToken: account.access_token,
+                    message: accountOverride.caption || post.content,
+                    mediaUrl: overrideMediaUrl,
+                    mediaUrls,
+                    postType: isCarousel ? 'carousel' : post.post_type,
+                  }),
+                });
+                const data = await res.json();
+                const latency = Date.now() - startTime;
+                if (data.success) {
+                  postSuccessCount++;
+                  publishedCount++;
+                  postResults[account.id] = {
+                    status: 'success',
+                    platform: 'threads',
+                    accountName: account.display_name || account.username,
+                    externalPostId: data.postId,
+                    externalPostUrl: data.url,
+                    publishedAt: new Date().toISOString(),
+                    timestamp: new Date().toISOString(),
+                    latencyMs: latency,
+                  };
+                  logs.push(`Published post #${post.id} to Threads (${data.postId}) in ${latency}ms`);
+                } else {
+                  postFailCount++;
+                  failedCount++;
+                  postResults[account.id] = {
+                    status: 'failed',
+                    platform: 'threads',
+                    accountName: account.display_name || account.username,
+                    errorMessage: data.error || 'Failed to publish to Threads',
+                    timestamp: new Date().toISOString(),
+                    latencyMs: latency,
+                  };
+                  logs.push(`Failed post #${post.id} on Threads: ${data.error}`);
+                }
               }
             } catch (channelErr: unknown) {
               postFailCount++;
