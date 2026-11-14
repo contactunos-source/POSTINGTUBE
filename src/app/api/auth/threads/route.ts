@@ -39,12 +39,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const baseUrl =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : requestOrigin);
+
   if (!threadsAppId) {
-    return NextResponse.json(
-      {
-        error: 'Missing THREADS_APP_ID in server environment. Please configure it in .env.local.',
-      },
-      { status: 500 }
+    const errorMsg =
+      'Threads App ID is not configured in Vercel environment variables. Please add THREADS_APP_ID to your Vercel Project Settings.';
+    return NextResponse.redirect(
+      `${baseUrl}/dashboard?tab=connections&platform=threads&error=${encodeURIComponent(errorMsg)}`
     );
   }
 
