@@ -344,6 +344,19 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
     }
   }, []);
 
+  // Reset any redirecting states on page back/forward navigation
+  useEffect(() => {
+    const handleReset = () => {
+      setRedirectingPlatform(null);
+    };
+    window.addEventListener('pageshow', handleReset);
+    window.addEventListener('focus', handleReset);
+    return () => {
+      window.removeEventListener('pageshow', handleReset);
+      window.removeEventListener('focus', handleReset);
+    };
+  }, []);
+
   // Duplicate Account Guard (enforced on UI before sending)
   const isAccountDuplicate = (accountToCheck: SocialAccount): boolean => {
     return accounts.some((a) => {
@@ -376,19 +389,13 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
     // Direct OAuth redirect for LinkedIn (bypass intermediate rules modal, go straight to official sign-in)
     if (platform === 'linkedin') {
-      handleOAuthRedirect(
-        'linkedin',
-        `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`
-      );
+      window.location.href = `/api/auth/linkedin?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`;
       return;
     }
 
     // Direct OAuth redirect for Threads (bypass intermediate rules modal, go straight to official sign-in)
     if (platform === 'threads') {
-      handleOAuthRedirect(
-        'threads',
-        `/api/auth/threads?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`
-      );
+      window.location.href = `/api/auth/threads?workspace_id=${encodeURIComponent(currentWorkspaceId || '')}&user_id=${encodeURIComponent(authUser?.id || '')}`;
       return;
     }
 
@@ -1357,21 +1364,11 @@ export const ConnectedAccounts: React.FC<ConnectedAccountsProps> = ({
 
                   <button
                     type="button"
-                    disabled={redirectingPlatform !== null}
                     onClick={() => handleStartConnect(platform)}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black active:bg-gray-800 disabled:opacity-75 disabled:cursor-wait text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs hover:shadow-xs"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black active:bg-gray-800 text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs hover:shadow-xs"
                   >
-                    {redirectingPlatform === platform ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Redirecting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>{isConnected ? `+ Add ${config.name}` : `Connect ${config.name}`}</span>
-                      </>
-                    )}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{isConnected ? `+ Add ${config.name}` : `Connect ${config.name}`}</span>
                   </button>
                 </div>
               </div>
